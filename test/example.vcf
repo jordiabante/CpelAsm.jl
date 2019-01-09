@@ -1,0 +1,8 @@
+##fileformat=VCFv4.2
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=FI,Number=1,Type=Integer,Description="FILTER">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	STL003
+chr1	50	SNP1	A	T	.	.	.	GT:FI	0/1:1
+chr1	150	SNP2	C	A,G	.	.	.	GT:FI	1/2:1
+chr2	50	SNP3	A	C	.	.	.	GT:FI	0/1:1
+chr2	150	SNP4	T	A	.	.	.	GT:FI	0/1:1

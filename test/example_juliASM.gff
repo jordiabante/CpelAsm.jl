@@ -1,0 +1,4 @@
+chr1	.	hSNP	50	50	.	.	.	Ref=A;Alt=["T"];GT=0/1;N=4;CpGs=[33, 37, 62, 67]
+chr1	.	hSNP	150	150	.	.	.	Ref=C;Alt=["A", "G"];GT=1/2;N=1;CpGs=[153]
+chr2	.	hSNP	50	50	.	.	.	Ref=A;Alt=["C"];GT=0/1;N=3;CpGs=[46, 53, 69]
+chr2	.	hSNP	150	150	.	.	.	Ref=T;Alt=["A"];GT=0/1;N=2;CpGs=[133, 158]

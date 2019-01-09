@@ -1,0 +1,3 @@
+Allele 1: sequence given by example.a1.gt, and methylation of 90% (binomial simple)
+Allele 2: sequence given by example.a1.gt, and methylation of 10% (binomial simple)
+Reference: sequence given by example.fa is the reference genome.
