@@ -34,9 +34,9 @@ function get_align_strand(paired_end::Bool,flag1::UInt16,flag2::UInt16)::String
         elseif flag1==16
             s="OB"
         else
-            println(stderr, "[$(now())]: Single end. Was expecting FLAG 0 or" *
-                " 16, and encountered $(flag1) instead.")
-            println(stderr, "[$(now())]: Exiting JuliASM ...")
+            println(stderr,"[$(now())]: Single end. Was expecting FLAG 0 or and")
+            println(stderr,"[$(now())]: encountered $(flag1) instead.")
+            println(stderr,"[$(now())]: Exiting JuliASM ...")
             exit(1)
         end
     else
@@ -50,6 +50,7 @@ function get_align_strand(paired_end::Bool,flag1::UInt16,flag2::UInt16)::String
             s="CTOB"
         else
             println(stderr, "[$(now())]: Paired end. Unexpected flag combination.")
+            println(stderr, "[$(now())]: Expected 99/147, 147/99, 83/163, 163/83.")
             println(stderr, "[$(now())]: Exiting JuliASM ...")
             exit(1)
         end
@@ -77,22 +78,22 @@ function clean_records(paired_end::Bool, records::Array{BAM.Record,1})::AllAlign
             if length(temp_recs)==2
                 # Matching pairs: first read is either 99 or 163
                 if BAM.position(temp_recs[1]) < BAM.position(temp_recs[2])
-                    s = get_align_strand(paired_end, BAM.flag(temp_recs[1]), BAM.flag(temp_recs[2]))
-                    push!(out.templates,AlignTemp(s, temp_recs[1], temp_recs[2]))
+                    s = get_align_strand(paired_end, BAM.flag(temp_recs[1]),
+                                         BAM.flag(temp_recs[2]))
+                    push!(out.templates,AlignTemp(s,temp_recs[1],temp_recs[2]))
                 else
-                    s = get_align_strand(paired_end, BAM.flag(temp_recs[2]), BAM.flag(temp_recs[1]))
-                    push!(out.templates,AlignTemp(s, temp_recs[2], temp_recs[1]))
+                    s = get_align_strand(paired_end, BAM.flag(temp_recs[2]),
+                                         BAM.flag(temp_recs[1]))
+                    push!(out.templates,AlignTemp(s,temp_recs[2],temp_recs[1]))
                 end
             elseif length(temp_recs)==1
                 # No matching pair in (expanded) window. This has the problem
                 # that we can't determine the strand on which the methylation
                 # call is made.
-                    # printstyled(stderr,"\tRecord/s unused b/c pair fell out of " *
-                    #     "(expanded) window.\n"; bold=true,color=:blue)
             else
                 # Quit since the template name should be unique for fragment
-                println(stderr, "[$(now())]: More than 2 records in BAM file " *
-                    "with same name: $(temp_name).")
+                println(stderr, "[$(now())]: More than 2 records in BAM file")
+                println(stderr, "[$(now())]: with same name: $(temp_name).")
                 println(stderr, "[$(now())]: Exiting JuliASM ...")
                 exit(1)
             end
@@ -122,13 +123,7 @@ function read_bam_coord(bam_path::String, chr::String, feat_chrSt::Int64,
     # Number of CpG sites is determined by that in the region
     N = length(feat_cpg_pos)
 
-    # Check index file exists as well
-    if ! isfile(bam_path * ".bai")
-        println(stderr, "[$(now())]: BAM index file not found.")
-        println(stderr, "[$(now())]: Exiting JuliASM ...")
-        exit(1)
-    end
-
+    # Expand window if necessary
     # Here we expand the window in paired end case so that we can find the
     # pairs in order to tell where the methylation call was made.
     if paired_end
@@ -183,74 +178,118 @@ function read_bam_coord(bam_path::String, chr::String, feat_chrSt::Int64,
                 x[olap_cpgs] = reduce(replace, ["Z"=>1, "z"=>-1],
                     init=split(meth_call[record_cpg_pos],""))
                 push!(xobs,x)
-            elseif (maximum(record_cpg_pos) >= minimum(feat_cpg_pos)) ⊻
-                (maximum(feat_cpg_pos)>=minimum(record_cpg_pos))
-                # CpG site positions are not intercalated
-            else
-                # println(stderr,"[$(now())]: Read/s $(BAM.tempname(record.R1))" *
-                #     " with flag $(BAM.flag(record.R1)) has unused CpG sites.")
+            # elseif (maximum(record_cpg_pos) >= minimum(feat_cpg_pos)) ⊻
+            #     (maximum(feat_cpg_pos)>=minimum(record_cpg_pos))
+            #     # CpG site positions are not intercalated
+            # else
+            #     println(stderr,"[$(now())]: Read/s $(BAM.tempname(record.R1))" *
+            #       " with flag $(BAM.flag(record.R1)) has unused CpG sites.")
             end
         end
-
     end # end loop over fragments sequenced
 
     # Return
     return xobs
 end # end read_bam_coord
 """
-    read_vcf(FASTA_PATH,VCF_PATH,WINDOW_SIZE)
+    write_gff(out_gff_path, gff_records)
+
+Function that appends gff_records into out_gff_path.
+
+# Examples
+```julia-repl
+julia> write_gff(out_gff_path, gff_records)
+```
+"""
+function write_gff(out_gff_path::String, gff_records::Vector{GFF3.Record})::Vector{GFF3.Record}
+    # Append gff records
+    output = open(out_gff_path, "a")
+    writer = GFF3.Writer(output)
+    while length(gff_records)>0
+        write(writer,pop!(gff_records))
+    end
+    close(writer)
+    # Return empty vector
+    return gff_records
+end # end write_gff
+"""
+next_record(rdr, chr_names, recordIn)
+
+Returns next record in stream if in chr_names, and false if the stream reached
+its end.
+
+# Examples
+```julia-repl
+julia> next_record(rdr, chr_names, recordIn)
+```
+"""
+function next_record(reader_vcf::VCF.Reader, chr_names::Array{String,1}, record::VCF.Record)::VCF.Record
+    if VCF.chrom(record) in chr_names
+        # If we're good, return record
+        return record
+    elseif !eof(reader_vcf)
+        # If not end of file, call function again
+        read!(reader_vcf, record)
+        next_record(reader_vcf, chr_names, record)
+    else
+        # return empty record if finished stream
+        return VCF.Record()
+    end
+end
+"""
+    read_vcf(OUT_GFF_PATH,FASTA_PATH,VCF_PATH,WINDOW_SIZE)
 
 Function that creates a GFF file containing the heterozygous SNPs along with
 the positions of the sorrounding CpG sites within a window of WINDOW_SIZE.
 
 # Examples
 ```julia-repl
-julia> read_vcf(FASTA_PATH,VCF_PATH,WINDOW_SIZE)
+julia> read_vcf(OUT_GFF_PATH,FASTA_PATH,VCF_PATH,WINDOW_SIZE)
 ```
 """
-function read_vcf(fasta_path::String,vcf_path::String,window_size::Int64)::String
+function read_vcf(out_gff_path::String, fasta_path::String, vcf_path::String,
+                  window_size::Int64)
 
-    # Check extension of VCF
-    if !isequal(splitext(vcf_path)[2],".vcf")
-        println(stderr, "[$(now())]: Wrong extension for VCF input file.")
-        println(stderr, "[$(now())]: Exiting JuliASM ...")
-        exit(1)
-    end
-
-    # Check if juliASM GFF exists and skip step if so
-    out_gff_path = splitext(vcf_path)[1] * "_juliASM.gff"
-    if isfile(out_gff_path)
-        println(stderr, "[$(now())]: Found JuliASM GFF file will be used. If " *
-            " VCF file has been updated, change output folder or remove " *
-            "existing GFF.")
-        return out_gff_path
-    end
-
-    # Store those variants that are heterozygous
+    # Initialize VCF variables
     gff_records = Vector{GFF3.Record}()
     reader_vcf = open(VCF.Reader, vcf_path)
-    reader_fasta = open(FASTA.Reader, fasta_path, index= fasta_path * ".fai")
+    record = VCF.Record()
+
+    # Initialize FASTA variables
+    reader_fasta = open(FASTA.Reader, fasta_path, index=fasta_path*".fai")
     chr_names = reader_fasta.index.names
     curr_chr = chr_names[1]
     fasta_record = reader_fasta[curr_chr]
     close(reader_fasta)
 
+    # Chrom sizes
+    chr_sizes = reader_fasta.index.lengths
+    chr_size = chr_sizes[findfirst(x->x==curr_chr, chr_names)]
+
     # Loop over variants
-    for record in reader_vcf
-        # Check current chromosome
+    while !eof(reader_vcf)
+        # Read record and check if chromosome is in FASTA file or stream's end
+        read!(reader_vcf, record)
+        if !(VCF.chrom(record) in chr_names)
+            record = next_record(reader_vcf, chr_names, record)
+            !VCF.haspos(record) && break
+        end
+        # Check we have loaded the right chromosome from FASTA
         if !(curr_chr == VCF.chrom(record))
             curr_chr = VCF.chrom(record)
-            reader_fasta = open(FASTA.Reader, fasta_path, index= fasta_path * ".fai")
-            curr_chr in chr_names ? fasta_record=reader_fasta[curr_chr] : continue
+            reader_fasta = open(FASTA.Reader,fasta_path,index=fasta_path*".fai")
+            fasta_record = reader_fasta[curr_chr]
+            chr_size = chr_sizes[findfirst(x->x==curr_chr, chr_names)]
             close(reader_fasta)
         end
         # Check that variant is heterozygous: 0/1, 1/0, 0/2, 2/0, 1/2, and 2/1.
         gtp = VCF.genotype(record)[1][1]
         if !(split(gtp,r"[/|]")[1] == split(gtp,r"[/|]")[2])
-            # Get chunk of relevant DNA
+            # Get sequence of relevant DNA
             wSt = VCF.pos(record) - Int64(window_size/2)
             wEnd = VCF.pos(record) + Int64(window_size/2)
-            wSeq = convert(String,FASTA.sequence(fasta_record, wSt:wEnd))
+            win = [max(1, wSt), min(chr_size, wEnd)]
+            wSeq=convert(String,FASTA.sequence(fasta_record,win[1]:win[2]))
 
             # CG's: obtain the position of CpG sites on the forward strand
             cpg_pos = map(x->getfield(x,:offset),eachmatch(r"CG",wSeq)).+ wSt.-1
@@ -263,23 +302,15 @@ function read_vcf(fasta_path::String,vcf_path::String,window_size::Int64)::Strin
                     "N=$(length(cpg_pos));CpGs=$(cpg_pos)"))
             end
         end
+        # Check if gff_records object is too big (8 bytes x record) and dump it
+        if sizeof(gff_records) >= 80000
+            gff_records = write_gff(out_gff_path, gff_records)
+        end
     end
-    close(reader_vcf)
-    # close(reader_fasta)
 
-    # TODO: In order to avoid high memory consumption, the each chromosome
-    # should be dumped into the output file independently. To that end, we
-    # might have to use a regular writer instead of the GFF3.Writer.
-    # Save info in GFF file
-    output = open(out_gff_path, "w")
-    writer = GFF3.Writer(output)
-    for record in gff_records
-        write(writer,record)
-    end
-    close(writer)
+    # Dump remaining records
+    gff_records = write_gff(out_gff_path, gff_records)
 
-    # Return name of gff path
-    return out_gff_path
 end # end read_vcf
 """
     read_gff_chr(GFF_PATH,chr)
@@ -294,12 +325,6 @@ julia> read_gff_chr(GFF_PATH,"chr1")
 ```
 """
 function read_gff_chr(gff_path::String,chr::String)::Array{GFF3.Record,1}
-    # Check extension
-    if ! isequal(splitext(gff_path)[2],".gff")
-        println(stderr, "[$(now())]: Wrong extension for GFF input file.")
-        println(stderr, "[$(now())]: Exiting JuliASM ...")
-        exit(1)
-    end
 
     # Load genomic features from a GFF3 file
     features = open(collect, GFF3.Reader, gff_path)
@@ -311,27 +336,6 @@ function read_gff_chr(gff_path::String,chr::String)::Array{GFF3.Record,1}
     return features
 end # end read_gff_chr
 """
-    write_bw(BW_PATH, BW_RECORDS)
-
-Function that writes records in BW_RECORDS into BW_PATH.
-
-# Examples
-```julia-repl
-julia> write_bw(BW_PATH,BW_RECORDS)
-```
-"""
-function write_bw(bw_records::Array{Tuple{String,Int64,Int64,Float64},1},
-    bw_path::String, chr_list::Array{Tuple{String,Int64},1})
-    # Check if file has already been created. APPEND ACTUALLY DOESN'T WORK!
-    isfile(bw_path) ? output = open(bw_path, "a") : output = open(bw_path, "w")
-    # Add records
-    writer = BigWig.Writer(output, chr_list)
-    for record in bw_records
-        write(writer,record)
-    end
-    close(writer)
-end # end write_bw
-"""
     write_bG(BEDGRAPH_PATH, BEDGRAPH_RECORDS)
 
 Function that writes records in BEDGRAPH_RECORDS into BEDGRAPH_PATH.
@@ -342,12 +346,13 @@ julia> write_bG(BEDGRAPH_PATH,BEDGRAPH_RECORDS)
 ```
 """
 function write_bG(bG_records::Array{Tuple{String,Int64,Int64,Float64},1},
-    bG_path::String)
+    bG_path::String)::Array{Tuple{String,Int64,Int64,Float64},1}
     open(bG_path, "a") do f
-        for record in bG_records
-            write(f,join(string.(collect(record)),"\t"),"\n")
+        while length(bG_records)>0
+            write(f,join(string.(collect(pop!(bG_records))),"\t"),"\n")
         end
     end
+    return bG_records
 end # end write_bG
 """
     run_asm_analysis(BAM1_PATH,BAM2_PATH,VCF_PATH,FASTA_PATH,WINDOW_SIZE,OUT_PATH)
@@ -367,27 +372,32 @@ function run_asm_analysis(bam1_path::String, bam2_path::String, vcf_path::String
     # Print initialization of juliASM
     println(stderr,"[$(now())]: Initializing JuliASM ...")
 
-    # Check if output folder exists
-    if ! isdir(out_path)
-        println(stderr,"[$(now())]: Creating output folder ...")
-        mkdir(out_path)
+    # Check extension of VCF
+    if !isequal(splitext(vcf_path)[2],".vcf")
+        println(stderr, "[$(now())]: Wrong extension for VCF input file.")
+        println(stderr, "[$(now())]: Exiting JuliASM ...")
+        exit(1)
     end
 
-    # Create gff file with all required information for analysis from vcf
-    println(stderr,"[$(now())]: Reading in VCF & FASTA files ...")
-    gff_path = read_vcf(fasta_path, vcf_path, window_size)
+    # Check index file exists as well
+    if ! isfile.(bam1_path*".bai", bam2_path*".bai")
+        println(stderr, "[$(now())]: At least one BAM index file missing.")
+        println(stderr, "[$(now())]: Exiting JuliASM ...")
+        exit(1)
+    end
 
-    # Find chromosomes
+    # Check if FASTA index exists
     if ! isfile(fasta_path * ".fai")
         println(stderr, "[$(now())]: FASTA index file not found.")
         println(stderr, "[$(now())]: Exiting JuliASM ...")
         exit(1)
     end
-    reader_fasta = open(FASTA.Reader, fasta_path, index= fasta_path * ".fai")
-    chr_names = reader_fasta.index.names
-    chr_sizes = reader_fasta.index.lengths
-    chr_list = [(chr_names[i],chr_sizes[i]) for i in 1:length(chr_names)]
-    close(reader_fasta)
+
+    # Check if output folder exists
+    if ! isdir(out_path)
+        println(stderr,"[$(now())]: Creating output folder ...")
+        mkdir(out_path)
+    end
 
     # BigWig output files
     prefix_sample = split(basename(bam1_path),".")[1]
@@ -399,31 +409,47 @@ function run_asm_analysis(bam1_path::String, bam2_path::String, vcf_path::String
 
     # Check for existance of at least an output files
     if isfile.(bG_mml1_path,bG_mml2_path,bG_h1_path,bG_h2_path,bG_mi_path)
-        println(stderr, "[$(now())]: At least an output file already exists." *
-            " Make sure you don't overwrite anything.")
+        println(stderr, "[$(now())]: At least an output file already exists.")
+        println(stderr, "[$(now())]: Make sure you don't overwrite anything.")
         println(stderr, "[$(now())]: Exiting JuliASM ...")
         exit(1)
     end
+
+    # Create gff file with all required information for analysis from vcf
+    println(stderr,"[$(now())]: Reading in VCF & FASTA files ...")
+    out_gff_path = out_path * split(basename(vcf_path),".")[1] * ".juliasm.gff"
+    if isfile(out_gff_path)
+        println(stderr, "[$(now())]: Found JuliASM GFF file will be used. If VCF")
+        println(stderr, "[$(now())]: file has been updated, change output folder")
+        println(stderr, "[$(now())]: or remove existing GFF.")
+    else
+        println(stderr, "[$(now())]: Generating JuliASM GFF file ... 💪")
+        read_vcf(out_gff_path, fasta_path, vcf_path, window_size)
+    end
+
+    # Find chromosomes
+    reader_fasta = open(FASTA.Reader, fasta_path, index= fasta_path * ".fai")
+    chr_names = reader_fasta.index.names
+    chr_sizes = reader_fasta.index.lengths
+    chr_list = [(chr_names[i],chr_sizes[i]) for i in 1:length(chr_names)]
+    close(reader_fasta)
+
+    # bedGraph records
+    bG_mml1_records = Array{Tuple{String,Int64,Int64,Float64},1}()
+    bG_mml2_records = Array{Tuple{String,Int64,Int64,Float64},1}()
+    bG_h1_records = Array{Tuple{String,Int64,Int64,Float64},1}()
+    bG_h2_records = Array{Tuple{String,Int64,Int64,Float64},1}()
+    bG_mi_records = Array{Tuple{String,Int64,Int64,Float64},1}()
 
     # Loop over chromosomes
     for chr in chr_names
         # Get windows pertaining to current chromosome
         println(stderr,"[$(now())]: Processing 🧬  $(chr) ...")
-        features_chr = read_gff_chr(gff_path,chr)
+        features_chr = read_gff_chr(out_gff_path,chr)
         chr_size = chr_sizes[findfirst(x->x==chr, chr_names)]
 
-        # BigWig records
-        bG_mml1_records = Array{Tuple{String,Int64,Int64,Float64},1}()
-        bG_mml2_records = Array{Tuple{String,Int64,Int64,Float64},1}()
-        bG_h1_records = Array{Tuple{String,Int64,Int64,Float64},1}()
-        bG_h2_records = Array{Tuple{String,Int64,Int64,Float64},1}()
-        bG_mi_records = Array{Tuple{String,Int64,Int64,Float64},1}()
-
         # Loop over windows in chromosome
-        i = 0
         for feat in features_chr
-            i += 1
-            print(stderr, "$i\r")
             # Get window of interest and CpG sites positions.
             feat_chrSt = GFF3.seqstart(feat) - Int64(window_size/2)
             feat_chrEnd = GFF3.seqend(feat) + Int64(window_size/2)
@@ -464,11 +490,11 @@ function run_asm_analysis(bam1_path::String, bam2_path::String, vcf_path::String
 
         end
         # Add values to respective output BigWig files after each chr
-        write_bG(bG_mml1_records, bG_mml1_path)
-        write_bG(bG_mml2_records, bG_mml2_path)
-        write_bG(bG_h1_records, bG_h1_path)
-        write_bG(bG_h2_records, bG_h2_path)
-        write_bG(bG_mi_records, bG_mi_path)
+        bG_mml1_records = write_bG(bG_mml1_records, bG_mml1_path)
+        bG_mml2_records = write_bG(bG_mml2_records, bG_mml2_path)
+        bG_h1_records = write_bG(bG_h1_records, bG_h1_path)
+        bG_h2_records = write_bG(bG_h2_records, bG_h2_path)
+        bG_mi_records = write_bG(bG_mi_records, bG_mi_path)
     end
     println(stderr,"[$(now())]: Done. 😄")
 end # end run_asm_analysis
