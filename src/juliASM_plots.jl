@@ -29,8 +29,8 @@ julia>p=juliASM.plot_histogram(x, labels)
 ```
 """
 function plot_histogram(x, labels; xlabel=L"Value",ylabel=L"Frequency")
-    xmin = 0 #0.9 * minimum(reduce(vcat,x))
-    xmax = 0.5 #1.1 * maximum(reduce(vcat,x))
+    xmin = 0.9 * minimum(reduce(vcat,x))
+    xmax = 1.1 * maximum(reduce(vcat,x))
     # x_colors = [:blue :red :green :orange :pink :]
     # x_colors = x_colors[1:length(labels)]
     p = histogram(x, label=labels, normalize=true, line=(1,0.2), xlabel=xlabel,

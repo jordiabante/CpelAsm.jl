@@ -27,8 +27,8 @@ from all complete observations.
 # Examples
 ```julia-repl
 julia> Random.seed!(1234);
-julia> xobs=juliASM.gen_full_data(10,4);
-julia> Svec=juliASM.comp_full_stats(xobs)
+julia> xobs=JuliASM.gen_full_data(10,4);
+julia> Svec=JuliASM.comp_full_stats(xobs)
 2-element Array{Int64,1}:
 -4
 -6
@@ -50,7 +50,7 @@ efficient expression without the need of recursive expressions.
 
 # Examples
 ```julia-repl
-julia>juliASM.comp_Z(4,1.0,1.0)
+julia>JuliASM.comp_Z(4,1.0,1.0)
 1149.715905067999
 ```
 
@@ -78,7 +78,7 @@ function comp_Z(N::Int64, a::Float64, b::Float64)::Float64
 
     # Return a Z>0
     u = [exp(-a/2); exp(a/2)]
-    return max(1e-10, u' * S * LN * Sinv * u)
+    return max(1e-100, u' * S * LN * Sinv * u)
 end
 """
 comp_scal_fac(k,alpha,beta,alphap)
@@ -90,16 +90,14 @@ efficient expression without the need of recursive expressions.
 
 # Examples
 ```julia-repl
-julia>juliASM.comp_scal_fac(1,1.0,1.0,1.0)
+julia>JuliASM.comp_scal_fac(1,1.0,1.0,1.0)
 4.7048192304864935
 ```
 
 """
 function comp_scal_fac(k::Int64, a::Float64, b::Float64, ap::Float64)::Float64
     # Return one if k=0
-    if k==0
-        return 1
-    end
+    k==0 && return 1
 
     # Eigenvalues
     aux1 = 0.5 * exp(-a-b)
@@ -121,7 +119,7 @@ function comp_scal_fac(k::Int64, a::Float64, b::Float64, ap::Float64)::Float64
     s2inv = [(-aux2+aux3)/ (2*aux3); 0.5 + 0.5 * aux2 / aux3 ]
     Sinv = [s1inv s2inv]
 
-    # Return Z
+    # Return scaling factor
     vs = [exp(-ap); exp(ap)]
     ve = [exp(-a/2); exp(a/2)]
     return vs' * S * LN * Sinv * ve
@@ -135,7 +133,7 @@ observation.
 
 # Examples
 ```julia-repl
-julia> juliASM.comp_lkhd([0;1;-1;1;0],2.0,2.0)
+julia> JuliASM.comp_lkhd([0;1;-1;1;0],2.0,2.0)
 6.144020836828058e-6
 ```
 
@@ -146,36 +144,37 @@ function comp_lkhd(x::Array{Int64,1}, a::Float64, b::Float64)::Float64
     kl = ind_dat[1]-1
     kr = length(x)-ind_dat[end]
 
-    # Check if observation are continguous
+    # Check if observation are contiguous
     if !all(ind_dat[2:end]-ind_dat[1:(length(ind_dat)-1)].==1)
-        # return warning
-        return(-1)
+        # return error
+        println(stderr,"[$(now())]: Observation $(x) is not contiguous.")
+        println(stderr,"[$(now())]: Exiting JuliASM ...")
+        exit(1)
     end
 
     # Get partition function and energy function
     N = length(x)
-    Ux = create_Ux(a,b)
-    Z = comp_Z(N,a,b)
+    Ux = create_Ux(a, b)
+    Z = comp_Z(N, a, b)
 
     # Get scaling factors due to missing data
-    sf = comp_scal_fac(kl,a,b,x[ind_dat[1]]*b+a/2) *
-         comp_scal_fac(kr,a,b,x[ind_dat[end]]*b+a/2)
+    sf = comp_scal_fac(kl, a, b, x[ind_dat[1]]*b+a/2) *
+         comp_scal_fac(kr, a, b, x[ind_dat[end]]*b+a/2)
 
-    # Return energy function evaluated at xo properly scaled
+    # Return energy function evaluated at x properly scaled
     return exp(-Ux(x[ind_dat])) * sf / Z
 end
 """
 create_Llkhd(x,alpha,beta)
 
-Create function to compute log-likelihood function for a region with N
+Create function to compute the minus log-likelihood function for a region with N
 CpG sites given the M partial observations.
 
 # Examples
 ```julia-repl
-julia>xobs=juliASM.gen_full_data(10,4);
-julia>juliASM.create_Llkhd(xobs)
+julia>xobs=JuliASM.gen_full_data(10,4);
+julia>LogLike = JuliASM.create_Llkhd(xobs)
 ```
-
 """
 function create_Llkhd(xobs::Array{Array{Int64,1},1})
     function Llkhd_fun(eta::Array{Float64,1})::Float64
@@ -187,20 +186,22 @@ function create_Llkhd(xobs::Array{Array{Int64,1},1})
             kl = ind_dat[1]-1
             kr = length(x)-ind_dat[end]
 
-            # Check if observation are continguous
+            # Check if observation are contiguous
             if !all(ind_dat[2:end]-ind_dat[1:(length(ind_dat)-1)].==1)
-                # return warning
-                return(-1)
+                # return error
+                println(stderr,"[$(now())]: Observation $(x) is not contiguous.")
+                println(stderr,"[$(now())]: Exiting JuliASM ...")
+                exit(1)
             end
 
             # Get partition function and energy function
             N = length(x)
-            Ux = create_Ux(a,b)
-            Z = comp_Z(N,a,b)
+            Ux = create_Ux(a, b)
+            Z = comp_Z(N, a, b)
 
             # Get scaling factors due to missing data
-            sf = comp_scal_fac(kl,a,b,x[ind_dat[1]]*b+a/2) *
-                 comp_scal_fac(kr,a,b,x[ind_dat[end]]*b+a/2)
+            sf = comp_scal_fac(kl, a, b, x[ind_dat[1]]*b+a/2) *
+                 comp_scal_fac(kr, a, b, x[ind_dat[end]]*b+a/2)
 
             # Add log of it to Llkhd
             aux += -Ux(x[ind_dat]) + log(sf) - log(Z)
@@ -220,8 +221,8 @@ optimizer is used.
 # Examples
 ```julia-repl
 julia> Random.seed!(1234);
-julia> xobs=juliASM.gen_full_data(100,4);
-julia> juliASM.est_eta(xobs)
+julia> xobs=JuliASM.gen_full_data(100,4);
+julia> JuliASM.est_eta(xobs)
 2-element Array{Float64,1}:
 -0.021471185237893084
 -0.04713465466621405
@@ -277,8 +278,8 @@ and full observations.
 # Examples
 ```julia-repl
 julia> Random.seed!(1234);
-julia> xobs=juliASM.gen_mult_full_data(100);
-julia> juliASM.mle_mult(xobs)
+julia> xobs=JuliASM.gen_mult_full_data(100);
+julia> JuliASM.mle_mult(xobs)
 ```
 
 """
@@ -309,8 +310,8 @@ in size proportionally to the number of CpG sites.
 # Examples
 ```julia-repl
 julia> Random.seed!(1234);
-julia> xobs=juliASM.gen_mult_full_data(100);
-julia> juliASM.mle_bin_semi(xobs)
+julia> xobs=JuliASM.gen_mult_full_data(100);
+julia> JuliASM.mle_bin_semi(xobs)
 ```
 
 """
@@ -348,8 +349,8 @@ not grow with the number of CpG sites considered.
 # Examples
 ```julia-repl
 julia> Random.seed!(1234);
-julia> xobs=juliASM.gen_mult_full_data(100);
-julia> juliASM.mle_bin_param(xobs)
+julia> xobs=JuliASM.gen_mult_full_data(100);
+julia> JuliASM.mle_bin_param(xobs)
 ```
 
 """

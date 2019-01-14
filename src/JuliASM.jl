@@ -66,5 +66,6 @@ export comp_mml
 export comp_shanH
 export comp_mi
 export run_asm_analysis
+export plot_gff
 
 end # module

@@ -1,17 +1,15 @@
 # Import all package functions
-using juliASM
-
-# Required here
+using JuliASM
 using Test
 using GenomicFeatures
 
 # Get test path
-juliASM_path = dirname(pathof(juliASM))
-juliASM_path = splitdir(juliASM_path)[1]
-test_path = juliASM_path * "/test/"
+JuliASM_path = dirname(pathof(JuliASM))
+JuliASM_path = splitdir(JuliASM_path)[1]
+test_path = JuliASM_path * "/test/"
 
 # Start testing
-println("Testing juliASM...")
+println("Testing JuliASM...")
 
 # Test set for estimation related functions
 @testset "Estimation" begin
@@ -34,14 +32,7 @@ end
     # Check proper MML computation
     @test comp_mml(4,0.0,0.0)≈0.5 atol=1e-3
     # Check proper Shannon's entropy computation
-    @test comp_shanH(4,0.0,0.0)≈4.0 atol=1e-3
+    @test comp_shanH(4,0.0,0.0)≈1.723 atol=1e-3
     # Check proper Mutual Information computation
     @test comp_mi(4,[-10.0,-10.0],[10.0,10.0])≈1.0 atol=1e-3
-end
-
-# Test set for bioinformatics related functions
-@testset "Bioinformatics" begin
-    gff_path = test_path * "example.gff"
-    # Check proper gff reading
-    @test GFF3.seqid(juliASM.read_gff_chr(gff_path,"chrTest")[1])=="chrTest"
 end
