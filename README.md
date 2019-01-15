@@ -9,10 +9,6 @@ A `julia` package for allele-specific methylation analysis.
 * `julia v1.0.0` or greater.
 * `git`.
 
-```
-Give examples
-```
-
 ### Installing
 
 `JuliASM` and dependencies can be installed via the following command:

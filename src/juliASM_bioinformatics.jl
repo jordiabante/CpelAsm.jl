@@ -576,7 +576,6 @@ function run_asm_analysis(bam1_path::String, bam2_path::String, vcf_path::String
                 mi = comp_mi(n,eta1,eta2)
                 push!(bG_mi_records,(chr,featSt,featEnd,mi))
             end
-
         end
         # Add values to respective output BigWig files after each chr
         bG_mml1_records = write_bG(bG_mml1_records, bG_mml1_path)
