@@ -122,7 +122,6 @@ function clean_records(pe::Bool, records::Array{BAM.Record,1})::AllAlignTemps
 
             # There should only be two records with the same template name
             length(temp_recs)==2 && push!(out.templates,order_bams(pe,temp_recs))
-
             # If length()==1, then no matching pair in (expanded) window. This
             # has the problem that we can't determine the strand on which the
             # methylation call is made. If length()>2, then skip as well since
@@ -321,6 +320,8 @@ function read_vcf(out_gff_path::String, fasta_path::String, vcf_path::String,
 
         # Check that variant is heterozygous: 0/1, 1/0, 0/2, 2/0, 1/2, and 2/1.
         gtp = VCF.genotype(record)[1][1]
+        # TODO: here we need to group phased hetSNPs. The GFF file will have
+        # to include the window width now.
         if !(split(gtp,r"[/|]")[1] == split(gtp,r"[/|]")[2])
             # Get sequence of relevant DNA
             wSt = VCF.pos(record) - Int64(window_size/2)
