@@ -1,7 +1,7 @@
 ###############################################################################
 # CONSTANTS
 ###############################################################################
-const THRESH_MAPQ = -1                      # MAPQ threshold
+const THRESH_MAPQ = 20                      # MAPQ threshold
 const THRESH_COV = 10                       # Coverage threshold
 const FLAGS_ALLOWED = [0,16,83,99,147,163]  # Flags allowed in BAM records
 ###############################################################################
@@ -531,6 +531,10 @@ function run_asm_analysis(bam1_path::String, bam2_path::String, vcf_path::String
     bG_mi_records = Array{Tuple{String,Int64,Int64,Float64},1}()
 
     # Loop over chromosomes
+    tot_feats = 0
+    int_feats_1 = 0
+    int_feats_2 = 0
+    int_feats_mi = 0
     for chr in chr_names
         # Get windows pertaining to current chromosome
         println(stderr,"[$(now())]: Processing 🧬  $(chr) ...")
@@ -539,42 +543,51 @@ function run_asm_analysis(bam1_path::String, bam2_path::String, vcf_path::String
 
         # Loop over windows in chromosome
         for feat in features_chr
-            # Get window of interest and CpG sites positions.
+
+            # Get window of interest and CpG sites positions
+            tot_feats +=1
             featSt = GFF3.seqstart(feat) - Int64(window_size/2)
             featEnd = GFF3.seqend(feat) + Int64(window_size/2)
             feat_atts = GFF3.attributes(feat)
             n = parse(Int64,feat_atts[4][2][1])
             feat_cpg_pos = [parse(Int64,replace(s, r"[\[\] ]" => "")) for s in
-                feat_atts[5][2]] # space in regex in on purpose
+                            feat_atts[5][2]] # space in regex in on purpose
 
             # Get vectors from BAM1 overlapping feature
-            xobs1 = read_bam_coord(bam1_path, chr, featSt, featEnd,
-                feat_cpg_pos, chr_size; pe=pe)
+            xobs1 = read_bam_coord(bam1_path, chr, featSt, featEnd, feat_cpg_pos,
+                                   chr_size; pe=pe)
+            # println("xobs1:$xobs1")
 
             # Get vectors from BAM2 overlapping feature
-            xobs2 = read_bam_coord(bam2_path, chr, featSt, featEnd,
-                feat_cpg_pos, chr_size; pe=pe)
+            xobs2 = read_bam_coord(bam2_path, chr, featSt, featEnd, feat_cpg_pos,
+                                   chr_size; pe=pe)
+            # println("xobs2:$xobs2")
 
             # Estimate each single-allele model
             if length(xobs1)>=THRESH_COV
-                eta1 = est_eta(xobs1); # println(eta1)
+                n==1 ? eta1=est_alpha(xobs1) : eta1=est_eta(xobs1)
+                # println("eta1:$eta1")
                 mml1 = comp_mml(n,eta1[1],eta1[2])
                 h1 = comp_shanH(n,eta1[1],eta1[2])
                 push!(bG_mml1_records,(chr,featSt,featEnd,mml1))
                 push!(bG_h1_records,(chr,featSt,featEnd,h1))
+                int_feats_1 += 1
             end
             if length(xobs2)>=THRESH_COV
-                eta2 = est_eta(xobs2); # println(eta2)
+                n==1 ? eta2=est_alpha(xobs2) : eta2=est_eta(xobs2)
+                # println("eta2:$eta2")
                 mml2 = comp_mml(n,eta2[1],eta2[2])
                 h2 = comp_shanH(n,eta2[1],eta2[2])
                 push!(bG_mml2_records,(chr,featSt,featEnd,mml2))
                 push!(bG_h2_records,(chr,featSt,featEnd,h2))
+                int_feats_2 += 1
             end
 
             # Compute mutual information
             if (length(xobs1)>=THRESH_COV) && (length(xobs2)>=THRESH_COV)
                 mi = comp_mi(n,eta1,eta2)
                 push!(bG_mi_records,(chr,featSt,featEnd,mi))
+                int_feats_mi += 1
             end
         end
         # Add values to respective output BigWig files after each chr
@@ -584,5 +597,9 @@ function run_asm_analysis(bam1_path::String, bam2_path::String, vcf_path::String
         bG_h2_records = write_bG(bG_h2_records, bG_h2_path)
         bG_mi_records = write_bG(bG_mi_records, bG_mi_path)
     end
+    println(stderr,"[$(now())]: Total number of features: $(tot_feats).")
+    println(stderr,"[$(now())]: G1:$(round(100*int_feats_1/tot_feats; sigdigits=2))%.")
+    println(stderr,"[$(now())]: G2:$(round(100*int_feats_2/tot_feats;sigdigits=2))%.")
+    println(stderr,"[$(now())]: Both:$(round(100*int_feats_mi/tot_feats;sigdigits=2))%.")
     println(stderr,"[$(now())]: Done. 😄")
 end # end run_asm_analysis

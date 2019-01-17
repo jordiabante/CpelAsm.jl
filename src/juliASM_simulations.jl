@@ -96,8 +96,8 @@ function gen_ising_part_data(M::Int64, N::Int64; a::Float64=0.0, b::Float64=0.0)
     full_data = gen_ising_full_data(M,N;a=a,b=b)
 
     # Add missing values on sides
-    missleft = rand(Distributions.Binomial(N+1, 0.05),M)
-    missright = rand(Distributions.Binomial(N+1, 0.05),M)
+    missleft = rand(Distributions.Binomial(N, 0.01),M)
+    missright = rand(Distributions.Binomial(N, 0.01),M)
     for i in 1:M
         full_data[i][1:missleft[i]] = fill(0, missleft[i])
         full_data[i][(N-missright[i]+1):end] = fill(0, missright[i])

@@ -53,6 +53,7 @@ export gen_mult_part_data
 export comp_Z
 export comp_scal_fac
 export comp_lkhd
+export est_alpha
 export est_eta
 export mle_mult
 export mle_bin_semi

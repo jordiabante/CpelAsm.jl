@@ -53,31 +53,30 @@ efficient expression without the need of recursive expressions.
 julia>JuliASM.comp_Z(4,1.0,1.0)
 1149.715905067999
 ```
-
 """
 function comp_Z(N::Int64, a::Float64, b::Float64)::Float64
     # Eigenvalues
     aux1 = 0.5 * exp(-a-b)
-    aux2 = exp(2*(a+b)) + exp(2*b)
-    aux3 = sqrt((exp(2*a)-1)^2 * exp(4*b) + 4 * exp(2*a))
+    aux2 = exp(2.0*(a+b)) + exp(2.0*b)
+    aux3 = sqrt((exp(2.0*a)-1.0)^2.0 * exp(4.0*b) + 4.0*exp(2.0*a))
     l1 = aux1 * (aux2 - aux3)
     l2 = aux1 * (aux2 + aux3)
-    LN = [l1^(N-1) 0; 0 l2^(N-1)]
+    LN = [l1^(N-1.0) 0.0; 0.0 l2^(N-1.0)]
 
     # Matrix S
     aux1 = 0.5 * exp(-a)
-    aux2 = exp(2*(a+b)) - exp(2*b)
-    s1 = [-aux1 * (aux2 + aux3); 1]
-    s2 = [aux1 * (-aux2 + aux3); 1]
+    aux2 = exp(2.0*(a+b)) - exp(2.0*b)
+    s1 = [-aux1 * (aux2 + aux3); 1.0]
+    s2 = [aux1 * (-aux2 + aux3); 1.0]
     S = [s1 s2]
 
     # Matrix Sinv
-    s1inv = exp(a) / aux3 * [ -1; 1]
-    s2inv = [(-aux2+aux3)/ (2*aux3); 0.5 + 0.5 * aux2 / aux3 ]
+    s1inv = exp(a) / aux3 * [ -1.0; 1.0]
+    s2inv = [(-aux2+aux3)/ (2.0*aux3); 0.5 + 0.5 * aux2 / aux3 ]
     Sinv = [s1inv s2inv]
 
     # Return a Z>0
-    u = [exp(-a/2); exp(a/2)]
+    u = [exp(-a/2.0); exp(a/2.0)]
     return max(1e-100, u' * S * LN * Sinv * u)
 end
 """
@@ -97,32 +96,32 @@ julia>JuliASM.comp_scal_fac(1,1.0,1.0,1.0)
 """
 function comp_scal_fac(k::Int64, a::Float64, b::Float64, ap::Float64)::Float64
     # Return one if k=0
-    k==0 && return 1
+    k==0 && return 1.0
 
     # Eigenvalues
     aux1 = 0.5 * exp(-a-b)
-    aux2 = exp(2*(a+b)) + exp(2*b)
-    aux3 = sqrt((exp(2*a)-1)^2 * exp(4*b) + 4 * exp(2*a))
+    aux2 = exp(2.0*(a+b)) + exp(2.0*b)
+    aux3 = sqrt((exp(2.0*a)-1.0)^2.0 * exp(4.0*b) + 4.0*exp(2.0*a))
     l1 = aux1 * (aux2 - aux3)
     l2 = aux1 * (aux2 + aux3)
-    LN = [l1^(k-1) 0; 0 l2^(k-1)]
+    LN = [l1^(k-1) 0.0; 0.0 l2^(k-1)]
 
     # Matrix S
     aux1 = 0.5 * exp(-a)
-    aux2 = exp(2*(a+b)) - exp(2*b)
-    s1 = [-aux1 * (aux2 + aux3); 1]
-    s2 = [aux1 * (-aux2 + aux3); 1]
+    aux2 = exp(2.0*(a+b)) - exp(2.0*b)
+    s1 = [-aux1 * (aux2 + aux3); 1.0]
+    s2 = [aux1 * (-aux2 + aux3); 1.0]
     S = [s1 s2]
 
     # Matrix Sinv
-    s1inv = exp(a) / aux3 * [ -1; 1]
+    s1inv = exp(a) / aux3 * [ -1.0; 1.0]
     s2inv = [(-aux2+aux3)/ (2*aux3); 0.5 + 0.5 * aux2 / aux3 ]
     Sinv = [s1inv s2inv]
 
     # Return scaling factor
     vs = [exp(-ap); exp(ap)]
-    ve = [exp(-a/2); exp(a/2)]
-    return vs' * S * LN * Sinv * ve
+    ve = [exp(-a/2.0); exp(a/2.0)]
+    return max(1e-100, vs' * S * LN * Sinv * ve)
 end
 """
 comp_lkhd(x,alpha,beta)
@@ -139,18 +138,13 @@ julia> JuliASM.comp_lkhd([0;1;-1;1;0],2.0,2.0)
 
 """
 function comp_lkhd(x::Array{Int64,1}, a::Float64, b::Float64)::Float64
+    # Avoid the rest if N=1
+    length(x)==1 && return 0.5 * exp(x[1]*a) / cosh(a)
+
     # Find kl and kr
     ind_dat = findall(!isequal(0), x)
     kl = ind_dat[1]-1
     kr = length(x)-ind_dat[end]
-
-    # Check if observation are contiguous
-    if !all(ind_dat[2:end]-ind_dat[1:(length(ind_dat)-1)].==1)
-        # return error
-        println(stderr,"[$(now())]: Observation $(x) is not contiguous.")
-        println(stderr,"[$(now())]: Exiting JuliASM ...")
-        exit(1)
-    end
 
     # Get partition function and energy function
     N = length(x)
@@ -158,8 +152,8 @@ function comp_lkhd(x::Array{Int64,1}, a::Float64, b::Float64)::Float64
     Z = comp_Z(N, a, b)
 
     # Get scaling factors due to missing data
-    sf = comp_scal_fac(kl, a, b, x[ind_dat[1]]*b+a/2) *
-         comp_scal_fac(kr, a, b, x[ind_dat[end]]*b+a/2)
+    sf = comp_scal_fac(kl, a, b, x[ind_dat[1]]*b+a/2.0) *
+         comp_scal_fac(kr, a, b, x[ind_dat[end]]*b+a/2.0)
 
     # Return energy function evaluated at x properly scaled
     return exp(-Ux(x[ind_dat])) * sf / Z
@@ -172,15 +166,22 @@ CpG sites given the M partial observations.
 
 # Examples
 ```julia-repl
-julia>xobs=JuliASM.gen_full_data(10,4);
-julia>LogLike = JuliASM.create_Llkhd(xobs)
+julia>xobs=JuliASM.gen_ising_full_data(10,4);
+julia>LogLike=JuliASM.create_Llkhd(xobs)
 ```
 """
 function create_Llkhd(xobs::Array{Array{Int64,1},1})
     function Llkhd_fun(eta::Array{Float64,1})::Float64
-        aux = 0
+        # Get parameters
+        aux = 0.0
         a = eta[1]
         b = eta[2]
+
+        # Get energy function and partition function
+        Ux = create_Ux(a, b)
+        logZ = log(comp_Z(length(xobs[1]), a, b))
+
+        # Contribution of each observation
         for x in xobs
             ind_dat = findall(!isequal(0), x)
             kl = ind_dat[1]-1
@@ -188,66 +189,81 @@ function create_Llkhd(xobs::Array{Array{Int64,1},1})
 
             # Check if observation are contiguous
             if !all(ind_dat[2:end]-ind_dat[1:(length(ind_dat)-1)].==1)
-                # return error
-                println(stderr,"[$(now())]: Observation $(x) is not contiguous.")
-                println(stderr,"[$(now())]: Exiting JuliASM ...")
-                exit(1)
+                # println(stderr,"[$(now())]: Observation $(x) is not contiguous.")
+                continue
             end
 
-            # Get partition function and energy function
-            N = length(x)
-            Ux = create_Ux(a, b)
-            Z = comp_Z(N, a, b)
-
-            # Get scaling factors due to missing data
-            sf = comp_scal_fac(kl, a, b, x[ind_dat[1]]*b+a/2) *
-                 comp_scal_fac(kr, a, b, x[ind_dat[end]]*b+a/2)
+            # Add scaling factors due to missing data
+            kl>0 && (aux+=log(comp_scal_fac(kl, a, b, x[ind_dat[1]]*b+a/2.0)))
+            kr>0 && (aux+=log(comp_scal_fac(kr, a, b, x[ind_dat[end]]*b+a/2.0)))
 
             # Add log of it to Llkhd
-            aux += -Ux(x[ind_dat]) + log(sf) - log(Z)
+            aux += -Ux(x[ind_dat]) #+ log(sf) #- logZ
         end
-        -aux
+        # Add as many logZ as samples we have
+        -aux + length(xobs) * logZ
     end
     return Llkhd_fun
 end # end create_Llkhd
 """
-est_eta(xobs)
+est_alpha(xobs)
 
-Estimate parameter vector eta=[alpha; beta] based on full or partial
-observations. If the number of full observations is smaller than 30,
-then a local optimization procedure is used. Otherwise, a global
-optimizer is used.
+Estimate parameter α for the N=1 case.
 
 # Examples
 ```julia-repl
 julia> Random.seed!(1234);
-julia> xobs=JuliASM.gen_full_data(100,4);
+julia> xobs=JuliASM.gen_ising_full_data(100,1);
+julia> JuliASM.est_alpha(xobs)
+-0.020002667306849575
+```
+"""
+function est_alpha(xobs::Array{Array{Int64,1},1})::Array{Float64,1}
+    # Derivation of estimate:
+        # log(p)+log(2) = α-log(cosh(α))
+        # log(1-p)+log(2) = -α-log(cosh(α))
+        # α = (log(p)-log(1-p))/2
+
+    # Proportion of X=1
+    phat = length(findall(x->x==[1],xobs)) / length(xobs)
+
+    # Return estimate
+    return [0.5*(log(phat)-log(1.0-phat)),0.0]
+end # end est_alpha
+"""
+est_eta(xobs)
+
+Estimate parameter vector η=[α, β] based on full or partial observations.
+
+# Examples
+```julia-repl
+julia> Random.seed!(1234);
+julia> xobs=JuliASM.gen_ising_full_data(100,4);
 julia> JuliASM.est_eta(xobs)
 2-element Array{Float64,1}:
 -0.021471185237893084
 -0.04713465466621405
 ```
-
 """
 function est_eta(xobs::Array{Array{Int64,1},1})::Array{Float64,1}
     # Local optimizer if fully observed, multiple locals if partially observed
-    xfull = filter!(x->!(0 in x),xobs)
+    # xfull = filter!(x->!(0 in x),xobs)
     etahat = [NaN, NaN]
-    if length(xfull) >= 10
-        L = create_Llkhd(xfull)
+    if length(findall(x->0 in x, xobs))>0
+        # Here we should have a global minimum. Note: NelderMead can't be boxed
         eta0 = [0.0, 0.0]
-        # NelderMead can't be boxed
-        optim = optimize(L, eta0, NelderMead(), Optim.Options(iterations=100);
-            autodiff = :forward)
+        L = create_Llkhd(xobs)
+        optim = optimize(L,eta0,NelderMead(),Optim.Options(iterations=100);
+                         autodiff=:forward)
         etahat = optim.minimizer
     else
         # Try different initializations w/ NelderMead
-        L = create_Llkhd(xobs)
         aux = Inf
+        L = create_Llkhd(xobs)
         etas = [[.0,.0],[-.5,-.5],[.5,-.5],[-.5,.5],[.5,.5]]
         for eta0 in etas
-            optim = optimize(L, eta0, NelderMead(),
-                Optim.Options(iterations=1000); autodiff = :forward)
+            optim = optimize(L,eta0,NelderMead(),Optim.Options(iterations=100);
+                             autodiff=:forward)
             if optim.minimum < aux
                 aux = optim.minimum
                 etahat = optim.minimizer

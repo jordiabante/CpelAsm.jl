@@ -11,20 +11,17 @@ julia> comp_mml(4,0.0,0.0)
 ```
 """
 function comp_mml(N::Int64,a::Float64, b::Float64)::Float64
-    # TODO: find more efficient way to compute it.
     # Generate Xcal
     xcal = generate_xcal(N)
 
     # Traverse xcal
-    lkhd = 0.0
     mml = 0.0
     for x in xcal
-        lkhd = comp_lkhd(x, a, b)
-        mml += sum(0.5*(x.+1)) * lkhd
+        mml += sum(0.5*(x.+1)) * comp_lkhd(x, a, b)
     end
 
     # Return
-    return 1/N * mml
+    return 1.0/N * mml
 end # end comp_mml
 """
     comp_shanH(N,α,β)
@@ -51,14 +48,14 @@ function comp_shanH(N::Int64,a::Float64, b::Float64)::Float64
     end
 
     # Return
-    return -1/log2(N+1) * shanH
+    return -1.0/log2(N+1) * shanH
 end # end comp_shanH
 """
-    comp_mi(N,θ1,θ2)
+    comp_mi(N,η1,η2)
 
 Function that computes the mutual informtion between the allele of origin and
 the methylation state vector of size N assuming an Ising model for each allele
-with parameters θ1 and θ2 respectively.
+with parameters η1 and η2 respectively.
 
 # Examples
 ```julia-repl
@@ -71,9 +68,9 @@ function comp_mi(N::Int64,t1::Array{Float64,1},t2::Array{Float64,1})::Float64
     xcal = generate_xcal(N)
 
     # Traverse xcal
+    mi = 0.0
     lkhd1 = 0.0
     lkhd2 = 0.0
-    mi = 0.0
     for x in xcal
         lkhd1 = comp_lkhd(x, t1[1], t1[2])
         lkhd2 = comp_lkhd(x, t2[1], t2[2])
