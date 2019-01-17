@@ -392,3 +392,55 @@ function mle_bin_param(xobs::Array{Array{Int64,1},1})::Array{Float64,1}
     # Return phat
     return phat #/ sum(phat)
 end # end mle_bin_param
+"""
+bifurcate(xpool,sel)
+
+Function that divides xpool into two mutually exclusive sets based on sel.
+
+# Examples
+```julia-repl
+julia> JuliASM.bifurcate([[1,1],[1,-1],[-1,1]], [1,2])
+(Array{Int64,1}[[1, 1], [1, -1]], Array{Int64,1}[[-1, 1]])
+```
+"""
+function bifurcate(xpool::Array{Array{Int64,1},1}, sel::Vector{T}) where T <: Integer
+    x = xpool[sel]
+    asel = trues(length(xpool))
+    asel[sel] .= false
+    y = xpool[asel]
+    return x,y
+end
+"""
+perm_test(xobs1,xobs2,tobs)
+
+# Examples
+```julia-repl
+julia> ??
+```
+"""
+function perm_test(xobs1::Array{Array{Int64,1},1},xobs2::Array{Array{Int64,1},1},
+                   tobs::Float64,n::Int64)::Float64
+    # Initialize
+    better = worse = 0.0
+    xpool = vcat(xobs1, xobs2)
+
+    # Loop over combinations and compute statistic
+    i = 1
+    for subset in combinations(1:length(xpool), length(xobs2))
+      # Bifurcate
+      test, control = bifurcate(xpool, subset)
+
+      # Estimate parameters
+      n==1 ? eta1=est_alpha(control) : eta1=est_eta(control)
+      n==1 ? eta2=est_alpha(test) : eta2=est_eta(test)
+
+      # Compute MI for partition and compared to that observed
+      comp_mi(n,eta1,eta2)>tobs ? better += 1.0 : worse += 1.0
+
+      # If enough permutations leave
+      i<100 ? i+=1 : break
+    end
+
+    # Return p-value
+    return better/(worse+better)
+end # end perm_test
