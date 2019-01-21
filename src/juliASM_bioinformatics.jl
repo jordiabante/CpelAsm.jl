@@ -3,7 +3,7 @@
 ###############################################################################
 const THRESH_MAPQ = 20                      # MAPQ threshold
 const THRESH_COV = 10                       # Coverage threshold
-const FLAGS_ALLOWED = [0,16,83,99,147,163]  # Flags allowed in BAM records
+const FLAGS_ALLOWED = [0,16,83,99,147,163]  # Flags allowed in BAM recs
 ###############################################################################
 # STRUCTS
 ###############################################################################
@@ -234,7 +234,7 @@ function write_gff(out_gff_path::String, gff_records::Vector{GFF3.Record})::Vect
     output = open(out_gff_path, "a")
     writer = GFF3.Writer(output)
     while length(gff_records)>0
-        write(writer,pop!(gff_records))
+        write(writer,popfirst!(gff_records))
     end
     close(writer)
 
@@ -269,6 +269,34 @@ function next_record(reader_vcf::VCF.Reader, chr_names::Array{String,1},
     end
 end # end next_record
 """
+get_records_ps(READER, RECORD)
+
+Recursive function that returns
+This function is only used in read_vcf().
+
+# Examples
+```julia-repl
+julia> get_records_ps(reader, chr_names, record)
+```
+"""
+function get_records_ps(reader_vcf::VCF.Reader,record::VCF.Record,curr_ps::String,
+                        wEnd::Int64)::Tuple{VCF.Record,Int64}
+
+    # Check if record has same PS or end of reader
+    if VCF.genotype(record)[1][2]!=curr_ps
+        return (record, wEnd)
+    elseif !eof(reader_vcf)
+        # If not end of file, call function again
+        wEnd=VCF.pos(record)
+        read!(reader_vcf, record)
+        get_records_ps(reader_vcf, record, curr_ps, wEnd)
+    else
+        # return empty record if finished stream
+        return (VCF.Record(), wEnd)
+    end
+
+end # end get_records_ps
+"""
     read_vcf(OUT_GFF_PATH,FASTA_PATH,VCF_PATH,WINDOW_SIZE)
 
 Function that creates a GFF file containing the heterozygous SNPs along with
@@ -297,17 +325,15 @@ function read_vcf(out_gff_path::String, fasta_path::String, vcf_path::String,
 
     # Chrom sizes
     chr_sizes = reader_fasta.index.lengths
-    chr_size = chr_sizes[findfirst(x->x==curr_chr, chr_names)]
+    chr_size = chr_sizes[findfirst(x->x==curr_chr,chr_names)]
 
     # Loop over variants
     while !eof(reader_vcf)
 
-        # Read record and check if chromosome is in FASTA file or stream's end
-        read!(reader_vcf, record)
-        if !(VCF.chrom(record) in chr_names)
-            record = next_record(reader_vcf, chr_names, record)
-            !VCF.haspos(record) && break
-        end
+        # Read record if empty and check if chromosome is in FASTA file
+        VCF.haspos(record) || read!(reader_vcf, record)
+        record = next_record(reader_vcf, chr_names, record)
+        VCF.haspos(record) || break
 
         # Check we have loaded the right chromosome from FASTA
         if !(curr_chr == VCF.chrom(record))
@@ -318,27 +344,22 @@ function read_vcf(out_gff_path::String, fasta_path::String, vcf_path::String,
             close(reader_fasta)
         end
 
-        # Check that variant is heterozygous: 0/1, 1/0, 0/2, 2/0, 1/2, and 2/1.
-        gtp = VCF.genotype(record)[1][1]
-        # TODO: here we need to group phased hetSNPs. The GFF file will have
-        # to include the window width now.
-        if !(split(gtp,r"[/|]")[1] == split(gtp,r"[/|]")[2])
-            # Get sequence of relevant DNA
-            wSt = VCF.pos(record) - Int64(window_size/2)
-            wEnd = VCF.pos(record) + Int64(window_size/2)
-            win = [max(1, wSt), min(chr_size, wEnd)]
-            wSeq = convert(String,FASTA.sequence(fasta_record,win[1]:win[2]))
+        # Get entire (contiguous) haplotype using the PS field
+        wSt = wEnd = VCF.pos(record)
+        curr_ps = VCF.genotype(record)[1][2]
+        record, wEnd = get_records_ps(reader_vcf, record, curr_ps, wEnd)
 
-            # CG's: obtain the position of CpG sites on the forward strand
-            cpg_pos = map(x->getfield(x,:offset),eachmatch(r"CG",wSeq)).+wSt.-1
+        # Obtain DNA sequence from reference and CpG loci from it
+        wSt -= Int64(window_size/2)
+        wEnd += Int64(window_size/2)
+        win = [max(1, wSt), min(chr_size, wEnd)]
+        wSeq = convert(String,FASTA.sequence(fasta_record,win[1]:win[2]))
+        cpg_pos = map(x->getfield(x,:offset),eachmatch(r"CG",wSeq)).+win[1].-1
 
-            # Store heterozygous SNP & sorrounding CpG sites pos only if existing
-            length(cpg_pos)>0 &&
-            push!(gff_records,GFF3.Record("$(VCF.chrom(record))\t.\thSNP\t"*
-                "$(VCF.pos(record))\t$(VCF.pos(record))\t.\t.\t.\t"*
-                "Ref=$(VCF.ref(record));Alt=$(VCF.alt(record));GT=$(gtp);"*
-                "N=$(length(cpg_pos));CpGs=$(cpg_pos)"))
-        end
+        # Store haplotype & corresponding CpG sites if necessary
+        length(cpg_pos)>0 &&
+        push!(gff_records,GFF3.Record("$(curr_chr)\t.\t$(curr_ps)\t$(win[1])"*
+              "\t$(win[2])\t.\t.\t.\tN=$(length(cpg_pos));CpGs=$(cpg_pos)"))
 
         # Check if gff_records object is too big (8 bytes x record) and dump it
         if sizeof(gff_records)>=80000
@@ -434,7 +455,7 @@ function write_bG(bG_records::Array{Tuple{String,Int64,Int64,Float64},1},
     # Open output bedGraph file in append mode
     open(bG_path, "a") do f
         while length(bG_records)>0
-            write(f,join(string.(collect(pop!(bG_records))),"\t"),"\n")
+            write(f,join(string.(collect(popfirst!(bG_records))),"\t"),"\n")
         end
     end
 
@@ -489,14 +510,15 @@ function run_asm_analysis(bam1_path::String, bam2_path::String, vcf_path::String
 
     # BigWig output files
     prefix_sample = split(basename(bam1_path),".")[1]
-    bG_mml1_path = "$(out_path)/$(prefix_sample)_mml1.bedGraph"
-    bG_mml2_path = "$(out_path)/$(prefix_sample)_mml2.bedGraph"
-    bG_h1_path = "$(out_path)/$(prefix_sample)_h1.bedGraph"
-    bG_h2_path = "$(out_path)/$(prefix_sample)_h2.bedGraph"
-    bG_mi_path = "$(out_path)/$(prefix_sample)_mi.bedGraph"
+    mml1_path = "$(out_path)/$(prefix_sample)_mml1.bedGraph"
+    mml2_path = "$(out_path)/$(prefix_sample)_mml2.bedGraph"
+    h1_path = "$(out_path)/$(prefix_sample)_h1.bedGraph"
+    h2_path = "$(out_path)/$(prefix_sample)_h2.bedGraph"
+    mi_path = "$(out_path)/$(prefix_sample)_mi.bedGraph"
+    pVal_path = "$(out_path)/$(prefix_sample)_pVal.bedGraph"
 
     # Check for existance of at least an output files
-    if isfile.(bG_mml1_path,bG_mml2_path,bG_h1_path,bG_h2_path,bG_mi_path)
+    if isfile.(mml1_path,mml2_path,h1_path,h2_path,mi_path,pVal_path)
         println(stderr, "[$(now())]: At least an output file already exists.")
         println(stderr, "[$(now())]: Make sure you don't overwrite anything.")
         println(stderr, "[$(now())]: Exiting JuliASM ...")
@@ -524,17 +546,15 @@ function run_asm_analysis(bam1_path::String, bam2_path::String, vcf_path::String
     close(reader_fasta)
 
     # bedGraph records
-    bG_mml1_records = Array{Tuple{String,Int64,Int64,Float64},1}()
-    bG_mml2_records = Array{Tuple{String,Int64,Int64,Float64},1}()
-    bG_h1_records = Array{Tuple{String,Int64,Int64,Float64},1}()
-    bG_h2_records = Array{Tuple{String,Int64,Int64,Float64},1}()
-    bG_mi_records = Array{Tuple{String,Int64,Int64,Float64},1}()
+    mml1_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
+    mml2_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
+    h1_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
+    h2_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
+    mi_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
+    pVal_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
 
     # Loop over chromosomes
-    tot_feats = 0
-    int_feats_1 = 0
-    int_feats_2 = 0
-    int_feats_mi = 0
+    n = tot_feats = int_feats_1 = int_feats_2 = int_feats_mi = 0
     for chr in chr_names
         # Get windows pertaining to current chromosome
         println(stderr,"[$(now())]: Processing 🧬  $(chr) ...")
@@ -543,60 +563,51 @@ function run_asm_analysis(bam1_path::String, bam2_path::String, vcf_path::String
 
         # Loop over windows in chromosome
         for feat in features_chr
-
             # Get window of interest and CpG sites positions
-            tot_feats +=1
-            featSt = GFF3.seqstart(feat) - Int64(window_size/2)
-            featEnd = GFF3.seqend(feat) + Int64(window_size/2)
+            featSt = GFF3.seqstart(feat)
+            featEnd = GFF3.seqend(feat)
             feat_atts = GFF3.attributes(feat)
-            n = parse(Int64,feat_atts[4][2][1])
-            feat_cpg_pos = [parse(Int64,replace(s, r"[\[\] ]" => "")) for s in
-                            feat_atts[5][2]] # space in regex in on purpose
+            n = parse(Int64,feat_atts[1][2][1])
+            feat_cpg_pos = [parse(Int64,replace(s,r"[\[\] ]"=>"")) for s in
+                            feat_atts[2][2]] # space in regex in on purpose
 
-            # Get vectors from BAM1 overlapping feature
+            # Get vectors from BAM[12] overlapping feature
             xobs1 = read_bam_coord(bam1_path, chr, featSt, featEnd, feat_cpg_pos,
                                    chr_size; pe=pe)
-            # println("xobs1:$xobs1")
-
-            # Get vectors from BAM2 overlapping feature
             xobs2 = read_bam_coord(bam2_path, chr, featSt, featEnd, feat_cpg_pos,
                                    chr_size; pe=pe)
-            # println("xobs2:$xobs2")
 
-            # Estimate each single-allele model
+            # Estimate each single-allele model, mml and h
             if length(xobs1)>=THRESH_COV
                 n==1 ? eta1=est_alpha(xobs1) : eta1=est_eta(xobs1)
-                # println("eta1:$eta1")
-                mml1 = comp_mml(n,eta1[1],eta1[2])
-                h1 = comp_shanH(n,eta1[1],eta1[2])
-                push!(bG_mml1_records,(chr,featSt,featEnd,mml1))
-                push!(bG_h1_records,(chr,featSt,featEnd,h1))
+                push!(mml1_recs,(chr,featSt,featEnd,comp_mml(n,eta1[1],eta1[2])))
+                push!(h1_recs,(chr,featSt,featEnd,comp_shanH(n,eta1[1],eta1[2])))
                 int_feats_1 += 1
             end
             if length(xobs2)>=THRESH_COV
                 n==1 ? eta2=est_alpha(xobs2) : eta2=est_eta(xobs2)
-                # println("eta2:$eta2")
-                mml2 = comp_mml(n,eta2[1],eta2[2])
-                h2 = comp_shanH(n,eta2[1],eta2[2])
-                push!(bG_mml2_records,(chr,featSt,featEnd,mml2))
-                push!(bG_h2_records,(chr,featSt,featEnd,h2))
+                push!(mml2_recs,(chr,featSt,featEnd,comp_mml(n,eta2[1],eta2[2])))
+                push!(h2_recs,(chr,featSt,featEnd,comp_shanH(n,eta2[1],eta2[2])))
                 int_feats_2 += 1
             end
 
             # Compute mutual information
             if (length(xobs1)>=THRESH_COV) && (length(xobs2)>=THRESH_COV)
-                mi = comp_mi(n,eta1,eta2)
-                push!(bG_mi_records,(chr,featSt,featEnd,mi))
+                push!(mi_recs,(chr,featSt,featEnd,comp_mi(n,eta1,eta2)))
+                push!(pVal_recs,(chr,featSt,featEnd,perm_test(xobs1,xobs2,mi,n)))
                 int_feats_mi += 1
             end
+
         end
         # Add values to respective output BigWig files after each chr
-        bG_mml1_records = write_bG(bG_mml1_records, bG_mml1_path)
-        bG_mml2_records = write_bG(bG_mml2_records, bG_mml2_path)
-        bG_h1_records = write_bG(bG_h1_records, bG_h1_path)
-        bG_h2_records = write_bG(bG_h2_records, bG_h2_path)
-        bG_mi_records = write_bG(bG_mi_records, bG_mi_path)
+        mml1_recs = write_bG(mml1_recs, mml1_path)
+        mml2_recs = write_bG(mml2_recs, mml2_path)
+        h1_recs = write_bG(h1_recs, h1_path)
+        h2_recs = write_bG(h2_recs, h2_path)
+        mi_recs = write_bG(mi_recs, mi_path)
+        pVal_recs = write_bG(pVal_recs, pVal_path)
     end
+    # Print number of features interrogated and finished message
     println(stderr,"[$(now())]: Total number of features: $(tot_feats).")
     println(stderr,"[$(now())]: G1:$(round(100*int_feats_1/tot_feats; sigdigits=2))%.")
     println(stderr,"[$(now())]: G2:$(round(100*int_feats_2/tot_feats;sigdigits=2))%.")

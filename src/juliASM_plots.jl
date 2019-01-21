@@ -21,14 +21,14 @@ function plot_histogram(x, labels; xlabel=L"Value",ylabel=L"Frequency")
     return p
 end # end plot_histogram
 """
-plot_heatmap(x)
+plot_heatmap(x,eta)
 
 Function to generate an heatmap of log-likelihood function for a gixen
-observation vector x.
+observation vector x with true parameter being eta.
 
 # Examples
 ```julia-repl
-julia>p=JuliASM.plot_heatmap(x)
+julia>p=JuliASM.plot_heatmap(x,eta)
 ```
 """
 function plot_heatmap(x::Array{Array{Int64,1},1},eta::Array{Float64,1}; maxVal=4.0)

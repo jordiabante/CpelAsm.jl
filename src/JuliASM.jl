@@ -4,7 +4,6 @@ module JuliASM
 ##########################################################################
 # TODO
 ##########################################################################
-# 0. Loose β when N=1? Right now overparametrized.
 # 1. Case where |α| and/or |β| → ∞ (∄ MLE).
 # 2. Optimization benchmark for "MLE".
 #   a. Multiple local optimizers.
@@ -33,6 +32,7 @@ using BioAlignments     # For reading-in BAM/SAM files
 using GenomicFeatures   # For BED, GFF3, and bigWig files
 using GeneticVariation  # For VCF file
 using BioSequences      # For FASTA file
+using Combinatorics     # For permutation test
 # using BlackBoxOptim     # Alternative global minimizer
 ##########################################################################
 # INCLUDES
