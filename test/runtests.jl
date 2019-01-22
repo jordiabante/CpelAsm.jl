@@ -1,7 +1,6 @@
 # Import all package functions
 using JuliASM
 using Test
-using GenomicFeatures
 
 # Get test path
 JuliASM_path = dirname(pathof(JuliASM))

@@ -271,8 +271,8 @@ end # end next_record
 """
 get_records_ps(READER, RECORD)
 
-Recursive function that returns
-This function is only used in read_vcf().
+Recursive function that returns the end of current PS phased SNPs along the
+next SNP. This function is only used in read_vcf().
 
 # Examples
 ```julia-repl
@@ -315,6 +315,7 @@ function read_vcf(out_gff_path::String, fasta_path::String, vcf_path::String,
     gff_records = Vector{GFF3.Record}()
     reader_vcf = open(VCF.Reader, vcf_path)
     record = VCF.Record()
+    read!(reader_vcf, record)
 
     # Initialize FASTA variables
     reader_fasta = open(FASTA.Reader, fasta_path, index=fasta_path*".fai")
@@ -328,12 +329,10 @@ function read_vcf(out_gff_path::String, fasta_path::String, vcf_path::String,
     chr_size = chr_sizes[findfirst(x->x==curr_chr,chr_names)]
 
     # Loop over variants
-    while !eof(reader_vcf)
+    while true
 
-        # Read record if empty and check if chromosome is in FASTA file
-        VCF.haspos(record) || read!(reader_vcf, record)
+        # Check if chromosome is in FASTA file
         record = next_record(reader_vcf, chr_names, record)
-        VCF.haspos(record) || break
 
         # Check we have loaded the right chromosome from FASTA
         if !(curr_chr == VCF.chrom(record))
@@ -365,6 +364,10 @@ function read_vcf(out_gff_path::String, fasta_path::String, vcf_path::String,
         if sizeof(gff_records)>=80000
             gff_records = write_gff(out_gff_path, gff_records)
         end
+
+        # If new record empty break while loop
+        VCF.haspos(record) || break
+
     end
 
     # Dump remaining records
@@ -394,51 +397,6 @@ function read_gff_chr(gff_path::String,chr::String)::Array{GFF3.Record,1}
     # Return
     return features
 end # end read_gff_chr
-"""
-    plot_gff(GFF_PATH,OUT_PATH)
-
-Function that generates different plots from the JuliASM GFF file.
-
-# Examples
-```julia-repl
-julia> plot_gff(GFF_PATH,OUT_PATH)
-```
-"""
-function plot_gff(gff_path::String,out_path::String)
-
-    # Initialize GR backend
-    Plots.GRBackend()
-
-    # Load genomic features from a GFF3 file
-    features = open(collect, GFF3.Reader, gff_path)
-
-    # Plot of number of CpG sites around loci
-    x = Array{Int64,1}[]
-    x = map(x -> parse(Int64, GFF3.attributes(x)[4][2][1]), features)
-    p = histogram(x, yaxis=(:log10,(1,Inf)), bins=:sturges, xticks=0:1:10,
-                  fillalpha=0.25, xtickfont=font(12, "Arial"),
-                  ytickfont=font(12, "Arial"), ylabel="Counts",
-                  xlabel="Number of CpG sites", title=basename(gff_path),
-                  legend=:none)
-    savefig(p, out_path*basename(gff_path)*".num_cpg_sites.pdf")
-
-    # Plot of distance between loci
-    x = []
-    prev_st = 1
-    curr_chr = unique([GFF3.seqid(x) for x in features])[1]
-    for feat in features
-        GFF3.seqid(feat)==curr_chr && push!(x,abs(GFF3.seqstart(feat)-prev_st))
-        curr_chr = GFF3.seqid(feat)
-        prev_st = GFF3.seqstart(feat)
-    end
-    p = histogram(x, xaxis=(:log10,(1,10^8)),yaxis=(:log10,(1,10^6)), bins=:fd,
-                  fillalpha=0.25, xtickfont=font(12, "Arial"),
-                  ytickfont=font(12, "Arial"), ylabel="Counts",
-                  xlabel="Distance between contiguous CpG sites",
-                  title=basename(gff_path), legend=:none)
-    savefig(p, out_path*basename(gff_path)*".dist_cpg_sites.pdf")
-
-end # end plot_gff
 """
     write_bG(BEDGRAPH_PATH, BEDGRAPH_RECORDS)
 
@@ -535,7 +493,6 @@ function run_asm_analysis(bam1_path::String, bam2_path::String, vcf_path::String
     else
         println(stderr, "[$(now())]: Generating JuliASM GFF file ... 💪")
         read_vcf(out_gff_path, fasta_path, vcf_path, window_size)
-        plot_gff(out_gff_path, out_path)
     end
 
     # Find chromosomes
@@ -554,6 +511,7 @@ function run_asm_analysis(bam1_path::String, bam2_path::String, vcf_path::String
     pVal_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
 
     # Loop over chromosomes
+    mi = 0.0
     n = tot_feats = int_feats_1 = int_feats_2 = int_feats_mi = 0
     for chr in chr_names
         # Get windows pertaining to current chromosome
@@ -564,13 +522,14 @@ function run_asm_analysis(bam1_path::String, bam2_path::String, vcf_path::String
         # Loop over windows in chromosome
         for feat in features_chr
             # Get window of interest and CpG sites positions
+            tot_feats += 1
             featSt = GFF3.seqstart(feat)
             featEnd = GFF3.seqend(feat)
             feat_atts = GFF3.attributes(feat)
             n = parse(Int64,feat_atts[1][2][1])
             feat_cpg_pos = [parse(Int64,replace(s,r"[\[\] ]"=>"")) for s in
                             feat_atts[2][2]] # space in regex in on purpose
-
+            
             # Get vectors from BAM[12] overlapping feature
             xobs1 = read_bam_coord(bam1_path, chr, featSt, featEnd, feat_cpg_pos,
                                    chr_size; pe=pe)
@@ -593,7 +552,8 @@ function run_asm_analysis(bam1_path::String, bam2_path::String, vcf_path::String
 
             # Compute mutual information
             if (length(xobs1)>=THRESH_COV) && (length(xobs2)>=THRESH_COV)
-                push!(mi_recs,(chr,featSt,featEnd,comp_mi(n,eta1,eta2)))
+                mi = comp_mi(n,eta1,eta2)
+                push!(mi_recs,(chr,featSt,featEnd,mi))
                 push!(pVal_recs,(chr,featSt,featEnd,perm_test(xobs1,xobs2,mi,n)))
                 int_feats_mi += 1
             end
