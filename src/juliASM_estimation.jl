@@ -56,24 +56,17 @@ julia>JuliASM.comp_Z(4,1.0,1.0)
 """
 function comp_Z(N::Int64, a::Float64, b::Float64)::Float64
     # Eigenvalues
-    aux1 = 0.5 * exp(-a-b)
-    aux2 = exp(2.0*(a+b)) + exp(2.0*b)
-    aux3 = sqrt((exp(2.0*a)-1.0)^2.0 * exp(4.0*b) + 4.0*exp(2.0*a))
-    l1 = aux1 * (aux2 - aux3)
-    l2 = aux1 * (aux2 + aux3)
-    LN = [l1^(N-1.0) 0.0; 0.0 l2^(N-1.0)]
+    aux1 = exp(b) * cosh(a)
+    aux2 = sqrt(1 + exp(4*b)*sinh(a)^2)
+    LN = [(aux1-exp(-b)*aux2)^(N-1) 0.0; 0.0 (aux1+exp(-b)*aux2)^(N-1)]
 
     # Matrix S
-    aux1 = 0.5 * exp(-a)
-    aux2 = exp(2.0*(a+b)) - exp(2.0*b)
-    s1 = [-aux1 * (aux2 + aux3); 1.0]
-    s2 = [aux1 * (-aux2 + aux3); 1.0]
-    S = [s1 s2]
+    aux1 = -exp(2*b) * sinh(a)
+    S = [aux1-aux2 aux1+aux2; 1.0 1.0]
 
     # Matrix Sinv
-    s1inv = exp(a) / aux3 * [ -1.0; 1.0]
-    s2inv = [(-aux2+aux3)/ (2.0*aux3); 0.5 + 0.5 * aux2 / aux3 ]
-    Sinv = [s1inv s2inv]
+    aux3 = 1.0 / aux2
+    Sinv = [-0.5*aux3 0.5+0.5*aux1*aux3;0.5*aux3 0.5-0.5*aux1*aux3]
 
     # Return a Z>0
     u = [exp(-a/2.0); exp(a/2.0)]
@@ -92,31 +85,23 @@ efficient expression without the need of recursive expressions.
 julia>JuliASM.comp_scal_fac(1,1.0,1.0,1.0)
 4.7048192304864935
 ```
-
 """
 function comp_scal_fac(k::Int64, a::Float64, b::Float64, ap::Float64)::Float64
     # Return one if k=0
     k==0 && return 1.0
 
     # Eigenvalues
-    aux1 = 0.5 * exp(-a-b)
-    aux2 = exp(2.0*(a+b)) + exp(2.0*b)
-    aux3 = sqrt((exp(2.0*a)-1.0)^2.0 * exp(4.0*b) + 4.0*exp(2.0*a))
-    l1 = aux1 * (aux2 - aux3)
-    l2 = aux1 * (aux2 + aux3)
-    LN = [l1^(k-1) 0.0; 0.0 l2^(k-1)]
+    aux1 = exp(b) * cosh(a)
+    aux2 = sqrt(1 + exp(4*b)*sinh(a)^2)
+    LN = [(aux1-exp(-b)*aux2)^(k-1) 0.0; 0.0 (aux1+exp(-b)*aux2)^(k-1)]
 
     # Matrix S
-    aux1 = 0.5 * exp(-a)
-    aux2 = exp(2.0*(a+b)) - exp(2.0*b)
-    s1 = [-aux1 * (aux2 + aux3); 1.0]
-    s2 = [aux1 * (-aux2 + aux3); 1.0]
-    S = [s1 s2]
+    aux1 = -exp(2*b) * sinh(a)
+    S = [aux1-aux2 aux1+aux2; 1.0 1.0]
 
     # Matrix Sinv
-    s1inv = exp(a) / aux3 * [ -1.0; 1.0]
-    s2inv = [(-aux2+aux3)/ (2*aux3); 0.5 + 0.5 * aux2 / aux3 ]
-    Sinv = [s1inv s2inv]
+    aux3 = 1.0 / aux2
+    Sinv = [-0.5*aux3 0.5+0.5*aux1*aux3;0.5*aux3 0.5-0.5*aux1*aux3]
 
     # Return scaling factor
     vs = [exp(-ap); exp(ap)]
@@ -147,9 +132,8 @@ function comp_lkhd(x::Array{Int64,1}, a::Float64, b::Float64)::Float64
     kr = length(x)-ind_dat[end]
 
     # Get partition function and energy function
-    N = length(x)
     Ux = create_Ux(a, b)
-    Z = comp_Z(N, a, b)
+    Z = comp_Z(length(x), a, b)
 
     # Get scaling factors due to missing data
     sf = comp_scal_fac(kl, a, b, x[ind_dat[1]]*b+a/2.0) *
@@ -188,17 +172,14 @@ function create_Llkhd(xobs::Array{Array{Int64,1},1})
             kr = length(x)-ind_dat[end]
 
             # Check if observation are contiguous
-            if !all(ind_dat[2:end]-ind_dat[1:(length(ind_dat)-1)].==1)
-                # println(stderr,"[$(now())]: Observation $(x) is not contiguous.")
-                continue
-            end
+            all(ind_dat[2:end]-ind_dat[1:(length(ind_dat)-1)].==1) || continue
 
             # Add scaling factors due to missing data
             kl>0 && (aux+=log(comp_scal_fac(kl, a, b, x[ind_dat[1]]*b+a/2.0)))
             kr>0 && (aux+=log(comp_scal_fac(kr, a, b, x[ind_dat[end]]*b+a/2.0)))
 
             # Add log of it to Llkhd
-            aux += -Ux(x[ind_dat]) #+ log(sf) #- logZ
+            aux += -Ux(x[ind_dat])
         end
         # Add as many logZ as samples we have
         -aux + length(xobs) * logZ
@@ -246,18 +227,17 @@ julia> JuliASM.est_eta(xobs)
 ```
 """
 function est_eta(xobs::Array{Array{Int64,1},1})::Array{Float64,1}
-    # Local optimizer if fully observed, multiple locals if partially observed
-    # xfull = filter!(x->!(0 in x),xobs)
+    # Handle missing data in optimization
     etahat = [NaN, NaN]
-    if length(findall(x->0 in x, xobs))>0
-        # Here we should have a global minimum. Note: NelderMead can't be boxed
+    if !(length(findall(x->0 in x, xobs))>0)
+        # Should have a global minimum. Note: NelderMead can't be boxed
         eta0 = [0.0, 0.0]
         L = create_Llkhd(xobs)
         optim = optimize(L,eta0,NelderMead(),Optim.Options(iterations=100);
                          autodiff=:forward)
         etahat = optim.minimizer
     else
-        # Try different initializations w/ NelderMead
+        # Multiple minima: try different initializations w/ NelderMead
         aux = Inf
         L = create_Llkhd(xobs)
         etas = [[.0,.0],[-.5,-.5],[.5,-.5],[-.5,.5],[.5,.5]]
