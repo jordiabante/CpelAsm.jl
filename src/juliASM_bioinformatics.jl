@@ -358,7 +358,7 @@ function read_vcf(out_gff_path::String, fasta_path::String, vcf_path::String,
         else
             # If no PS tag, then single SNP (marked as NOPS)
             curr_ps = "NOPS"
-            read!(reader_vcf, record)
+            eof(reader_vcf) ? record=VCF.Record() : read!(reader_vcf, record)
         end
 
         # Obtain DNA sequence from reference and CpG loci from it
