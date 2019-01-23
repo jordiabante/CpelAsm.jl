@@ -283,13 +283,18 @@ function get_records_ps(reader_vcf::VCF.Reader,record::VCF.Record,curr_ps::Strin
                         wEnd::Int64)::Tuple{VCF.Record,Int64}
 
     # Check if record has same PS or end of reader
-    if VCF.genotype(record)[1][2]!=curr_ps
+    ind_PS = findfirst(x->x=="PS",VCF.format(record))
+    if VCF.genotype(record)[1][ind_PS]!=curr_ps
         return (record, wEnd)
     elseif !eof(reader_vcf)
-        # If not end of file, call function again
+        # If not end of file, call function again if necessary
         wEnd=VCF.pos(record)
         read!(reader_vcf, record)
-        get_records_ps(reader_vcf, record, curr_ps, wEnd)
+        if "PS" in VCF.format(record)
+            get_records_ps(reader_vcf, record, curr_ps, wEnd)
+        else
+            return (record, wEnd)
+        end
     else
         # return empty record if finished stream
         return (VCF.Record(), wEnd)
@@ -345,8 +350,16 @@ function read_vcf(out_gff_path::String, fasta_path::String, vcf_path::String,
 
         # Get entire (contiguous) haplotype using the PS field
         wSt = wEnd = VCF.pos(record)
-        curr_ps = VCF.genotype(record)[1][2]
-        record, wEnd = get_records_ps(reader_vcf, record, curr_ps, wEnd)
+        ind_PS = findfirst(x->x=="PS",VCF.format(record))
+        if "PS" in VCF.format(record)
+            # If PS tag, then phased
+            curr_ps = VCF.genotype(record)[1][ind_PS]
+            record, wEnd = get_records_ps(reader_vcf, record, curr_ps, wEnd)
+        else
+            # If no PS tag, then single SNP (marked as NOPS)
+            curr_ps = "NOPS"
+            read!(reader_vcf, record)
+        end
 
         # Obtain DNA sequence from reference and CpG loci from it
         wSt -= Int64(window_size/2)
@@ -529,7 +542,7 @@ function run_asm_analysis(bam1_path::String, bam2_path::String, vcf_path::String
             n = parse(Int64,feat_atts[1][2][1])
             feat_cpg_pos = [parse(Int64,replace(s,r"[\[\] ]"=>"")) for s in
                             feat_atts[2][2]] # space in regex in on purpose
-            
+
             # Get vectors from BAM[12] overlapping feature
             xobs1 = read_bam_coord(bam1_path, chr, featSt, featEnd, feat_cpg_pos,
                                    chr_size; pe=pe)
