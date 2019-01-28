@@ -15,7 +15,7 @@ println("Testing JuliASM...")
     # Check proper computation partition function
     @test comp_Z(4,1.0,1.0)≈1149.716 atol=1e-3
     # Check proper computation scaling factor
-    @test comp_scal_fac(1,1.0,1.0,1.0)≈4.705 atol=1e-3
+    @test comp_scal_fac(1,1.0,1.0,1.0,1.0)≈7.524 atol=1e-3
     # Check proper likelihood
     @test comp_lkhd([0;1;1;1;0],1.0,1.0)≈0.986 atol=1e-3
 end
@@ -33,5 +33,5 @@ end
     # Check proper Shannon's entropy computation
     @test comp_shanH(4,0.0,0.0)≈1.723 atol=1e-3
     # Check proper Mutual Information computation
-    @test comp_mi(4,[-10.0,-10.0],[10.0,10.0])≈1.0 atol=1e-3
+    @test comp_mi([[1],[1],[1]],[-10.0,-10.0],[10.0,10.0])≈1.0 atol=1e-3
 end

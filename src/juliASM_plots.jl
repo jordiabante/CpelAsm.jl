@@ -1,7 +1,7 @@
 """
-plot_histogram(x, labels)
+    `plot_histogram(X, LABELS)`
 
-Function to generate an overlayed histogram of vectors x[1], x[2], ....
+Function to generate an overlayed histogram of vectors X[1], X[2], ....
 
 # Examples
 ```julia-repl
@@ -21,10 +21,10 @@ function plot_histogram(x, labels; xlabel=L"Value",ylabel=L"Frequency")
     return p
 end # end plot_histogram
 """
-plot_heatmap(x,eta)
+    `plot_heatmap(X,η)`
 
 Function to generate an heatmap of log-likelihood function for a gixen
-observation vector x with true parameter being eta.
+observation vector x with true parameter being η.
 
 # Examples
 ```julia-repl

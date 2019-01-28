@@ -1,5 +1,5 @@
 """
-    generate_xcal(N)
+    `generate_xcal(N)`
 
 Generate state space for the methylation vector with N CpG sites.
 
@@ -21,7 +21,7 @@ function generate_xcal(N::Int64)::Array{Array{Int64,1},1}
     return xcal
 end # end generate_xcal
 """
-    gen_ising_full_data(M,N;a=0.0,b=0.0)
+    `gen_ising_full_data(M,N;α,β)`
 
 Generate M FULLY observed reads with N CpG sites from energy function U(X)
 parametrized by α and β.
@@ -65,7 +65,7 @@ function gen_ising_full_data(M::Int64,N::Int64;a::Float64=0.0,b::Float64=0.0)::A
 
 end # end gen_ising_full_data
 """
-    gen_ising_part_data(M,N;a=0.0,b=0.0)
+    `gen_ising_part_data(M,N;α,β)`
 
 Generate M partially observed reads with N CpG sites from energy function U(X)
 parametrized by α and β. The values code for:
@@ -108,10 +108,10 @@ function gen_ising_part_data(M::Int64, N::Int64; a::Float64=0.0, b::Float64=0.0)
 
 end # end gen_ising_part_data
 """
-    gen_mult_full_data(M; N=4,p=1/(2^N)*ones(Float64,2^N))
+    `gen_mult_full_data(M;N,p)`
 
 Generate M FULLY observed reads from a multinomial model with vector of
-probabilities p=[p_1,...,p_{2^N}].
+probabilities `p=[p_1,...,p_{2^N}]`.
 
 # Examples
 ```julia-repl
@@ -135,10 +135,10 @@ function gen_mult_full_data(M::Int64;N=4,p::Array{Float64,1}=1/(2^N)*ones(Float6
 
 end # end gen_mult_full_data
 """
-    gen_mult_part_data(M;N=4,p=1/(2^N)*ones(Float64,2^N))
+    `gen_mult_part_data(M;N,p)`
 
 Generate M partially observed reads with N CpG sites from a multinomial model
-with vector probabilities p=[p_1,...,p_{2^N}]. The values code for:
+with vector probabilities `p=[p_1,...,p_{2^N}]`. The values code for:
 1: Methylated CpG site.
 -1: Unmethylated CpG site.
 0: Unobserved CpG site.
@@ -178,7 +178,7 @@ function gen_mult_part_data(M::Int64;N=4,p::Array{Float64,1}=1/(2^N)*ones(Float6
 
 end # end gen_mult_part_data
 """
-mle_asymptotics(xobs)
+    `mle_asymptotics(XOBS)`
 
 Function to generate MLEs and plot CLT type behavior. When the number
 of observations is ≧15 the convergence seems to kick in (try example
@@ -211,7 +211,7 @@ function mle_asymptotics(R::Int64,N::Int64,M::Int64)
     return p
 end # mle_asymptotics
 """
-comp_estimates(R,N,M)
+    `comp_estimates(R,N,M)`
 
 Function to generate estimates using all models considerd and plot the Eucledean
 distance from the true parameter vector when observing complete observations.

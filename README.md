@@ -2,6 +2,12 @@
 
 A `julia` package for allele-specific methylation analysis.
 
+## Description
+
+`JuliASM` is based on the method in XXX, and it draws ideas from statistical
+physics and information theory to identify significant differences between
+the methylation patterns of each haplotype.
+
 ## Getting Started
 
 ### Prerequisites

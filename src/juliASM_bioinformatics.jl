@@ -20,7 +20,7 @@ end
 # FUNCTIONS
 ###############################################################################
 """
-    get_align_strand(PAIRED_END,FLAG1,FLAG2)
+    `get_align_strand(PAIRED_END,FLAG1,FLAG2)`
 
 Function that returns the strand of methylation call based on Bismark's logic.
 In single-end mode, OT and CTOT reads will both receive a FLAG of 0 while
@@ -73,7 +73,7 @@ function get_align_strand(pe::Bool,flag1::UInt16,flag2::UInt16)::String
     return s
 end # end get_align_strand
 """
-    order_bams(PAIRED_END,RECORDS)
+    `order_bams(PAIRED_END,RECORDS)`
 
 Function that returns an AlignTemp object with R1 as the first record in the
 forward strand and with the methylation call strand taken from get_align_strand.
@@ -94,7 +94,7 @@ function order_bams(pe::Bool, records::Array{BAM.Record,1})::AlignTemp
     end
 end
 """
-    clean_records(PAIRED_END,RECORDS)
+    `clean_records(PAIRED_END,RECORDS)`
 
 Function that takes a set of records and returns an AllAlignTemps object that
 contains all the properly aligned templates as an array of AlignTemp, which
@@ -137,33 +137,33 @@ function clean_records(pe::Bool, records::Array{BAM.Record,1})::AllAlignTemps
     return out
 end # end clean_records
 """
-    read_bam_coord(BAM_PATH, CHR, featSt, featEnd, feat_cpg_pos; pe=true)
+    `read_bam(BAM_PATH, CHR, FEAT_ST, FEAT_END, CPG_POS; PE)`
 
-Function that reads in BAM file in BAM_PATH and returns methylation vectors
+Function that reads in BAM file in `BAM_PATH` and returns methylation vectors
 for those records that overlap with (1-based) genomic coordinates
-chr:chrSt-chrEnd at feat_cpg_pos. The information was taken from:
+chr:chrSt-chrEnd at cpg_pos. The information was taken from:
 
   XS: meth calls (https://github.com/FelixKrueger/Bismark/tree/master/Docs)
   XS: uniqueness (http://bowtie-bio.sourceforge.net/bowtie2/manual.shtml)
 
 # Examples
 ```julia-repl
-julia> read_bam_coord(BAM_PATH,"chr1",30,80,[40,60];pe=false)
+julia> read_bam(BAM_PATH,"chr1",30,80,[40,60];pe=false)
 ```
 """
-function read_bam_coord(bam_path::String, chr::String, featSt::Int64,
-                        featEnd::Int64, feat_cpg_pos::Array{Int64,1},
-                        chr_size::Int64; pe::Bool=true)::Array{Array{Int64,1},1}
+function read_bam(bam_path::String, chr::String, f_st::Int64, f_end::Int64,
+                  cpg_pos::Array{Int64,1}, chr_size::Int64; pe::Bool=true)::Array{Array{Int64,1},1}
 
     # Number of CpG sites is determined by that in the region
-    N = length(feat_cpg_pos)
+    N = length(cpg_pos)
 
     # Expand window in PE case to include pair even if it's outside the window
-    pe ? exp_win=[max(1,featSt-75),min(chr_size,featEnd+75)] : exp_win=[featSt,featEnd]
+    pe ? exp_win=[max(1,f_st-75),min(chr_size,f_end+75)] : exp_win=[f_st,f_end]
 
     # Get records overlapping window.
     reader = open(BAM.Reader, bam_path, index=bam_path*".bai")
     records_olap = collect(eachoverlap(reader, chr, exp_win[1]:exp_win[2]))
+        # NOTE: known bug that has to do w/ BioAlignments
 
     # Relevant flags in BAM file (both Bismark and Arioc)
     filter!(x-> (BAM.ismapped(x)) && (haskey(x,"XM")) && (!haskey(x,"XS")) &&
@@ -196,17 +196,17 @@ function read_bam_coord(bam_path::String, chr::String, featSt::Int64,
         # Cross positions of CpG sites if template contains CpG sites
         temp_cpg_pos = [x.offset for x in eachmatch(r"[zZ]",meth_call)].-OFFSET
         if length(temp_cpg_pos)>0
-            olap_cpgs = findall(x-> x in temp_cpg_pos, feat_cpg_pos)
+            olap_cpgs = findall(x-> x in temp_cpg_pos, cpg_pos)
             # If overlapping CpG sites then store and add to xobs
             if length(olap_cpgs)>0
                 x = zeros(Int64,N)
-                temp_cpg_pos = temp_cpg_pos[findall(x-> x in feat_cpg_pos,
+                temp_cpg_pos = temp_cpg_pos[findall(x-> x in cpg_pos,
                                                     temp_cpg_pos)] .+ OFFSET
                 x[olap_cpgs] = reduce(replace, ["Z"=>1, "z"=>-1], init=
                                       split(meth_call[temp_cpg_pos],""))
                 push!(xobs,x)
-            # elseif (maximum(temp_cpg_pos) >= minimum(feat_cpg_pos)) ⊻
-            #     (maximum(feat_cpg_pos)>=minimum(temp_cpg_pos))
+            # elseif (maximum(temp_cpg_pos) >= minimum(cpg_pos)) ⊻
+            #     (maximum(cpg_pos)>=minimum(temp_cpg_pos))
             #     # CpG site positions are not intercalated
             # else
             #     println(stderr,"[$(now())]: Read/s $(BAM.tempname(record.R1))" *
@@ -217,11 +217,11 @@ function read_bam_coord(bam_path::String, chr::String, featSt::Int64,
 
     # Return
     return xobs
-end # end read_bam_coord
+end # end read_bam
 """
-    write_gff(out_gff_path, gff_records)
+    `write_gff(OUT_GFF, GFF_RECORDS)`
 
-Function that appends gff_records into out_gff_path.
+Function that appends `GFF_RECORDS` into `OUT_GFF`.
 
 # Examples
 ```julia-repl
@@ -242,10 +242,10 @@ function write_gff(out_gff_path::String, gff_records::Vector{GFF3.Record})::Vect
     return gff_records
 end # end write_gff
 """
-next_record(READER, CHR_NAMES, RECORD)
+    `next_record(READER, CHR_NAMES, RECORD)`
 
 Recursive function that returns next record in stream if in chr_names, and false
-if the stream reached its end. This function is only used in read_vcf().
+if the stream reached its end. This function is only used in `read_vcf()`.
 
 # Examples
 ```julia-repl
@@ -269,43 +269,90 @@ function next_record(reader_vcf::VCF.Reader, chr_names::Array{String,1},
     end
 end # end next_record
 """
-get_records_ps(READER, RECORD)
+    `is_het_cpg!(VAR,SEQ,H1,H2)`
 
-Recursive function that returns the end of current PS phased SNPs along the
-next SNP. This function is only used in read_vcf().
+Function that adds position of heterozygous CpG site, if existant, to the
+correct haplotype. Assumes that ref is the one pertaining to genome 1, and alt
+is the one pertaining to genome 2.
 
 # Examples
 ```julia-repl
-julia> get_records_ps(reader, chr_names, record)
+julia> is_het_cpg!(var,seq,h1,h2)
 ```
 """
-function get_records_ps(reader_vcf::VCF.Reader,record::VCF.Record,curr_ps::String,
-                        wEnd::Int64)::Tuple{VCF.Record,Int64}
+function is_het_cpg!(var::VCF.Record,seq::FASTA.Record,h1::Array{Int64,1},
+                     h2::Array{Int64,1})
+    # Initialize
+    ref_var = join(VCF.ref(var))
+    alt_var = join(VCF.alt(var))
 
-    # Check if record has same PS or end of reader
+    # Check if heterozygous CpG site in XG context
+    if ((ref_var=="C") && (alt_var in ["A","G"]))
+        # If followed by G, then heterozygous CpG in haplotype 1
+        if FASTA.sequence(seq,VCF.pos(var):(VCF.pos(var)+1))[2]==DNA_G
+            push!(h1,VCF.pos(var))
+        end
+    elseif ((alt_var=="C") && (ref_var in ["A","G"]))
+        # If followed by G, then heterozygous CpG in haplotype 2
+        if FASTA.sequence(seq,VCF.pos(var):(VCF.pos(var)+1))[2]==DNA_G
+            push!(h2,VCF.pos(var))
+        end
+    end
+
+    # Check if het CpG site in CX context
+    if ((ref_var=="G") && (alt_var in ["A","C","T"]))
+        # If preceeded by C, then heterozygous CpG in haplotype 1
+        if FASTA.sequence(seq,(VCF.pos(var)-1):VCF.pos(var))[1]==DNA_C
+            push!(h1,VCF.pos(var)-1)
+        end
+    elseif ((alt_var=="G") && (ref_var in ["A","C","T"]))
+        # If preceeded by C, then heterozygous CpG in haplotype 2
+        if FASTA.sequence(seq,(VCF.pos(var)-1):VCF.pos(var))[1]==DNA_C
+            push!(h2,VCF.pos(var)-1)
+        end
+    end
+
+end # end is_het_cpg!
+"""
+    `get_records_ps!(READER_VCF,SEQ,RECORD,CURR_PS,WIN_END,H1,H2)`
+
+Recursive function that returns the end of current PS phased SNPs along the
+next SNP. This function is only used in `read_vcf()`.
+
+# Examples
+```julia-repl
+julia> get_records_ps!(reader_VCF,seq,record,curr_ps,wEnd,h1,h2)
+```
+"""
+function get_records_ps!(reader_vcf::VCF.Reader,seq::FASTA.Record,
+                         record::VCF.Record,curr_ps::String,wEnd::Int64,
+                         h1::Array{Int64,1},h2::Array{Int64,1})::VCF.Record
+
+    # Check if record has same PS
     ind_PS = findfirst(x->x=="PS",VCF.format(record))
-    if VCF.genotype(record)[1][ind_PS]!=curr_ps
-        return (record, wEnd)
-    elseif !eof(reader_vcf)
-        # If not end of file, call function again if necessary
-        wEnd=VCF.pos(record)
+    VCF.genotype(record)[1][ind_PS]==curr_ps || return record
+
+    # If same PS continue
+    wEnd = VCF.pos(record)
+    is_het_cpg!(record,seq,h1,h2)
+    if !eof(reader_vcf)
         read!(reader_vcf, record)
         if "PS" in VCF.format(record)
-            get_records_ps(reader_vcf, record, curr_ps, wEnd)
+            record = get_records_ps!(reader_vcf,seq,record,curr_ps,wEnd,h1,h2)
         else
-            return (record, wEnd)
+            return record
         end
     else
         # return empty record if finished stream
-        return (VCF.Record(), wEnd)
+        return VCF.Record()
     end
 
 end # end get_records_ps
 """
-    read_vcf(OUT_GFF_PATH,FASTA_PATH,VCF_PATH,WINDOW_SIZE)
+    `read_vcf(OUT_GFF_PATH,FASTA_PATH,VCF_PATH,WINDOW_SIZE)`
 
 Function that creates a GFF file containing the heterozygous SNPs along with
-the positions of the sorrounding CpG sites within a window of WINDOW_SIZE. The
+the positions of the sorrounding CpG sites within a window of `WINDOW_SIZE`. The
 genotype must be specified using A|B or A/B notations (vertical or diagonal bar).
 
 # Examples
@@ -336,7 +383,7 @@ function read_vcf(out_gff_path::String, fasta_path::String, vcf_path::String,
     # Loop over variants
     while true
 
-        # Check if chromosome is in FASTA file
+        # Check if chromosome is in FASTA file. If not, obtain the next valid 1
         record = next_record(reader_vcf, chr_names, record)
 
         # Check we have loaded the right chromosome from FASTA
@@ -350,14 +397,18 @@ function read_vcf(out_gff_path::String, fasta_path::String, vcf_path::String,
 
         # Get entire (contiguous) haplotype using the PS field
         wSt = wEnd = VCF.pos(record)
+        het_cpgs1 = Array{Int64,1}()
+        het_cpgs2 = Array{Int64,1}()
         ind_PS = findfirst(x->x=="PS",VCF.format(record))
         if "PS" in VCF.format(record)
             # If PS tag, then phased
             curr_ps = VCF.genotype(record)[1][ind_PS]
-            record, wEnd = get_records_ps(reader_vcf, record, curr_ps, wEnd)
+            record = get_records_ps!(reader_vcf, fasta_record, record, curr_ps,
+                                     wEnd, het_cpgs1, het_cpgs2)
         else
             # If no PS tag, then single SNP (marked as NOPS)
             curr_ps = "NOPS"
+            is_het_cpg!(record,fasta_record,het_cpgs1,het_cpgs2)
             eof(reader_vcf) ? record=VCF.Record() : read!(reader_vcf, record)
         end
 
@@ -368,10 +419,14 @@ function read_vcf(out_gff_path::String, fasta_path::String, vcf_path::String,
         wSeq = convert(String,FASTA.sequence(fasta_record,win[1]:win[2]))
         cpg_pos = map(x->getfield(x,:offset),eachmatch(r"CG",wSeq)).+win[1].-1
 
-        # Store haplotype & corresponding CpG sites if necessary
-        length(cpg_pos)>0 &&
-        push!(gff_records,GFF3.Record("$(curr_chr)\t.\t$(curr_ps)\t$(win[1])"*
-              "\t$(win[2])\t.\t.\t.\tN=$(length(cpg_pos));CpGs=$(cpg_pos)"))
+        # Store haplotype & corresponding CpG sites if homozygous CpG site/s
+        if length(cpg_pos)>0
+            out_str = "$(curr_chr)\t.\t$(curr_ps)\t$(win[1])\t$(win[2])"*
+                      "\t.\t.\t.\tN=$(length(cpg_pos));CpGs=$(cpg_pos)"
+            length(het_cpgs1)>0 && (out_str*=";hetCpGg1=$(het_cpgs1)")
+            length(het_cpgs2)>0 && (out_str*=";hetCpGg2=$(het_cpgs2)")
+            push!(gff_records,GFF3.Record(out_str))
+        end
 
         # Check if gff_records object is too big (8 bytes x record) and dump it
         if sizeof(gff_records)>=80000
@@ -388,10 +443,10 @@ function read_vcf(out_gff_path::String, fasta_path::String, vcf_path::String,
 
 end # end read_vcf
 """
-    read_gff_chr(GFF_PATH,chr)
+    `read_gff_chr(GFF_PATH,CHR)`
 
 Function that reads in a GFF3 file in GFF_PATH and returns an array of
-GenomicFeatures Record objects contained in chromosome chr. The format is the
+GenomicFeatures Record objects contained in chromosome CHR. The format is the
 standard defined by ENSEMBL (https://useast.ensembl.org/info/website/upload/gff3.html).
 
 # Examples
@@ -411,9 +466,9 @@ function read_gff_chr(gff_path::String,chr::String)::Array{GFF3.Record,1}
     return features
 end # end read_gff_chr
 """
-    write_bG(BEDGRAPH_PATH, BEDGRAPH_RECORDS)
+    `write_bG(BEDGRAPH_PATH, BEDGRAPH_RECORDS)`
 
-Function that writes records in BEDGRAPH_RECORDS into BEDGRAPH_PATH.
+Function that writes records in `BEDGRAPH_RECORDS` into `BEDGRAPH_PATH`.
 
 # Examples
 ```julia-repl
@@ -434,7 +489,35 @@ function write_bG(bG_records::Array{Tuple{String,Int64,Int64,Float64},1},
     return bG_records
 end # end write_bG
 """
-    run_asm_analysis(BAM1_PATH,BAM2_PATH,VCF_PATH,FASTA_PATH,WINDOW_SIZE,OUT_PATH)
+    `get_cpg_pos(FEAT_ATTS)`
+
+Function that takes the attributes in the GFF file and returns the homozygous
+and heterozygous CpG sites in it.
+
+# Examples
+```julia-repl
+julia> get_cpg_pos(f_atts)
+```
+"""
+function get_cpg_pos(atts::Dict{String,Array{String,1}})::Array{Array{Int64,1},1}
+
+    # Retrieve homozygous CpG sites
+    hom = [parse(Int64,replace(s,r"[\[\] ]"=>"")) for s in atts[:"CpGs"]]
+
+    # Retrieve heterozygous CpG sites for each haplotype (if existant)
+    het1=Array{Int64,1}()
+    het2=Array{Int64,1}()
+    if haskey(atts,"hetCpGg1")
+        het1=[parse(Int64,replace(s,r"[\[\] ]"=>"")) for s in atts[:"hetCpGg1"]]
+    end
+    if haskey(atts,"hetCpGg2")
+        het2=[parse(Int64,replace(s,r"[\[\] ]"=>"")) for s in atts[:"hetCpGg2"]]
+    end
+
+    return [hom,sort!(append!(het1,hom)),sort!(append!(het2,hom))]
+end # end get_cpg_pos
+"""
+    `run_asm_analysis(BAM1_PATH,BAM2_PATH,VCF_PATH,FASTA_PATH,WINDOW_SIZE,OUT_PATH)`
 
 Function that runs juliASM on a pair of BAM files (allele 1, allele 2) given a
 VCF file that contains the heterozygous SNPs and a FASTA file that contains the
@@ -525,7 +608,9 @@ function run_asm_analysis(bam1_path::String, bam2_path::String, vcf_path::String
 
     # Loop over chromosomes
     mi = 0.0
-    n = tot_feats = int_feats_1 = int_feats_2 = int_feats_mi = 0
+    f_atts = Dict{String,Array{String,1}}()
+    cpg_pos = hom_cpgs = het_cpgs1 = het_cpgs2 = []
+    n = n1 = n2 = tot_feats = int_feats_1 = int_feats_2 = int_feats_mi = 0
     for chr in chr_names
         # Get windows pertaining to current chromosome
         println(stderr,"[$(now())]: Processing 🧬  $(chr) ...")
@@ -534,40 +619,40 @@ function run_asm_analysis(bam1_path::String, bam2_path::String, vcf_path::String
 
         # Loop over windows in chromosome
         for feat in features_chr
-            # Get window of interest and CpG sites positions
+            # Get window of interest
             tot_feats += 1
-            featSt = GFF3.seqstart(feat)
-            featEnd = GFF3.seqend(feat)
-            feat_atts = GFF3.attributes(feat)
-            n = parse(Int64,feat_atts[1][2][1])
-            feat_cpg_pos = [parse(Int64,replace(s,r"[\[\] ]"=>"")) for s in
-                            feat_atts[2][2]] # space in regex in on purpose
+            f_st = GFF3.seqstart(feat)
+            f_end = GFF3.seqend(feat)
+            f_atts = Dict(GFF3.attributes(feat))
 
-            # Get vectors from BAM[12] overlapping feature
-            xobs1 = read_bam_coord(bam1_path, chr, featSt, featEnd, feat_cpg_pos,
-                                   chr_size; pe=pe)
-            xobs2 = read_bam_coord(bam2_path, chr, featSt, featEnd, feat_cpg_pos,
-                                   chr_size; pe=pe)
+            # Get homozygous & heterozygous CpG sites (1:hom, 2:hap1, 3: hap2)
+            cpg_pos = get_cpg_pos(f_atts)
+
+            # Get vectors from BAM1/2 overlapping feature
+            n1 = length(cpg_pos[2])
+            n2 = length(cpg_pos[3])
+            xobs1 = read_bam(bam1_path,chr,f_st,f_end,cpg_pos[2],chr_size;pe=pe)
+            xobs2 = read_bam(bam2_path,chr,f_st,f_end,cpg_pos[3],chr_size;pe=pe)
 
             # Estimate each single-allele model, mml and h
             if length(xobs1)>=THRESH_COV
-                n==1 ? eta1=est_alpha(xobs1) : eta1=est_eta(xobs1)
-                push!(mml1_recs,(chr,featSt,featEnd,comp_mml(n,eta1[1],eta1[2])))
-                push!(h1_recs,(chr,featSt,featEnd,comp_shanH(n,eta1[1],eta1[2])))
+                n1==1 ? eta1=est_alpha(xobs1) : eta1=est_eta(xobs1)
+                push!(mml1_recs,(chr,f_st,f_end,comp_mml(n1,eta1[1],eta1[2])))
+                push!(h1_recs,(chr,f_st,f_end,comp_shanH(n1,eta1[1],eta1[2])))
                 int_feats_1 += 1
             end
             if length(xobs2)>=THRESH_COV
-                n==1 ? eta2=est_alpha(xobs2) : eta2=est_eta(xobs2)
-                push!(mml2_recs,(chr,featSt,featEnd,comp_mml(n,eta2[1],eta2[2])))
-                push!(h2_recs,(chr,featSt,featEnd,comp_shanH(n,eta2[1],eta2[2])))
+                n2==1 ? eta2=est_alpha(xobs2) : eta2=est_eta(xobs2)
+                push!(mml2_recs,(chr,f_st,f_end,comp_mml(n2,eta2[1],eta2[2])))
+                push!(h2_recs,(chr,f_st,f_end,comp_shanH(n2,eta2[1],eta2[2])))
                 int_feats_2 += 1
             end
 
             # Compute mutual information
             if (length(xobs1)>=THRESH_COV) && (length(xobs2)>=THRESH_COV)
-                mi = comp_mi(n,eta1,eta2)
-                push!(mi_recs,(chr,featSt,featEnd,mi))
-                push!(pVal_recs,(chr,featSt,featEnd,perm_test(xobs1,xobs2,mi,n)))
+                mi = comp_mi(cpg_pos,eta1,eta2)
+                push!(mi_recs,(chr,f_st,f_end,mi))
+                push!(pVal_recs,(chr,f_st,f_end,perm_test(xobs1,xobs2,mi,cpg_pos)))
                 int_feats_mi += 1
             end
 
