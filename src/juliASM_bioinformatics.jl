@@ -219,16 +219,16 @@ function read_bam(bam_path::String, chr::String, f_st::Int64, f_end::Int64,
     return xobs
 end # end read_bam
 """
-    `write_gff(OUT_GFF, GFF_RECORDS)`
+    `write_gff!(OUT_GFF, GFF_RECORDS)`
 
 Function that appends `GFF_RECORDS` into `OUT_GFF`.
 
 # Examples
 ```julia-repl
-julia> write_gff(out_gff_path, gff_records)
+julia> write_gff!(out_gff_path, gff_records)
 ```
 """
-function write_gff(out_gff_path::String, gff_records::Vector{GFF3.Record})::Vector{GFF3.Record}
+function write_gff!(out_gff_path::String, gff_records::Vector{GFF3.Record})
 
     # Append gff records
     output = open(out_gff_path, "a")
@@ -238,8 +238,6 @@ function write_gff(out_gff_path::String, gff_records::Vector{GFF3.Record})::Vect
     end
     close(writer)
 
-    # Return empty vector
-    return gff_records
 end # end write_gff
 """
     `next_record(READER, CHR_NAMES, RECORD)`
@@ -332,9 +330,13 @@ function get_records_ps!(reader_vcf::VCF.Reader,seq::FASTA.Record,
     ind_PS = findfirst(x->x=="PS",VCF.format(record))
     VCF.genotype(record)[1][ind_PS]==curr_ps || return record
 
-    # If same PS continue
+    # Check GT string and update het. CpG sites
+    ind_GT = findfirst(x->x=="GT",VCF.format(record))
+    curr_gt = VCF.genotype(record)[1][ind_GT]
+    curr_gt in ["0/1","0|1"] ? is_het_cpg!(record,seq,h1,h2) : is_het_cpg!(record,seq,h2,h1)
+
+    # Continue reading
     wEnd = VCF.pos(record)
-    is_het_cpg!(record,seq,h1,h2)
     if !eof(reader_vcf)
         read!(reader_vcf, record)
         if "PS" in VCF.format(record)
@@ -399,9 +401,9 @@ function read_vcf(out_gff_path::String, fasta_path::String, vcf_path::String,
         wSt = wEnd = VCF.pos(record)
         het_cpgs1 = Array{Int64,1}()
         het_cpgs2 = Array{Int64,1}()
-        ind_PS = findfirst(x->x=="PS",VCF.format(record))
         if "PS" in VCF.format(record)
             # If PS tag, then phased
+            ind_PS = findfirst(x->x=="PS",VCF.format(record))
             curr_ps = VCF.genotype(record)[1][ind_PS]
             record = get_records_ps!(reader_vcf, fasta_record, record, curr_ps,
                                      wEnd, het_cpgs1, het_cpgs2)
@@ -429,9 +431,7 @@ function read_vcf(out_gff_path::String, fasta_path::String, vcf_path::String,
         end
 
         # Check if gff_records object is too big (8 bytes x record) and dump it
-        if sizeof(gff_records)>=80000
-            gff_records = write_gff(out_gff_path, gff_records)
-        end
+        sizeof(gff_records)>=80000 && write_gff!(out_gff_path, gff_records)
 
         # If new record empty break while loop
         VCF.haspos(record) || break
@@ -439,7 +439,7 @@ function read_vcf(out_gff_path::String, fasta_path::String, vcf_path::String,
     end
 
     # Dump remaining records
-    gff_records = write_gff(out_gff_path, gff_records)
+    write_gff!(out_gff_path, gff_records)
 
 end # end read_vcf
 """
