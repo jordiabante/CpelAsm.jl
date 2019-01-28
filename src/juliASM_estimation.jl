@@ -1,12 +1,12 @@
 """
-    create_Ux(alpha,beta)
+    `create_Ux(α,β)`
 
-Function that generates a function to compute potential energy for
-a region with N CpG sites and with parameters α and β.
+Function that creates a function to compute potential energy for a region with
+N CpG sites and with parameters α and β.
 
 # Examples
 ```julia-repl
-julia> Ux_fun = create_Ux(N,alpha,beta)
+julia> Ux_fun = create_Ux(1.0,-1.0)
 ```
 """
 function create_Ux(a::Float64, b::Float64)
@@ -16,12 +16,12 @@ function create_Ux(a::Float64, b::Float64)
     return Ux
 end # end create_Ux
 """
-comp_full_stats(xobs)
+    `comp_full_stats(XOBS)`
 
 Compute vector S of sufficient statistics under model with N CpG sites.
 This function is only valid for fully observed data since we are summing
-over to obtain overall statistic S=[S1,S2] where
-S1 = ∑ T1(x); S2 = ∑ T2(x)
+over to obtain overall statistic `S=[S1,S2]`` where
+`S1 = ∑ T1(x)`; `S2 = ∑ T2(x)`
 from all complete observations.
 
 # Examples
@@ -41,11 +41,10 @@ function comp_full_stats(xobs::Array{Array{Int64,1},1})::Array{Int64,1}
     return [s1,s2]
 end # comp_full_stats
 """
-comp_Z(N,alpha,beta)
+    `comp_Z(N,α,β)`
 
 Compute partition function of a model with N CpG cites and with parameters
-α and β. This is computed using the closed-form expression provided in
-REFERENCE. The transfer-matrix method is used to obtain a computationally
+α and β. The transfer-matrix method is used to obtain a computationally
 efficient expression without the need of recursive expressions.
 
 # Examples
@@ -73,26 +72,59 @@ function comp_Z(N::Int64, a::Float64, b::Float64)::Float64
     return max(1e-100, u' * S * LN * Sinv * u)
 end
 """
-comp_scal_fac(k,alpha,beta,alphap)
+    `comp_Z2(N,α,β)`
 
-Compute scaling factor in a model with k unobserved CpG cites with parameters
-α and β. This is computed using the closed-form expression provided in
-REFERENCE. The transfer-matrix method is used to obtain a computationally
-efficient expression without the need of recursive expressions.
+Compute partition function of a model with N CpG cites and with parameters
+α and β. The transfer-matrix method is used to obtain a computationally
+efficient expression without the need of recursive expressions. This expression
+is further simplified using the sum of rank-1 matrices to avoid matrix products.
+Turns out that it is 10% slower than `comp_Z`though.
 
 # Examples
 ```julia-repl
-julia>JuliASM.comp_scal_fac(1,1.0,1.0,1.0)
-4.7048192304864935
+julia>JuliASM.comp_Z2(4,1.0,1.0)
+1149.715905067999
 ```
 """
-function comp_scal_fac(k::Int64, a::Float64, b::Float64, ap::Float64)::Float64
+function comp_Z2(N::Int64, a::Float64, b::Float64)::Float64
+    # Eigenvalues
+    aux1 = exp(b) * cosh(a)
+    aux2 = sqrt(1.0 + exp(4.0*b)*sinh(a)^2)
+    lambda1N = (aux1-exp(-b)*aux2)^(N-1)
+    lambda2N = (aux1+exp(-b)*aux2)^(N-1)
+
+    # Eigenvectors
+    aux1 = -exp(2*b) * sinh(a)
+    e1 = [aux1-aux2; 1.0]
+    e1 /= norm(e1)
+    e2 = [aux1+aux2; 1.0]
+    e2 /= norm(e2)
+
+    # Return a Z>0
+    u = [exp(-a/2.0); exp(a/2.0)]
+    return max(1e-100, (u'*e1)^2*lambda1N + (u'*e2)^2*lambda2N)
+end
+"""
+    `comp_scal_fac(K,α,β,αp1,αp2)`
+
+Compute scaling factor in a model with K unobserved CpG cites with parameters
+α and β. The transfer-matrix method is used to obtain a computationally
+efficient expression without the need of recursive expressions. αp1 and αp2
+are determined by the respective kind of boundary.
+
+# Examples
+```julia-repl
+julia>JuliASM.comp_scal_fac(1,1.0,1.0,1.0,1.0)
+7.524391382167261
+```
+"""
+function comp_scal_fac(k::Int64, a::Float64, b::Float64, ap1::Float64, ap2::Float64)::Float64
     # Return one if k=0
     k==0 && return 1.0
 
     # Eigenvalues
     aux1 = exp(b) * cosh(a)
-    aux2 = sqrt(1 + exp(4*b)*sinh(a)^2)
+    aux2 = sqrt(1.0 + exp(4.0*b)*sinh(a)^2)
     LN = [(aux1-exp(-b)*aux2)^(k-1) 0.0; 0.0 (aux1+exp(-b)*aux2)^(k-1)]
 
     # Matrix S
@@ -104,16 +136,15 @@ function comp_scal_fac(k::Int64, a::Float64, b::Float64, ap::Float64)::Float64
     Sinv = [-0.5*aux3 0.5+0.5*aux1*aux3;0.5*aux3 0.5-0.5*aux1*aux3]
 
     # Return scaling factor
-    vs = [exp(-ap); exp(ap)]
-    ve = [exp(-a/2.0); exp(a/2.0)]
+    vs = [exp(-ap1); exp(ap1)]
+    ve = [exp(-ap2); exp(ap2)]
     return max(1e-100, vs' * S * LN * Sinv * ve)
 end
 """
-comp_lkhd(x,alpha,beta)
+    `comp_lkhd(X,α,β)`
 
-Compute likelihood of a partial/full observation x that can be missing
-values on both sides (given by 0's). Returns -1 if x is not a valid
-observation.
+Compute likelihood of a partial/full observation X that can be missing
+values anywhere (given by 0's).
 
 # Examples
 ```julia-repl
@@ -126,27 +157,36 @@ function comp_lkhd(x::Array{Int64,1}, a::Float64, b::Float64)::Float64
     # Avoid the rest if N=1
     length(x)==1 && return 0.5 * exp(x[1]*a) / cosh(a)
 
-    # Find kl and kr
-    ind_dat = findall(!isequal(0), x)
-    kl = ind_dat[1]-1
-    kr = length(x)-ind_dat[end]
-
     # Get partition function and energy function
     Ux = create_Ux(a, b)
     Z = comp_Z(length(x), a, b)
 
-    # Get scaling factors due to missing data
-    sf = comp_scal_fac(kl, a, b, x[ind_dat[1]]*b+a/2.0) *
-         comp_scal_fac(kr, a, b, x[ind_dat[end]]*b+a/2.0)
+    # Find changes to/from 0 in x vector
+    ind_zero_st = findall(isequal(-1),abs.(x[2:end]) - abs.(x[1:(end-1)])) .+ 1
+    ind_zero_end = findall(isequal(1),abs.(x[2:end]) - abs.(x[1:(end-1)])) .+ 1
 
-    # Return energy function evaluated at x properly scaled
-    return exp(-Ux(x[ind_dat])) * sf / Z
+    # Determine whether it starts/finishes with 0
+    x[1]==0 && pushfirst!(ind_zero_st,1)
+    x[end]==0 && push!(ind_zero_end,length(x)+1)
+
+    # Get scaling factors due to all missing data
+    sf = 1.0
+    for i in 1:length(ind_zero_st)
+        k = ind_zero_end[i]-ind_zero_st[i]
+        ind_zero_st[i]==1 ? ap1 = a/2.0 : ap1=x[ind_zero_st[i]-1]*b+a/2.0
+        ind_zero_end[i]==length(x)+1 ? ap2 = a/2.0 : ap2=x[ind_zero_end[i]]*b+a/2.0
+        sf *= comp_scal_fac(k, a, b, ap1, ap2)
+    end
+
+    # Return energy function properly scaled.
+    # Note: when we have missing data the zeros don't contribute at all.
+    return exp(-Ux(x)) * sf / Z
 end
 """
-create_Llkhd(x,alpha,beta)
+    `create_Llkhd(XOBS)`
 
 Create function to compute the minus log-likelihood function for a region with N
-CpG sites given the M partial observations.
+CpG sites given the M partial observations XOBS.
 
 # Examples
 ```julia-repl
@@ -167,29 +207,36 @@ function create_Llkhd(xobs::Array{Array{Int64,1},1})
 
         # Contribution of each observation
         for x in xobs
-            ind_dat = findall(!isequal(0), x)
-            kl = ind_dat[1]-1
-            kr = length(x)-ind_dat[end]
 
-            # Check if observation are contiguous
-            all(ind_dat[2:end]-ind_dat[1:(length(ind_dat)-1)].==1) || continue
+            # Find changes to/from 0 in x vector
+            ind_zero_st = findall(isequal(-1),abs.(x[2:end]) - abs.(x[1:(end-1)])) .+ 1
+            ind_zero_end = findall(isequal(1),abs.(x[2:end]) - abs.(x[1:(end-1)])) .+ 1
 
-            # Add scaling factors due to missing data
-            kl>0 && (aux+=log(comp_scal_fac(kl, a, b, x[ind_dat[1]]*b+a/2.0)))
-            kr>0 && (aux+=log(comp_scal_fac(kr, a, b, x[ind_dat[end]]*b+a/2.0)))
+            # Determine whether it starts/finishes with 0
+            x[1]==0 && pushfirst!(ind_zero_st,1)
+            x[end]==0 && push!(ind_zero_end,length(x)+1)
+
+            # Get scaling factors due to all missing data
+            for i in 1:length(ind_zero_st)
+                k = ind_zero_end[i]-ind_zero_st[i]
+                ind_zero_st[i]==1 ? ap1 = a/2.0 : ap1=x[ind_zero_st[i]-1]*b+a/2.0
+                ind_zero_end[i]==length(x)+1 ? ap2 = a/2.0 : ap2=x[ind_zero_end[i]]*b+a/2.0
+                aux += log(comp_scal_fac(k, a, b, ap1, ap2))
+            end
 
             # Add log of it to Llkhd
-            aux += -Ux(x[ind_dat])
+            aux += -Ux(x)
         end
-        # Add as many logZ as samples we have
+
+        # Return MINUS log-likelihood. Add as many logZ as samples we have
         -aux + length(xobs) * logZ
     end
     return Llkhd_fun
 end # end create_Llkhd
 """
-est_alpha(xobs)
+    `est_alpha(XOBS)`
 
-Estimate parameter α for the N=1 case.
+Estimate parameter α for N=1 case.
 
 # Examples
 ```julia-repl
@@ -212,7 +259,7 @@ function est_alpha(xobs::Array{Array{Int64,1},1})::Array{Float64,1}
     return [0.5*(log(phat)-log(1.0-phat)),0.0]
 end # end est_alpha
 """
-est_eta(xobs)
+    `est_eta(XOBS)`
 
 Estimate parameter vector η=[α, β] based on full or partial observations.
 
@@ -266,7 +313,7 @@ function est_eta(xobs::Array{Array{Int64,1},1})::Array{Float64,1}
     return etahat
 end # end est_eta
 """
-mle_mult(xobs)
+    `mle_mult(XOBS)`
 
 Estimate parameter vector p=[p_1,...,p_{2^N}] based on a multinomial model
 and full observations.
@@ -276,8 +323,24 @@ and full observations.
 julia> Random.seed!(1234);
 julia> xobs=JuliASM.gen_mult_full_data(100);
 julia> JuliASM.mle_mult(xobs)
+16-element Array{Float64,1}:
+ 0.07
+ 0.08
+ 0.06
+ 0.06
+ 0.08
+ 0.08
+ 0.04
+ 0.05
+ 0.04
+ 0.07
+ 0.07
+ 0.02
+ 0.04
+ 0.12
+ 0.07
+ 0.05
 ```
-
 """
 function mle_mult(xobs::Array{Array{Int64,1},1})::Array{Float64,1}
 
@@ -296,9 +359,9 @@ function mle_mult(xobs::Array{Array{Int64,1},1})::Array{Float64,1}
     return phat
 end # end mle_mult
 """
-mle_bin_semi(xobs)
+    `mle_bin_semi(XOBS)`
 
-Estimate parameter vector p=[p_1,...,p_{2^N}] based on a binomial model that
+Estimate parameter vector `p=[p_1,...,p_{2^N}]` based on a binomial model that
 assumes a different probability of methylation at each CpG site, as well as
 fully observed vectors. This results in a semi-parametric model that grows
 in size proportionally to the number of CpG sites.
@@ -308,8 +371,24 @@ in size proportionally to the number of CpG sites.
 julia> Random.seed!(1234);
 julia> xobs=JuliASM.gen_mult_full_data(100);
 julia> JuliASM.mle_bin_semi(xobs)
+16-element Array{Float64,1}:
+ 0.06662343999999999
+ 0.07512856000000001
+ 0.04824455999999999
+ 0.05440344
+ 0.07512856000000001
+ 0.08471944000000002
+ 0.054403440000000004
+ 0.06134856
+ 0.061498559999999994
+ 0.06934944000000001
+ 0.044533439999999994
+ 0.050218559999999995
+ 0.06934944000000001
+ 0.07820256000000002
+ 0.05021856
+ 0.056629439999999996
 ```
-
 """
 function mle_bin_semi(xobs::Array{Array{Int64,1},1})::Array{Float64,1}
 
@@ -335,9 +414,9 @@ function mle_bin_semi(xobs::Array{Array{Int64,1},1})::Array{Float64,1}
     return phat #/ sum(phat)
 end # end mle_bin_semi
 """
-mle_bin_param(xobs)
+    `mle_bin_param(XOBS)`
 
-Estimate parameter vector p=[p_1,...,p_{2^N}] based on a binomial model
+Estimate parameter vector `p=[p_1,...,p_{2^N}]` based on a binomial model
 that assumes that each CpG site has the same probability of being methylated,
 as well as fully observed vectors. This results in a parametric model that does
 not grow with the number of CpG sites considered.
@@ -347,6 +426,23 @@ not grow with the number of CpG sites considered.
 julia> Random.seed!(1234);
 julia> xobs=JuliASM.gen_mult_full_data(100);
 julia> JuliASM.mle_bin_param(xobs)
+16-element Array{Float64,1}:
+ 0.06765201
+ 0.06499899
+ 0.06499899
+ 0.06245000999999999
+ 0.06499899
+ 0.06245000999999999
+ 0.06245000999999999
+ 0.06000099
+ 0.06499899
+ 0.06245000999999999
+ 0.06245000999999999
+ 0.06000099
+ 0.06245000999999999
+ 0.06000099
+ 0.06000099
+ 0.05764800999999999
 ```
 
 """
@@ -373,7 +469,7 @@ function mle_bin_param(xobs::Array{Array{Int64,1},1})::Array{Float64,1}
     return phat #/ sum(phat)
 end # end mle_bin_param
 """
-bifurcate(xpool,sel)
+    `bifurcate(xpool,sel)`
 
 Function that divides xpool into two mutually exclusive sets based on sel.
 
@@ -391,15 +487,24 @@ function bifurcate(xpool::Array{Array{Int64,1},1}, sel::Vector{T}) where T <: In
     return x,y
 end
 """
-perm_test(xobs1,xobs2,tobs)
+    `perm_test(XOBS1,XOBS2,TOBS,POS_CG)`
 
 # Examples
 ```julia-repl
-julia> ??
+julia> Random.seed!(1234);
+julia> xobs1=JuliASM.gen_ising_full_data(100,4;a=1.0);
+julia> xobs2=JuliASM.gen_ising_full_data(100,4;a=-1.0);
+julia> eta1=JuliASM.est_eta(xobs1);
+julia> eta2=JuliASM.est_eta(xobs2);
+julia> hom=[1,5,10,15];
+julia> cpg_pos=[hom,hom,hom];
+julia> tobs=JuliASM.comp_mi(cpg_pos,eta1,eta2);
+julia> JuliASM.perm_test(xobs1,xobs2,tobs,cpg_pos)
+0.0
 ```
 """
 function perm_test(xobs1::Array{Array{Int64,1},1},xobs2::Array{Array{Int64,1},1},
-                   tobs::Float64,n::Int64)::Float64
+                   tobs::Float64,cpg_pos::Array{Array{Int64,1},1})::Float64
     # Initialize
     better = worse = 0.0
     xpool = vcat(xobs1, xobs2)
@@ -411,11 +516,11 @@ function perm_test(xobs1::Array{Array{Int64,1},1},xobs2::Array{Array{Int64,1},1}
       test, control = bifurcate(xpool, subset)
 
       # Estimate parameters
-      n==1 ? eta1=est_alpha(control) : eta1=est_eta(control)
-      n==1 ? eta2=est_alpha(test) : eta2=est_eta(test)
+      length(cpg_pos[2])==1 ? eta1=est_alpha(control) : eta1=est_eta(control)
+      length(cpg_pos[3])==1 ? eta2=est_alpha(test) : eta2=est_eta(test)
 
       # Compute MI for partition and compared to that observed
-      comp_mi(n,eta1,eta2)>tobs ? better += 1.0 : worse += 1.0
+      comp_mi(cpg_pos,eta1,eta2)>tobs ? better+=1.0 : worse+=1.0
 
       # If enough permutations leave
       i<100 ? i+=1 : break

@@ -1,8 +1,12 @@
-##fileformat=VCFv4.2
+##fileformat=VCF
 ##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=PS,Number=1,Type=String,Description="Phasing">
 ##FORMAT=<ID=FI,Number=1,Type=Integer,Description="FILTER">
 #CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	STL003
-chr1	50	SNP1	A	T	.	.	.	GT:PS:FI	0/1:1:1
-chr1	150	SNP2	C	A,G	.	.	.	GT:PS:FI	1/2:2:1
-chr2	50	SNP3	A	C	.	.	.	GT:PS:FI	0/1:3:1
-chr2	150	SNP4	T	A	.	.	.	GT:PS:FI	0/1:4:1
+chr1	50	SNP	C	A	.	.	.	GT:PS:FI	0/1:L1:1
+chr1	80	SNP	A	T	.	.	.	GT:PS:FI	0/1:L1:1
+chr1	140	SNP	A	G	.	.	.	GT:PS:FI	0/1:L2:1
+chr1	145	SNP	A	G	.	.	.	GT:PS:FI	0/1:L2:1
+chr2	40	SNP	G	A	.	.	.	GT:PS:FI	0/1:L3:1
+chr2	50	SNP	A	C	.	.	.	GT:PS:FI	0/1:L3:1
+chr2	60	SNP	A	C	.	.	.	GT:PS:FI	0/1:L3:1
