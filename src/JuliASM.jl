@@ -2,21 +2,26 @@ __precompile__()
 
 module JuliASM
 ##########################################################################
-# TODO
+# TODO JORDI
 ##########################################################################
-# 1. Case where |α| and/or |β| → ∞ (∄ MLE).
-# 2. Optimization benchmark for "MLE".
+# ESTIMATION
+# 0. Send inverse in comp_Z.
+# 1. Is log-likelihood concave even when missing data?
+# 2. Case where |α| and/or |β| → ∞ (∄ MLE).
+# 3. Coverage? Check informME and do simulations.
+# 4. Optimization benchmark for "MLE".
 #   a. Multiple local optimizers.
 #   b. Boxed Simulated annealing.
 #   c. BlackBoxOptim.
-# 3. More efficient ways to compute output quantities?
+# OUTPUT
+# 4. More efficient ways to compute output quantities?
 #   a. Closed-form expressions?
-# 4. Refine permutation test?
+# STATISTICAL ANALYSIS
+# 5. Refine permutation test?
 ##########################################################################
 # DEPENDENCIES
 ##########################################################################
 using Random            # RNG
-using LinearAlgebra     # Liner algebra operations (comp_Z2)
 using Dates             # For showing time
 using Distributions     # For sampling RVs
 using Plots             # For plots

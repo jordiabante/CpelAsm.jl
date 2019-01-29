@@ -354,8 +354,9 @@ end # end get_records_ps
     `read_vcf(OUT_GFF_PATH,FASTA_PATH,VCF_PATH,WINDOW_SIZE)`
 
 Function that creates a GFF file containing the heterozygous SNPs along with
-the positions of the sorrounding CpG sites within a window of `WINDOW_SIZE`. The
-genotype must be specified using A|B or A/B notations (vertical or diagonal bar).
+the positions of the sorrounding CpG sites within a window of `WINDOW_SIZE`. For
+phased VCF records, GT must be specified using A|B notation, while for unphased
+records it assumes GT is always "0/1".
 
 # Examples
 ```julia-repl

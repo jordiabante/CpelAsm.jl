@@ -44,49 +44,16 @@ end # comp_full_stats
     `comp_Z(N,α,β)`
 
 Compute partition function of a model with N CpG cites and with parameters
-α and β. The transfer-matrix method is used to obtain a computationally
-efficient expression without the need of recursive expressions.
+α and β. This expression is further simplified using the sum of rank-1 matrices
+to avoid matrix multiplications.
 
 # Examples
 ```julia-repl
 julia>JuliASM.comp_Z(4,1.0,1.0)
-1149.715905067999
+1149.715905067998
 ```
 """
 function comp_Z(N::Int64, a::Float64, b::Float64)::Float64
-    # Eigenvalues
-    aux1 = exp(b) * cosh(a)
-    aux2 = sqrt(1 + exp(4*b)*sinh(a)^2)
-    LN = [(aux1-exp(-b)*aux2)^(N-1) 0.0; 0.0 (aux1+exp(-b)*aux2)^(N-1)]
-
-    # Matrix S
-    aux1 = -exp(2*b) * sinh(a)
-    S = [aux1-aux2 aux1+aux2; 1.0 1.0]
-
-    # Matrix Sinv
-    aux3 = 1.0 / aux2
-    Sinv = [-0.5*aux3 0.5+0.5*aux1*aux3;0.5*aux3 0.5-0.5*aux1*aux3]
-
-    # Return a Z>0
-    u = [exp(-a/2.0); exp(a/2.0)]
-    return max(1e-100, u' * S * LN * Sinv * u)
-end
-"""
-    `comp_Z2(N,α,β)`
-
-Compute partition function of a model with N CpG cites and with parameters
-α and β. The transfer-matrix method is used to obtain a computationally
-efficient expression without the need of recursive expressions. This expression
-is further simplified using the sum of rank-1 matrices to avoid matrix products.
-Turns out that it is 10% slower than `comp_Z`though.
-
-# Examples
-```julia-repl
-julia>JuliASM.comp_Z2(4,1.0,1.0)
-1149.715905067999
-```
-"""
-function comp_Z2(N::Int64, a::Float64, b::Float64)::Float64
     # Eigenvalues
     aux1 = exp(b) * cosh(a)
     aux2 = sqrt(1.0 + exp(4.0*b)*sinh(a)^2)
@@ -96,13 +63,15 @@ function comp_Z2(N::Int64, a::Float64, b::Float64)::Float64
     # Eigenvectors
     aux1 = -exp(2*b) * sinh(a)
     e1 = [aux1-aux2; 1.0]
-    e1 /= norm(e1)
+    e1 /= sqrt(e1'*e1)
     e2 = [aux1+aux2; 1.0]
-    e2 /= norm(e2)
+    e2 /= sqrt(e2'*e2)
 
-    # Return a Z>0
+    # Boundary conditions
     u = [exp(-a/2.0); exp(a/2.0)]
-    return max(1e-100, (u'*e1)^2*lambda1N + (u'*e2)^2*lambda2N)
+
+    # Return Z
+    return (u'*e1)^2*lambda1N + (u'*e2)^2*lambda2N
 end
 """
     `comp_scal_fac(K,α,β,αp1,αp2)`
@@ -125,20 +94,22 @@ function comp_scal_fac(k::Int64, a::Float64, b::Float64, ap1::Float64, ap2::Floa
     # Eigenvalues
     aux1 = exp(b) * cosh(a)
     aux2 = sqrt(1.0 + exp(4.0*b)*sinh(a)^2)
-    LN = [(aux1-exp(-b)*aux2)^(k-1) 0.0; 0.0 (aux1+exp(-b)*aux2)^(k-1)]
+    lambda1k = (aux1-exp(-b)*aux2)^(k-1)
+    lambda2k = (aux1+exp(-b)*aux2)^(k-1)
 
-    # Matrix S
+    # Eigenvectors
     aux1 = -exp(2*b) * sinh(a)
-    S = [aux1-aux2 aux1+aux2; 1.0 1.0]
+    e1 = [aux1-aux2; 1.0]
+    e1 /= sqrt(e1'*e1)
+    e2 = [aux1+aux2; 1.0]
+    e2 /= sqrt(e2'*e2)
 
-    # Matrix Sinv
-    aux3 = 1.0 / aux2
-    Sinv = [-0.5*aux3 0.5+0.5*aux1*aux3;0.5*aux3 0.5-0.5*aux1*aux3]
-
-    # Return scaling factor
+    # Boundary conditions
     vs = [exp(-ap1); exp(ap1)]
     ve = [exp(-ap2); exp(ap2)]
-    return max(1e-100, vs' * S * LN * Sinv * ve)
+
+    # Return scaling factor
+    return vs'*e1*ve'*e1*lambda1k + vs'*e2*ve'*e2*lambda2k
 end
 """
     `comp_lkhd(X,α,β)`
