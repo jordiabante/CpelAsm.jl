@@ -54,21 +54,28 @@ julia>JuliASM.comp_Z(4,1.0,1.0)
 ```
 """
 function comp_Z(N::Int64, a::Float64, b::Float64)::Float64
+
+    # Compute relevant quantities
+    exp_a = exp(a)
+    exp_b = exp(b)
+    cosh_a = 0.5*(exp_a+1.0/exp_a)
+    sinh_a = exp_a-cosh_a
+
     # Eigenvalues
-    aux1 = exp(b) * cosh(a)
-    aux2 = sqrt(1.0 + exp(4.0*b)*sinh(a)^2)
-    lambda1N = (aux1-exp(-b)*aux2)^(N-1)
-    lambda2N = (aux1+exp(-b)*aux2)^(N-1)
+    aux1 = exp_b * cosh_a
+    aux2 = sqrt(1.0 + exp_b^4*sinh_a^2)
+    lambda1N = (aux1-1.0/exp_b*aux2)^(N-1)
+    lambda2N = (aux1+1.0/exp_b*aux2)^(N-1)
 
     # Eigenvectors
-    aux1 = -exp(2*b) * sinh(a)
+    aux1 = -exp_b^2 * sinh_a
     e1 = [aux1-aux2; 1.0]
     e1 /= sqrt(e1'*e1)
     e2 = [aux1+aux2; 1.0]
     e2 /= sqrt(e2'*e2)
 
     # Boundary conditions
-    u = [exp(-a/2.0); exp(a/2.0)]
+    u = [1/sqrt(exp_a); sqrt(exp_a)]
 
     # Return Z
     return max(1e-100,(u'*e1)^2*lambda1N + (u'*e2)^2*lambda2N)
@@ -91,14 +98,20 @@ function comp_scal_fac(k::Int64, a::Float64, b::Float64, ap1::Float64, ap2::Floa
     # Return one if k=0
     k==0 && return 1.0
 
+    # Compute relevant quantities
+    exp_a = exp(a)
+    exp_b = exp(b)
+    cosh_a = 0.5*(exp_a+1.0/exp_a)
+    sinh_a = exp_a-cosh_a
+
     # Eigenvalues
-    aux1 = exp(b) * cosh(a)
-    aux2 = sqrt(1.0 + exp(4.0*b)*sinh(a)^2)
-    lambda1k = (aux1-exp(-b)*aux2)^(k-1)
-    lambda2k = (aux1+exp(-b)*aux2)^(k-1)
+    aux1 = exp_b * cosh_a
+    aux2 = sqrt(1.0 + exp_b^4*sinh_a^2)
+    lambda1k = (aux1-1.0/exp_b*aux2)^(k-1)
+    lambda2k = (aux1+1.0/exp_b*aux2)^(k-1)
 
     # Eigenvectors
-    aux1 = -exp(2*b) * sinh(a)
+    aux1 = -exp_b^2 * sinh_a
     e1 = [aux1-aux2; 1.0]
     e1 /= sqrt(e1'*e1)
     e2 = [aux1+aux2; 1.0]
@@ -240,48 +253,19 @@ julia> Random.seed!(1234);
 julia> xobs=JuliASM.gen_ising_full_data(100,4);
 julia> JuliASM.est_eta(xobs)
 2-element Array{Float64,1}:
--0.021471185237893084
--0.04713465466621405
+-0.021472968954113443
+-0.04713360919013971
 ```
 """
 function est_eta(xobs::Array{Array{Int64,1},1})::Array{Float64,1}
-    # Handle missing data in optimization
-    etahat = [NaN, NaN]
-    if !(length(findall(x->0 in x, xobs))>0)
-        # Should have a global minimum. Note: NelderMead can't be boxed
-        eta0 = [0.0, 0.0]
-        L = create_Llkhd(xobs)
-        optim = optimize(L,eta0,NelderMead(),Optim.Options(iterations=100);
-                         autodiff=:forward)
-        etahat = optim.minimizer
-    else
-        # Multiple minima: try different initializations w/ NelderMead
-        aux = Inf
-        L = create_Llkhd(xobs)
-        etas = [[.0,.0],[-.5,-.5],[.5,-.5],[-.5,.5],[.5,.5]]
-        for eta0 in etas
-            optim = optimize(L,eta0,NelderMead(),Optim.Options(iterations=100);
-                             autodiff=:forward)
-            if optim.minimum < aux
-                aux = optim.minimum
-                etahat = optim.minimizer
-            end
-        end
-        # Boxed Simulated Annealing (SAMI)
-        # lower = [-2.0, -2.0]
-        # upper = [2.0, 2.0]
-        # optim = optimize(L, lower, upper, eta0, SAMIN(rt=0.5; f_tol=1e-10,
-        #     x_tol=1e-2), Optim.Options(iterations=10^6))
-        # etahat = optim.minimizer
-        # # BlackBoxOptim: global optimization package.
-        # L = create_Llkhd(xobs)
-        # optim = bboptimize(L; SearchRange = (-2.0, 2.0), NumDimensions = 2,
-        #     MaxTime = 5.0, TraceMode=:silent)
-        # # Return estimate vector
-        # return best_candidate(optim)
-    end
+
+    # Boxed Simulated Annealing (SAMI): if no missing data it is still fast enough
+    L = create_Llkhd(xobs)
+    optim = optimize(L,[-10.0,-10.0],[10.0, 10.0],[0.0,0.0],SAMIN(rt=1e-3;
+                     f_tol=1e-3,x_tol=1e-3),Optim.Options(iterations=10^6))
+
     # Return estimate
-    return etahat
+    return optim.minimizer
 end # end est_eta
 """
     `mle_mult(XOBS)`

@@ -5,19 +5,12 @@ module JuliASM
 # TODO JORDI
 ##########################################################################
 # ESTIMATION
-# 0. Send inverse in comp_Z.
-# 1. Is log-likelihood concave even when missing data?
-# 2. Case where |α| and/or |β| → ∞ (∄ MLE).
-# 3. Coverage? Check informME and do simulations.
-# 4. Optimization benchmark for "MLE".
-#   a. Multiple local optimizers.
-#   b. Boxed Simulated annealing.
-#   c. BlackBoxOptim.
+# 1. Coverage? Check informME and do simulations.
 # OUTPUT
-# 4. More efficient ways to compute output quantities?
+# 2. More efficient ways to compute output quantities?
 #   a. Closed-form expressions?
 # STATISTICAL ANALYSIS
-# 5. Refine permutation test?
+# 3. Refine permutation test?
 ##########################################################################
 # DEPENDENCIES
 ##########################################################################
