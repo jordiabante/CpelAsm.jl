@@ -71,7 +71,7 @@ function comp_Z(N::Int64, a::Float64, b::Float64)::Float64
     u = [exp(-a/2.0); exp(a/2.0)]
 
     # Return Z
-    return (u'*e1)^2*lambda1N + (u'*e2)^2*lambda2N
+    return max(1e-100,(u'*e1)^2*lambda1N + (u'*e2)^2*lambda2N)
 end
 """
     `comp_scal_fac(K,α,β,αp1,αp2)`
@@ -109,7 +109,7 @@ function comp_scal_fac(k::Int64, a::Float64, b::Float64, ap1::Float64, ap2::Floa
     ve = [exp(-ap2); exp(ap2)]
 
     # Return scaling factor
-    return vs'*e1*ve'*e1*lambda1k + vs'*e2*ve'*e2*lambda2k
+    return max(1e-100, vs'*e1*ve'*e1*lambda1k + vs'*e2*ve'*e2*lambda2k)
 end
 """
     `comp_lkhd(X,α,β)`
