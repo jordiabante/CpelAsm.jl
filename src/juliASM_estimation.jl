@@ -259,10 +259,11 @@ julia> JuliASM.est_eta(xobs)
 """
 function est_eta(xobs::Array{Array{Int64,1},1})::Array{Float64,1}
 
-    # Boxed Simulated Annealing (SAMI): if no missing data it is still fast enough
+    # Boxed Simulated Annealing (SAMI): if no md it is still fast enough
     L = create_Llkhd(xobs)
-    optim = optimize(L,[-10.0,-10.0],[10.0, 10.0],[0.0,0.0],SAMIN(rt=1e-3;
-                     f_tol=1e-3,x_tol=1e-3),Optim.Options(iterations=10^6))
+    optim = optimize(L,[-10.0,-10.0],[10.0, 10.0],[0.0,0.0],SAMIN(rt=1e-4;
+                     f_tol=1e-3,x_tol=1e-3,verbosity=0),Optim.Options(iterations
+                     =10^6,show_trace=false,store_trace=false))
 
     # Return estimate
     return optim.minimizer
