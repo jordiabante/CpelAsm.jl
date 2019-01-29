@@ -324,11 +324,11 @@ julia> get_records_ps!(reader_VCF,seq,record,curr_ps,wEnd,h1,h2)
 """
 function get_records_ps!(reader_vcf::VCF.Reader,seq::FASTA.Record,
                          record::VCF.Record,curr_ps::String,wEnd::Int64,
-                         h1::Array{Int64,1},h2::Array{Int64,1})::VCF.Record
+                         h1::Array{Int64,1},h2::Array{Int64,1})::Tuple{VCF.Record,Int64}
 
     # Check if record has same PS
     ind_PS = findfirst(x->x=="PS",VCF.format(record))
-    VCF.genotype(record)[1][ind_PS]==curr_ps || return record
+    VCF.genotype(record)[1][ind_PS]==curr_ps || return record,wEnd
 
     # Check GT string and update het. CpG sites
     ind_GT = findfirst(x->x=="GT",VCF.format(record))
@@ -340,13 +340,13 @@ function get_records_ps!(reader_vcf::VCF.Reader,seq::FASTA.Record,
     if !eof(reader_vcf)
         read!(reader_vcf, record)
         if "PS" in VCF.format(record)
-            record = get_records_ps!(reader_vcf,seq,record,curr_ps,wEnd,h1,h2)
+            record,wEnd=get_records_ps!(reader_vcf,seq,record,curr_ps,wEnd,h1,h2)
         else
-            return record
+            return record,wEnd
         end
     else
         # return empty record if finished stream
-        return VCF.Record()
+        return VCF.Record(),wEnd
     end
 
 end # end get_records_ps
@@ -356,7 +356,8 @@ end # end get_records_ps
 Function that creates a GFF file containing the heterozygous SNPs along with
 the positions of the sorrounding CpG sites within a window of `WINDOW_SIZE`. For
 phased VCF records, GT must be specified using A|B notation, while for unphased
-records it assumes GT is always "0/1".
+records it assumes GT is always "0/1". The phasing is specified through the
+standard notation PS.
 
 # Examples
 ```julia-repl
@@ -399,14 +400,15 @@ function read_vcf(out_gff_path::String, fasta_path::String, vcf_path::String,
         end
 
         # Get entire (contiguous) haplotype using the PS field
-        wSt = wEnd = VCF.pos(record)
+        wSt = VCF.pos(record)
+        wEnd = VCF.pos(record)
         het_cpgs1 = Array{Int64,1}()
         het_cpgs2 = Array{Int64,1}()
         if "PS" in VCF.format(record)
             # If PS tag, then phased
             ind_PS = findfirst(x->x=="PS",VCF.format(record))
             curr_ps = VCF.genotype(record)[1][ind_PS]
-            record = get_records_ps!(reader_vcf, fasta_record, record, curr_ps,
+            record,wEnd = get_records_ps!(reader_vcf, fasta_record, record, curr_ps,
                                      wEnd, het_cpgs1, het_cpgs2)
         else
             # If no PS tag, then single SNP (marked as NOPS)
@@ -610,7 +612,7 @@ function run_asm_analysis(bam1_path::String, bam2_path::String, vcf_path::String
     # Loop over chromosomes
     mi = 0.0
     f_atts = Dict{String,Array{String,1}}()
-    cpg_pos = hom_cpgs = het_cpgs1 = het_cpgs2 = []
+    cpg_pos = Array{Array{Int64,1},1}()
     n = n1 = n2 = tot_feats = int_feats_1 = int_feats_2 = int_feats_mi = 0
     for chr in chr_names
         # Get windows pertaining to current chromosome
