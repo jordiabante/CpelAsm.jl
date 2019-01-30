@@ -137,6 +137,26 @@ function clean_records(pe::Bool, records::Array{BAM.Record,1})::AllAlignTemps
     return out
 end # end clean_records
 """
+    `try_olaps(READER,CHR,WINDOW)`
+
+Function that tries to find overlaps in BAM reader @ WINDOW.
+
+# Examples
+```julia-repl
+julia> try_olaps(reader,chr,win)
+```
+"""
+function try_olaps(reader::BAM.Reader,chr::String,win::Array{Int64,1})::Array{BAM.Record,1}
+    # NOTE: known bug that has to do w/ BioAlignments when close to end?
+    records_olap =
+    try
+        collect(eachoverlap(reader, chr, win[1]:win[2]))
+    catch
+        Array{BAM.Record,1}()
+    end
+    return records_olap
+end # try_olaps
+"""
     `read_bam(BAM_PATH, CHR, FEAT_ST, FEAT_END, CPG_POS; PE)`
 
 Function that reads in BAM file in `BAM_PATH` and returns methylation vectors
@@ -152,18 +172,18 @@ julia> read_bam(BAM_PATH,"chr1",30,80,[40,60];pe=false)
 ```
 """
 function read_bam(bam_path::String, chr::String, f_st::Int64, f_end::Int64,
-                  cpg_pos::Array{Int64,1}, chr_size::Int64; pe::Bool=true)::Array{Array{Int64,1},1}
+                  cpg_pos::Array{Int64,1},chr_size::Int64;pe::Bool=true)::Array{Array{Int64,1},1}
 
     # Number of CpG sites is determined by that in the region
     N = length(cpg_pos)
 
     # Expand window in PE case to include pair even if it's outside the window
-    pe ? exp_win=[max(1,f_st-75),min(chr_size,f_end+75)] : exp_win=[f_st,f_end]
+    exp_win = pe ? [max(1,f_st-75),min(chr_size,f_end+75)] : [f_st,f_end]
 
     # Get records overlapping window.
     reader = open(BAM.Reader, bam_path, index=bam_path*".bai")
-    records_olap = collect(eachoverlap(reader, chr, exp_win[1]:exp_win[2]))
-        # NOTE: known bug that has to do w/ BioAlignments
+    records_olap = try_olaps(reader,chr,exp_win)
+    length(records_olap)>0 || return Array{Int64,1}[]
 
     # Relevant flags in BAM file (both Bismark and Arioc)
     filter!(x-> (BAM.ismapped(x)) && (haskey(x,"XM")) && (!haskey(x,"XS")) &&
@@ -188,31 +208,31 @@ function read_bam(bam_path::String, chr::String, f_st::Int64, f_end::Int64,
             R1_call = record.R1[:"XM"]
             R2_call = record.R2[:"XM"]
             dist_st = abs(BAM.position(record.R2) - BAM.position(record.R1))
-            meth_call = R1_call * R2_call[(length(R1_call)+1-dist_st):end]
+            meth_call = R1_call * "."^max(0,dist_st-length(R1_call))
+            meth_call *= R2_call[max(1,(length(R1_call)+1-dist_st)):end]
             record.strand in ["OT","CTOT"] ? OFFSET=1 : OFFSET=2
             OFFSET -= BAM.position(record.R1)
         end
 
         # Cross positions of CpG sites if template contains CpG sites
-        temp_cpg_pos = [x.offset for x in eachmatch(r"[zZ]",meth_call)].-OFFSET
-        if length(temp_cpg_pos)>0
-            olap_cpgs = findall(x-> x in temp_cpg_pos, cpg_pos)
-            # If overlapping CpG sites then store and add to xobs
-            if length(olap_cpgs)>0
-                x = zeros(Int64,N)
-                temp_cpg_pos = temp_cpg_pos[findall(x-> x in cpg_pos,
-                                                    temp_cpg_pos)] .+ OFFSET
-                x[olap_cpgs] = reduce(replace, ["Z"=>1, "z"=>-1], init=
-                                      split(meth_call[temp_cpg_pos],""))
-                push!(xobs,x)
-            # elseif (maximum(temp_cpg_pos) >= minimum(cpg_pos)) ⊻
-            #     (maximum(cpg_pos)>=minimum(temp_cpg_pos))
+        obs_cpgs = [x.offset for x in eachmatch(r"[zZ]",meth_call)].-OFFSET
+        length(obs_cpgs)>0 || continue
+
+        # If overlapping CpG sites then store and add to xobs
+        olap_cpgs = findall(x-> x in obs_cpgs, cpg_pos)
+        length(olap_cpgs)>0 || continue
+        x = zeros(Int64,N)
+        obs_cpgs = obs_cpgs[findall(x-> x in cpg_pos,obs_cpgs)] .+ OFFSET
+        x[olap_cpgs] = reduce(replace,["Z"=>1,"z"=>-1],init=split(meth_call[obs_cpgs],""))
+        push!(xobs,x)
+            # elseif (maximum(obs_cpgs) >= minimum(cpg_pos)) ⊻
+            #     (maximum(cpg_pos)>=minimum(obs_cpgs))
             #     # CpG site positions are not intercalated
             # else
             #     println(stderr,"[$(now())]: Read/s $(BAM.tempname(record.R1))" *
             #       " with flag $(BAM.flag(record.R1)) has unused CpG sites.")
-            end
-        end
+            # end
+            # end
     end # end loop over templates sequenced
 
     # Return
