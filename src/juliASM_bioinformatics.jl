@@ -641,7 +641,7 @@ function run_asm_analysis(bam1_path::String, bam2_path::String, vcf_path::String
         chr_size = chr_sizes[findfirst(x->x==chr, chr_names)]
 
         # Loop over windows in chromosome
-        for feat in features_chr
+        @showprogress 1 "Computing..." for feat in features_chr
             # Get window of interest
             tot_feats += 1
             f_st = GFF3.seqstart(feat)

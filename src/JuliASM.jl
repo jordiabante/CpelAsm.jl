@@ -26,6 +26,7 @@ using GenomicFeatures   # For BED, GFF3, and bigWig files
 using GeneticVariation  # For VCF file
 using BioSequences      # For FASTA file
 using Combinatorics     # For permutation test
+using ProgressMeter     # For tracking progress
 # using BlackBoxOptim     # Alternative global minimizer
 ##########################################################################
 # INCLUDES
