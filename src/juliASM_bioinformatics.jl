@@ -630,9 +630,9 @@ function run_asm_analysis(bam1_path::String, bam2_path::String, vcf_path::String
     pVal_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
 
     # Loop over chromosomes
-    mi = 0.0
-    f_atts = Dict{String,Array{String,1}}()
+    ex = exx = mi = 0.0
     cpg_pos = Array{Array{Int64,1},1}()
+    f_atts = Dict{String,Array{String,1}}()
     n = n1 = n2 = tot_feats = int_feats_1 = int_feats_2 = int_feats_mi = 0
     for chr in chr_names
         # Get windows pertaining to current chromosome
@@ -660,22 +660,26 @@ function run_asm_analysis(bam1_path::String, bam2_path::String, vcf_path::String
             # Estimate each single-allele model, mml and h
             if length(xobs1)>=THRESH_COV
                 n1==1 ? eta1=est_alpha(xobs1) : eta1=est_eta(xobs1)
-                push!(mml1_recs,(chr,f_st,f_end,comp_mml(n1,eta1[1],eta1[2])))
-                push!(h1_recs,(chr,f_st,f_end,comp_shanH(n1,eta1[1],eta1[2])))
+                ex = comp_ex(n1,eta1[1],eta1[2])
+                exx = comp_exx(n1,eta1[1],eta1[2])
+                push!(mml1_recs,(chr,f_st,f_end,comp_mml(ex)))
+                push!(h1_recs,(chr,f_st,f_end,comp_shanH(eta1[1],eta1[2],ex,exx)))
                 int_feats_1 += 1
             end
             if length(xobs2)>=THRESH_COV
                 n2==1 ? eta2=est_alpha(xobs2) : eta2=est_eta(xobs2)
-                push!(mml2_recs,(chr,f_st,f_end,comp_mml(n2,eta2[1],eta2[2])))
-                push!(h2_recs,(chr,f_st,f_end,comp_shanH(n2,eta2[1],eta2[2])))
+                ex = comp_ex(n2,eta2[1],eta2[2])
+                exx = comp_exx(n2,eta2[1],eta2[2])
+                push!(mml2_recs,(chr,f_st,f_end,comp_mml(ex)))
+                push!(h2_recs,(chr,f_st,f_end,comp_shanH(eta2[1],eta2[2],ex,exx)))
                 int_feats_2 += 1
             end
 
             # Compute mutual information
             if (length(xobs1)>=THRESH_COV) && (length(xobs2)>=THRESH_COV)
-                mi = comp_mi(cpg_pos,eta1,eta2)
-                push!(mi_recs,(chr,f_st,f_end,mi))
-                push!(pVal_recs,(chr,f_st,f_end,perm_test(xobs1,xobs2,mi,cpg_pos)))
+                # mi = comp_mi(cpg_pos,eta1,eta2)
+                # push!(mi_recs,(chr,f_st,f_end,mi))
+                # push!(pVal_recs,(chr,f_st,f_end,perm_test(xobs1,xobs2,mi,cpg_pos)))
                 int_feats_mi += 1
             end
 

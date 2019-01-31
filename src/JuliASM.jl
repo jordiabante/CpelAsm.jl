@@ -35,7 +35,7 @@ include("juliASM_plots.jl")
 include("juliASM_estimation.jl")
 include("juliASM_simulations.jl")
 include("juliASM_bioinformatics.jl")
-include("juliASM_outputQuantities.jl")
+include("juliASM_output.jl")
 ##########################################################################
 # EXPORTS
 ##########################################################################
@@ -58,6 +58,8 @@ export comp_estimates
 export read_bam
 export read_vcf
 export read_gff_chr
+export comp_ex
+export comp_exx
 export comp_mml
 export comp_shanH
 export comp_mi
