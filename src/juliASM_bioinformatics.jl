@@ -540,6 +540,23 @@ function get_cpg_pos(atts::Dict{String,Array{String,1}})::Array{Array{Int64,1},1
     return [hom,sort!(append!(het1,hom)),sort!(append!(het2,hom))]
 end # end get_cpg_pos
 """
+    `mean_cov(XOBS)`
+
+Function returns the average coverage per CpG given some observations.
+
+# Examples
+```julia-repl
+julia> mean_cov(xobs)
+```
+"""
+function mean_cov(xobs::Array{Array{Int64,1},1})::Float64
+
+    # Return 0 if no observations
+    length(xobs)>0 || return 0.0
+    return sum(sum(map(x->abs.(x),xobs),dims=(1))[1])/length(xobs[1])
+
+end # end mean_cov
+"""
     `run_asm_analysis(BAM1_PATH,BAM2_PATH,VCF_PATH,FASTA_PATH,WINDOW_SIZE,OUT_PATH)`
 
 Function that runs juliASM on a pair of BAM files (allele 1, allele 2) given a
@@ -652,33 +669,41 @@ function run_asm_analysis(bam1_path::String, bam2_path::String, vcf_path::String
             cpg_pos = get_cpg_pos(f_atts)
 
             # Get vectors from BAM1/2 overlapping feature
+            n = length(cpg_pos[1])
             n1 = length(cpg_pos[2])
             n2 = length(cpg_pos[3])
             xobs1 = read_bam(bam1_path,chr,f_st,f_end,cpg_pos[2],chr_size;pe=pe)
             xobs2 = read_bam(bam2_path,chr,f_st,f_end,cpg_pos[3],chr_size;pe=pe)
 
             # Estimate each single-allele model, mml and h
-            if length(xobs1)>=THRESH_COV
+            if mean_cov(xobs1)>=THRESH_COV
                 n1==1 ? eta1=est_alpha(xobs1) : eta1=est_eta(xobs1)
                 ex = comp_ex(n1,eta1[1],eta1[2])
                 exx = comp_exx(n1,eta1[1],eta1[2])
+                h1 = comp_shanH(eta1[1],eta1[2],ex,exx)
                 push!(mml1_recs,(chr,f_st,f_end,comp_mml(ex)))
-                push!(h1_recs,(chr,f_st,f_end,comp_shanH(eta1[1],eta1[2],ex,exx)))
+                push!(h1_recs,(chr,f_st,f_end,h1))
                 int_feats_1 += 1
             end
-            if length(xobs2)>=THRESH_COV
+            if mean_cov(xobs2)>=THRESH_COV
                 n2==1 ? eta2=est_alpha(xobs2) : eta2=est_eta(xobs2)
                 ex = comp_ex(n2,eta2[1],eta2[2])
                 exx = comp_exx(n2,eta2[1],eta2[2])
                 push!(mml2_recs,(chr,f_st,f_end,comp_mml(ex)))
-                push!(h2_recs,(chr,f_st,f_end,comp_shanH(eta2[1],eta2[2],ex,exx)))
+                h2 = comp_shanH(eta2[1],eta2[2],ex,exx)
+                push!(h2_recs,(chr,f_st,f_end,h2))
                 int_feats_2 += 1
             end
 
             # Compute mutual information
-            if (length(xobs1)>=THRESH_COV) && (length(xobs2)>=THRESH_COV)
-                # mi = comp_mi(cpg_pos,eta1,eta2)
-                # push!(mi_recs,(chr,f_st,f_end,mi))
+            if (mean_cov(xobs1)>=THRESH_COV) && (mean_cov(xobs2)>=THRESH_COV)
+                append!(xobs1,xobs2)
+                n==1 ? eta=est_alpha(xobs1) : eta=est_eta(xobs1)
+                ex = comp_ex(n,eta[1],eta[2])
+                exx = comp_exx(n,eta[1],eta[2])
+                h = comp_shanH(eta[1],eta[2],ex,exx)
+                mi = comp_mi(h,h1,h2)
+                push!(mi_recs,(chr,f_st,f_end,mi))
                 # push!(pVal_recs,(chr,f_st,f_end,perm_test(xobs1,xobs2,mi,cpg_pos)))
                 int_feats_mi += 1
             end
@@ -697,5 +722,5 @@ function run_asm_analysis(bam1_path::String, bam2_path::String, vcf_path::String
     println(stderr,"[$(now())]: G1:$(round(100*int_feats_1/tot_feats; sigdigits=2))%.")
     println(stderr,"[$(now())]: G2:$(round(100*int_feats_2/tot_feats;sigdigits=2))%.")
     println(stderr,"[$(now())]: Both:$(round(100*int_feats_mi/tot_feats;sigdigits=2))%.")
-    println(stderr,"[$(now())]: Done. 😄")
+    print(stderr,"[$(now())]: Done. 😄")
 end # end run_asm_analysis

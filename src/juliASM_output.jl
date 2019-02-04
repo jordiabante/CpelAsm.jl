@@ -112,44 +112,21 @@ function comp_shanH(a::Float64,b::Float64,ex::Array{Float64,1},exx::Array{Float6
 
 end # end comp_shanH
 """
-    `comp_mi(POS_CG,η1,η2)`
+    `comp_mi(h,h1,h2)`
 
 Function that computes the mutual information between haplotype and methylation
-state assuming an Ising model for each allele with parameters η1 and η2
-respectively. POS_CG contains the homozygous CpG sites, as well as the CpG sites
-for each haplotype.
+state assuming an Ising model for both single-allele and combined models.
 
 # Examples
 ```julia-repl
-julia> JuliASM.comp_mi([[1],[1],[1]],[-10.0,-10.0],[10.0,10.0])
-0.9999999375540618
+julia> JuliASM.comp_mi(1.0,0.5,1.5)
+0.0
 ```
 """
-function comp_mi(cpg_pos::Array{Array{Int64,1},1},t1::Array{Float64,1},
-                 t2::Array{Float64,1})::Float64
-
-    # Generate Xcal
-    xcal = generate_xcal(length(cpg_pos[1]))
-    hom_in_h1 = findall(x->x in cpg_pos[1], cpg_pos[2])
-    hom_in_h2 = findall(x->x in cpg_pos[1], cpg_pos[3])
-
-    # Traverse xcal
-    mi = 0.0
-    lkhd1 = 0.0
-    lkhd2 = 0.0
-    for x in xcal
-        x1 = zeros(Int64,length(cpg_pos[2]))
-        x2 = zeros(Int64,length(cpg_pos[3]))
-        x1[hom_in_h1] = x
-        x2[hom_in_h2] = x
-        lkhd1 = comp_lkhd(x1, t1[1], t1[2])
-        lkhd2 = comp_lkhd(x2, t2[1], t2[2])
-        ave_lkhd = 0.5 * (lkhd1+lkhd2)
-        mi += lkhd1 * log2(lkhd1/ave_lkhd) + lkhd2 * log2(lkhd2/ave_lkhd)
-    end
+function comp_mi(h::Float64,h1::Float64,h2::Float64)::Float64
 
     # Return
-    return 0.5 * mi
+    return h - 0.5*(h1+h2)
 
 end # end comp_mi
 """

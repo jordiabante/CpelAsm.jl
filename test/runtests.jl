@@ -1,14 +1,11 @@
 # Import all package functions
-using JuliASM
 using Test
+using JuliASM
 
 # Get test path
 JuliASM_path = dirname(pathof(JuliASM))
 JuliASM_path = splitdir(JuliASM_path)[1]
 test_path = JuliASM_path * "/test/"
-
-# Start testing
-println("Testing JuliASM...")
 
 # Test set for estimation related functions
 @testset "Estimation" begin

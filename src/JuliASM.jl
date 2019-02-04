@@ -6,11 +6,8 @@ module JuliASM
 ##########################################################################
 # ESTIMATION
 # 1. Coverage? Check informME and do simulations.
-# OUTPUT
-# 2. More efficient ways to compute output quantities?
-#   a. Closed-form expressions?
 # STATISTICAL ANALYSIS
-# 3. Refine permutation test?
+# 2. Refine permutation test?
 ##########################################################################
 # DEPENDENCIES
 ##########################################################################
