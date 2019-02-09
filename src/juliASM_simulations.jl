@@ -1,63 +1,66 @@
 """
     `generate_xcal(N)`
 
-Generate state space for the methylation vector with N CpG sites.
+Generate state space 𝒳 for the methylation vector with N CpG sites.
 
 # Examples
 ```julia-repl
-julia> xcal=generate_xcal(2)
-4-element Array{Array{Int64,N} where N,1}:
- [0, 0]
- [1, 0]
- [0, 1]
+julia> xcal=JuliASM.generate_xcal(2)
+4-element Array{Array{Int64,1},1}:
+ [-1, -1]
+ [1, -1]
+ [-1, 1]
  [1, 1]
 ```
 """
-function generate_xcal(N::Int64)::Array{Array{Int64,1},1}
+function generate_xcal(n::Int64)::Array{Array{Int64,1},1}
+
     # Generate iterative object
-    xcal = Array{Array{Int64,1},1}()
-    [push!(xcal,2 .* digits(i, base=2, pad=N) - ones(N)) for i in 0:(2^N-1)]
-    # Return data
+    xcal = Array{Int64,1}[]
+    [push!(xcal,2 .* digits(i, base=2, pad=n) - ones(n)) for i in 0:(2^n-1)]
+
+    # Return 𝒳
     return xcal
+
 end # end generate_xcal
 """
     `gen_ising_full_data(M,N;α,β)`
 
-Generate M FULLY observed reads with N CpG sites from energy function U(X)
-parametrized by α and β.
+Generate M FULLY observed reads with [N1,...,NK] CpG sites from energy function
+U(X) parametrized by [α1,...,αK] and β.
 
 # Examples
 ```julia-repl
 julia> Random.seed!(1234);
-julia> xobs=gen_ising_full_data(10,4);
+julia> xobs=JuliASM.gen_ising_full_data(10,4);
 10-element Array{Array{Int64,1},1}:
-[-1, -1, -1, -1]
-[1, -1, -1, -1]
-[-1, 1, -1, -1]
-[-1, -1, 1, -1]
-[1, -1, 1, -1]
-[1, -1, -1, 1]
-[-1, 1, -1, 1]
-[1, -1, 1, 1]
-[1, -1, 1, 1]
-[-1, 1, 1, 1]
+ [-1, -1, -1, -1]
+ [1, -1, -1, -1]
+ [-1, 1, -1, -1]
+ [-1, -1, 1, -1]
+ [1, -1, 1, -1]
+ [1, -1, -1, 1]
+ [-1, 1, -1, 1]
+ [1, -1, 1, 1]
+ [1, -1, 1, 1]
+ [-1, 1, 1, 1]
 ```
 """
-function gen_ising_full_data(M::Int64,N::Int64;a::Float64=0.0,b::Float64=0.0)::Array{Array{Int64,1},1}
+function gen_ising_full_data(m::Int64,n::Array{Int64,1};a::Array{Float64,1}=zeros(Float64,length(n)),b::Float64=0.0)::Array{Array{Int64,1},1}
 
     # Generate iterative object
-    xcal = generate_xcal(N)
+    xcal = generate_xcal(sum(n))
 
     # Create function for energy computation
-    Ux_fun = create_Ux(a,b)
+    Ux_fun = create_Ux(n,a,b)
 
     # Compute probability over state space
-    p = zeros(2^N)
+    p = zeros(2^sum(n))
     p = [exp(-Ux_fun(xcal[k])) for k in 1:length(xcal)]
     p = p ./ sum(p)
 
     # Sample full observations from model
-    indices = rand(Distributions.Multinomial(M, p))
+    indices = rand(Distributions.Multinomial(m, p))
     indices = vcat([repeat([i],indices[i]) for i in 1:length(indices)]...)
 
     # Return observations
@@ -67,8 +70,8 @@ end # end gen_ising_full_data
 """
     `gen_ising_part_data(M,N;α,β)`
 
-Generate M partially observed reads with N CpG sites from energy function U(X)
-parametrized by α and β. The values code for:
+Generate M partially observed reads with [N1,...,NK] CpG sites from energy
+function U(X) parametrized by [α1,...,αK] and β. The values code for:
 1: Methylated CpG site.
 -1: Unmethylated CpG site.
 0: Unobserved CpG site.
@@ -76,31 +79,31 @@ parametrized by α and β. The values code for:
 # Examples
 ```julia-repl
 julia> Random.seed!(1234);
-julia> xobs=gen_ising_part_data(10,4)
+julia> xobs=gen_ising_part_data(10,[4])
 10-element Array{Array{Int64,1},1}:
 [-1, -1, -1, -1]
 [1, -1, -1, -1]
 [-1, 1, -1, -1]
 [-1, -1, 1, -1]
-[0, -1, 1, -1]
-[0, -1, -1, 0]
+[1, -1, 1, -1]
+[1, -1, -1, 1]
 [0, 1, -1, 1]
-[0, -1, 1, 1]
-[0, -1, 1, 1]
-[0, 1, 1, 1]
+[1, -1, 1, 1]
+[1, -1, 1, 1]
+[-1, 1, 1, 1]
 ```
 """
-function gen_ising_part_data(M::Int64, N::Int64; a::Float64=0.0, b::Float64=0.0)::Array{Array{Int64,1},1}
+function gen_ising_part_data(m::Int64,n::Array{Int64,1};a::Array{Float64,1}=zeros(Float64,length(n)),b::Float64=0.0)::Array{Array{Int64,1},1}
 
     # Get full data
-    full_data = gen_ising_full_data(M,N;a=a,b=b)
+    full_data = gen_ising_full_data(m,n;a=a,b=b)
 
     # Add missing values on sides
-    missleft = rand(Distributions.Binomial(N, 0.01),M)
-    missright = rand(Distributions.Binomial(N, 0.01),M)
-    for i in 1:M
+    missleft = rand(Distributions.Binomial(sum(n), 0.01),m)
+    missright = rand(Distributions.Binomial(sum(n), 0.01),m)
+    for i in 1:m
         full_data[i][1:missleft[i]] = fill(0, missleft[i])
-        full_data[i][(N-missright[i]+1):end] = fill(0, missright[i])
+        full_data[i][(sum(n)-missright[i]+1):end] = fill(0, missright[i])
     end
 
     # Return partial observations
@@ -121,13 +124,13 @@ julia> xobs=gen_mult_full_data(2);
 [1, -1, 1, -1]
 ```
 """
-function gen_mult_full_data(M::Int64;N=4,p::Array{Float64,1}=1/(2^N)*ones(Float64,2^N))::Array{Array{Int64,1},1}
+function gen_mult_full_data(m::Int64;n=4,p::Array{Float64,1}=1/(2^n)*ones(Float64,2^n))::Array{Array{Int64,1},1}
 
     # Generate iterative object
-    xcal = generate_xcal(N)
+    xcal = generate_xcal(n)
 
     # Sample full observations from model
-    indices = rand(Distributions.Multinomial(M, p))
+    indices = rand(Distributions.Multinomial(m, p))
     indices = vcat([repeat([i],indices[i]) for i in 1:length(indices)]...)
 
     # Return observations
@@ -160,17 +163,17 @@ julia> xobs=gen_mult_part_data(10)
  [0, 1, 1, 1]
 ```
 """
-function gen_mult_part_data(M::Int64;N=4,p::Array{Float64,1}=1/(2^N)*ones(Float64,2^N))::Array{Array{Int64,1},1}
+function gen_mult_part_data(m::Int64;n=4,p::Array{Float64,1}=1/(2^n)*ones(Float64,2^n))::Array{Array{Int64,1},1}
 
     # Get full data
-    full_data = gen_mult_full_data(M;N=N,p=p)
+    full_data = gen_mult_full_data(m;n=n,p=p)
 
     # Add missing values on sides
-    missleft = rand(Distributions.Binomial(N+1, 0.05),M)
-    missright = rand(Distributions.Binomial(N+1, 0.05),M)
-    for i in 1:M
+    missleft = rand(Distributions.Binomial(n+1, 0.05),m)
+    missright = rand(Distributions.Binomial(n+1, 0.05),m)
+    for i in 1:m
         full_data[i][1:missleft[i]] = fill(0, missleft[i])
-        full_data[i][(N-missright[i]+1):end] = fill(0, missright[i])
+        full_data[i][(n-missright[i]+1):end] = fill(0, missright[i])
     end
 
     # Return partial observations
@@ -178,7 +181,7 @@ function gen_mult_part_data(M::Int64;N=4,p::Array{Float64,1}=1/(2^N)*ones(Float6
 
 end # end gen_mult_part_data
 """
-    `mle_asymptotics(XOBS)`
+    `mle_asymptotics(R,M,N)`
 
 Function to generate MLEs and plot CLT type behavior. When the number
 of observations is ≧15 the convergence seems to kick in (try example
@@ -189,26 +192,28 @@ below).
 julia> p=mle_asymptotics(10000,2,15)
 ```
 """
-function mle_asymptotics(R::Int64,N::Int64,M::Int64)
-    # Get R samples of MLE
+function mle_asymptotics(r::Int64,m::Int64,n::Int64)
+
+    # Get r samples of MLE
     a_mle = []
     b_mle = []
-    for i in 1:R
-        xobs = gen_ising_full_data(M,N)
-        mle = est_eta(xobs)
+    for i in 1:r
+        xobs = gen_ising_full_data(m,[n])
+        mle = est_eta([n],xobs)
         push!(a_mle,mle[1])
         push!(b_mle,mle[2])
-        print("Progress: $(round(i/R*100))%  \r")
+        print("Progress: $(round(i/r*100))%  \r")
         flush(stdout)
     end
 
     # Plot √(n)(α̂-α)
     gr()
-    p = histogram(Any[sqrt(N) .* a_mle, sqrt(N) .* b_mle], line=(3,0.2,:green),
+    p = histogram(sqrt(m) * [a_mle,b_mle], line=(3,0.2,:green),
     fillcolor=[:red :black], fillalpha=0.2, nbins=75)
 
     # return plot
     return p
+
 end # mle_asymptotics
 """
     `comp_estimates(R,N,M)`
@@ -221,37 +226,46 @@ distance from the true parameter vector when observing complete observations.
 julia> p=comp_estimates(10000,2,15)
 ```
 """
-function comp_estimates(R::Int64,N::Int64,M::Int64;p::Array{Float64,1}=1/(2^N)*ones(Float64,2^N))
+function comp_estimates(r::Int64,n::Int64,m::Int64;p::Array{Float64,1}=1/(2^n)*ones(Float64,2^n))
+
+    # Initialize output vectors and 𝒳
     euc_mult = []
     euc_ising = []
     euc_bin_semi = []
     euc_bin_param = []
-    xcal = generate_xcal(N)
-    for i in 1:R
+    xcal = generate_xcal(n)
+
+    # Loop over replicates
+    for i in 1:r
+
         # Generate data from full model
-        xobs = gen_mult_full_data(M; N=N,p=p)
+        xobs = gen_mult_full_data(m; n=n,p=p)
         if all([xobs[i-1]==xobs[i] for i in 2:length(xobs)])
             i -= 1
             continue
         end
+
         # Estimate parameters of multinomial model
         phat = mle_mult(xobs)
         euc = sqrt(sum((p - phat).^2))
         push!(euc_mult,euc)
+
         # Estimate parameters of Ising model
-        mle_ising = est_eta(xobs)
-        phat = [comp_lkhd(x,mle_ising[1],mle_ising[2]) for x in xcal]
+        mle_ising = est_eta([n],xobs)
+        phat = [comp_lkhd(x,[n],[mle_ising[1]],mle_ising[2]) for x in xcal]
         euc = sqrt(sum((p - phat).^2))
         push!(euc_ising,euc)
+
         # Estimate parameters of semipar binomial model
         phat = mle_bin_semi(xobs)
         euc = sqrt(sum((p - phat).^2))
         push!(euc_bin_semi,euc)
+
         # Estimate parameters of semipar binomial model
         phat = mle_bin_param(xobs)
         euc = sqrt(sum((p - phat).^2))
         push!(euc_bin_param,euc)
-        print("Progress: $(round(i/R*100))%  \r")
+        print("Progress: $(round(i/r*100))%  \r")
         flush(stdout)
     end
 
@@ -264,4 +278,5 @@ function comp_estimates(R::Int64,N::Int64,M::Int64;p::Array{Float64,1}=1/(2^N)*o
 
     # return plot
     return p
+
 end # comp_estimates

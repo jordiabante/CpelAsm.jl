@@ -1,59 +1,49 @@
 """
-    `create_Ux(α,β)`
+    `create_Ux([N1,...,NK],[α1,...,αK],β)`
 
 Function that creates a function to compute potential energy for a region with
-N CpG sites and with parameters α and β.
+[N1,...,NK], parameters [α1,...,αK], and correlation β.
 
 # Examples
 ```julia-repl
-julia> Ux_fun = create_Ux(1.0,-1.0)
+julia> Ux_fun = JuliASM.create_Ux([2,2],[1.0,1.0],1.0)
+julia> Ux_fun([1,1,1,1])
+-7.0
 ```
 """
-function create_Ux(a::Float64, b::Float64)
+function create_Ux(n::Array{Int64,1},a::Array{Float64,1}, b::Float64)
+
+    # Define function given n, α, and β
     function Ux(x::Array{Int64,1})::Float64
-        -a * sum(x) - b * sum(x[2:end] .* x[1:(end-1)])
+        u = a[1] * sum(x[1:n[1]]) + b * sum(x[1:(end-1)] .* x[2:end])
+        for i in 2:length(n)
+            u += a[i] * sum(x[(sum(n[1:(i-1)])+1):(sum(n[1:i]))])
+        end
+        return -u
     end
+
+    # Return function
     return Ux
+
 end # end create_Ux
 """
-    `comp_full_stats(XOBS)`
+    `get_W(N,α,β)`
 
-Compute vector S of sufficient statistics under model with N CpG sites.
-This function is only valid for fully observed data since we are summing
-over to obtain overall statistic `S=[S1,S2]`` where
-`S1 = ∑ T1(x)`; `S2 = ∑ T2(x)`
-from all complete observations.
+Function that returns W^{N-1} computed efficiently via sum of rank-1 matrices
+assuming α and β.
 
 # Examples
 ```julia-repl
-julia> Random.seed!(1234);
-julia> xobs=JuliASM.gen_full_data(10,4);
-julia> Svec=JuliASM.comp_full_stats(xobs)
-2-element Array{Int64,1}:
--4
--6
+julia> JuliASM.get_W(4,0.0,0.0)
+2×2 Array{Int64,2}:
+ 4  4
+ 4  4
 ```
 """
-function comp_full_stats(xobs::Array{Array{Int64,1},1})::Array{Int64,1}
-    M = size(xobs)[1]
-    s1 = sum(sum(xobs))
-    s2 = sum([sum(xobs[i][2:end] .* xobs[i][1:(end-1)]) for i in 1:M])
-    return [s1,s2]
-end # comp_full_stats
-"""
-    `comp_Z(N,α,β)`
+function get_W(n::Int64, a::Float64, b::Float64)::Array{Float64,2}
 
-Compute partition function of a model with N CpG cites and with parameters
-α and β. This expression is further simplified using the sum of rank-1 matrices
-to avoid matrix multiplications.
-
-# Examples
-```julia-repl
-julia>JuliASM.comp_Z(4,1.0,1.0)
-1149.715905067998
-```
-"""
-function comp_Z(N::Int64, a::Float64, b::Float64)::Float64
+    # if n=1 then return identity
+    n==1 && return [1.0 0.0;0.0 1.0]
 
     # Compute relevant quantities
     exp_a = exp(a)
@@ -64,8 +54,8 @@ function comp_Z(N::Int64, a::Float64, b::Float64)::Float64
     # Eigenvalues
     aux1 = exp_b * cosh_a
     aux2 = sqrt(1.0 + exp_b^4*sinh_a^2)
-    lambda1N = (aux1-1.0/exp_b*aux2)^(N-1)
-    lambda2N = (aux1+1.0/exp_b*aux2)^(N-1)
+    lambda1N = (aux1-1.0/exp_b*aux2)^(n-1)
+    lambda2N = (aux1+1.0/exp_b*aux2)^(n-1)
 
     # Eigenvectors
     aux1 = -exp_b^2 * sinh_a
@@ -74,76 +64,129 @@ function comp_Z(N::Int64, a::Float64, b::Float64)::Float64
     e2 = [aux1+aux2; 1.0]
     e2 /= sqrt(e2'*e2)
 
-    # Boundary conditions
-    u = [1/sqrt(exp_a); sqrt(exp_a)]
+    # Return W^{N-1}
+    return e1*e1'*lambda1N + e2*e2'*lambda2N
+
+end
+"""
+    `get_V([α1,α2],β)`
+
+Function that returns V matrix assuming [α1,α2] and β.
+
+# Examples
+```julia-repl
+julia> JuliASM.get_V([1.0,1.0],1.0)
+```
+"""
+function get_V(a::Array{Float64,1}, b::Float64)::Array{Float64,2}
+
+    # Compute auxiliary vars
+    exp_b = exp(b)
+    exp_a_p = exp(0.5*sum(a))
+    exp_a_m = exp(0.5*(a[2]-a[1]))
+
+    # Return V
+    return [exp_b/exp_a_p exp_a_m/exp_b;1.0/(exp_b*exp_a_m) exp_b*exp_a_p]
+
+end
+"""
+    `get_u(α)`
+
+Function that boundary vector for Z computation.
+
+# Examples
+```julia-repl
+julia> JuliASM.get_u(0.0)
+2-element Array{Float64,1}:
+ 1.0
+ 1.0
+```
+"""
+function get_u(a::Float64)::Array{Float64,1}
+
+    # Compute auxiliary
+    exp_aux = exp(a/2.0)
+
+    # Return u
+    return [1.0/exp_aux; exp_aux]
+
+end
+"""
+    `comp_Z([N1,...,NK],[α1,...,αK],β)`
+
+Compute partition function of a model with [N1,...,NK] CpG cites and with
+parameters [α1,...,αK] and β.
+
+# Examples
+```julia-repl
+julia>JuliASM.comp_Z([1,1,1],[1.0,1.0,1.0],1.0)
+155.37102759254836
+```
+"""
+function comp_Z(n::Array{Int64,1},a::Array{Float64,1},b::Float64)::Float64
+
+    # Boundary conditions.
+    y = get_u(a[1])'*get_W(n[1],a[1],b)
+    if length(n)>1
+        y *= prod([get_V(a[(i-1):i],b)*get_W(n[i],a[i],b) for i in 2:length(n)])
+    end
+    y *= get_u(a[end])
 
     # Return Z
-    return max(1e-100,(u'*e1)^2*lambda1N + (u'*e2)^2*lambda2N)
+    return max(1e-100,y)
+
 end
 """
-    `comp_scal_fac(K,α,β,αp1,αp2)`
+    `comp_scal_fac([R1,...,RK],[α1,...,αK],β,αp1,αp2)`
 
-Compute scaling factor in a model with K unobserved CpG cites with parameters
-α and β. The transfer-matrix method is used to obtain a computationally
-efficient expression without the need of recursive expressions. αp1 and αp2
-are determined by the respective kind of boundary.
+Compute scaling factor in a model with [R1,...,RK] unobserved CpG cites from
+each block, with parameters [α1,...,αK] and β. The transfer-matrix method is
+used to obtain a computationally efficient expression without the need of
+recursive expressions. αp1 and αp2 are determined by the respective kind of
+boundary.
 
 # Examples
 ```julia-repl
-julia>JuliASM.comp_scal_fac(1,1.0,1.0,1.0,1.0)
-7.524391382167261
+julia>JuliASM.comp_scal_fac([1],[1.0],1.0,3.0,3.0)
+20.135323991555527
 ```
 """
-function comp_scal_fac(k::Int64, a::Float64, b::Float64, ap1::Float64, ap2::Float64)::Float64
-    # Return one if k=0
-    k==0 && return 1.0
+function comp_scal_fac(r::Array{Int64,1},a::Array{Float64,1},b::Float64,ap1::Float64, ap2::Float64)::Float64
 
-    # Compute relevant quantities
-    exp_a = exp(a)
-    exp_b = exp(b)
-    cosh_a = 0.5*(exp_a+1.0/exp_a)
-    sinh_a = exp_a-cosh_a
-
-    # Eigenvalues
-    aux1 = exp_b * cosh_a
-    aux2 = sqrt(1.0 + exp_b^4*sinh_a^2)
-    lambda1k = (aux1-1.0/exp_b*aux2)^(k-1)
-    lambda2k = (aux1+1.0/exp_b*aux2)^(k-1)
-
-    # Eigenvectors
-    aux1 = -exp_b^2 * sinh_a
-    e1 = [aux1-aux2; 1.0]
-    e1 /= sqrt(e1'*e1)
-    e2 = [aux1+aux2; 1.0]
-    e2 /= sqrt(e2'*e2)
+    # Return one if r=0
+    r==0 && return 1.0
 
     # Boundary conditions
-    vs = [exp(-ap1); exp(ap1)]
-    ve = [exp(-ap2); exp(ap2)]
+    y = get_u(ap1)'*get_W(r[1],a[1],b)
+    if length(r)>1
+        y *= prod([get_V(a[(i-1):i],b)*get_W(r[i],a[i],b) for i in 2:length(r)])
+    end
+    y *= get_u(ap2)
 
     # Return scaling factor
-    return max(1e-100, vs'*e1*ve'*e1*lambda1k + vs'*e2*ve'*e2*lambda2k)
+    return max(1e-100,y)
+
 end
 """
-    `comp_lkhd(X,α,β)`
+    `comp_lkhd(X,[N1,...,NK],[α1,...,αK],β)`
 
 Compute likelihood of a partial/full observation X that can be missing
 values anywhere (given by 0's).
 
 # Examples
 ```julia-repl
-julia> JuliASM.comp_lkhd([0;1;-1;1;0],2.0,2.0)
-6.144020836828058e-6
+julia> JuliASM.comp_lkhd([1,1,0,1,1],[5],[1.0],1.0)
+0.953646032691218
 ```
-
 """
-function comp_lkhd(x::Array{Int64,1}, a::Float64, b::Float64)::Float64
+function comp_lkhd(x::Array{Int64,1},n::Array{Int64,1},a::Array{Float64,1},b::Float64)::Float64
+
     # Avoid the rest if N=1
-    length(x)==1 && return 0.5 * exp(x[1]*a) / cosh(a)
+    length(x)==1 && return 0.5 * exp(x[1]*a[1]) / cosh(a[1])
 
     # Get partition function and energy function
-    Ux = create_Ux(a, b)
-    Z = comp_Z(length(x), a, b)
+    Ux = create_Ux(n,a,b)
+    Z = comp_Z(n,a,b)
 
     # Find changes to/from 0 in x vector
     ind_zero_st = findall(isequal(-1),abs.(x[2:end]) - abs.(x[1:(end-1)])) .+ 1
@@ -153,18 +196,31 @@ function comp_lkhd(x::Array{Int64,1}, a::Float64, b::Float64)::Float64
     x[1]==0 && pushfirst!(ind_zero_st,1)
     x[end]==0 && push!(ind_zero_end,length(x)+1)
 
-    # Get scaling factors due to all missing data
+    # Initialize variables used in for loop
+    ap1 = ap2 = 0.0     # boundary values left and right
+    b_id = n_miss = []  # Block IDs of missing CpG; number missing per ID
+    ids = vcat([i*ones(Int64,n[i]) for i in 1:length(n)]...)    # ID's of CpGs
+
+    # Get overall scaling factor as product of individual factors
     sf = 1.0
     for i in 1:length(ind_zero_st)
-        k = ind_zero_end[i]-ind_zero_st[i]
-        ind_zero_st[i]==1 ? ap1 = a/2.0 : ap1=x[ind_zero_st[i]-1]*b+a/2.0
-        ind_zero_end[i]==length(x)+1 ? ap2 = a/2.0 : ap2=x[ind_zero_end[i]]*b+a/2.0
-        sf *= comp_scal_fac(k, a, b, ap1, ap2)
+        # Find boundary conditions (other X's or boundary of X)
+        ind_zero_st[i]==1 ? ap1 = a[1] :
+            ap1 = 2.0*x[ind_zero_st[i]-1]*b + a[ids[ind_zero_st[i]]]
+        ind_zero_end[i]==length(x)+1 ? ap2 = a[end] :
+            ap2 = 2.0*x[ind_zero_end[i]]*b + a[ids[ind_zero_end[i]-1]]
+
+        # Figure out b (block IDs of missing) and r (α indices)
+        b_id = ids[ind_zero_st[i]:(ind_zero_end[i]-1)]
+        n_miss = [count(x->x==n,b_id) for n in unique(b_id)]
+
+        # Call scaling factor function
+        sf *= comp_scal_fac(n_miss, a[unique(b_id)], b, ap1, ap2)
     end
 
     # Return energy function properly scaled.
-    # Note: when we have missing data the zeros don't contribute at all.
     return exp(-Ux(x)) * sf / Z
+
 end
 """
     `create_Llkhd(XOBS)`
@@ -174,20 +230,29 @@ CpG sites given the M partial observations XOBS.
 
 # Examples
 ```julia-repl
-julia>xobs=JuliASM.gen_ising_full_data(10,4);
-julia>LogLike=JuliASM.create_Llkhd(xobs)
+julia> n=[2,2]
+julia> xobs=JuliASM.gen_ising_full_data(20,n);
+julia> LogLike=JuliASM.create_Llkhd(n,xobs)
 ```
 """
-function create_Llkhd(xobs::Array{Array{Int64,1},1})
+function create_Llkhd(n::Array{Int64,1},xobs::Array{Array{Int64,1},1})
+
+    # Define minus log-likelihood function
     function Llkhd_fun(eta::Array{Float64,1})::Float64
         # Get parameters
         aux = 0.0
-        a = eta[1]
-        b = eta[2]
+        a = eta[1:(end-1)]
+        b = eta[end]
 
         # Get energy function and partition function
-        Ux = create_Ux(a, b)
-        logZ = log(comp_Z(length(xobs[1]), a, b))
+        Ux = create_Ux(n,a,b)
+        logZ = log(comp_Z(n,a,b))
+
+        # Initialize variables used in for loop
+        ap1 = ap2 = 0.0                 # Boundary values left and right
+        b_id = n_miss = []              # Block IDs of missing CpG; number missing per ID
+        ind_zero_st = ind_zero_end = [] # Indices of zeros
+        ids = vcat([i*ones(Int64,n[i]) for i in 1:length(n)]...)    # ID's of CpGs
 
         # Contribution of each observation
         for x in xobs
@@ -202,10 +267,18 @@ function create_Llkhd(xobs::Array{Array{Int64,1},1})
 
             # Get scaling factors due to all missing data
             for i in 1:length(ind_zero_st)
-                k = ind_zero_end[i]-ind_zero_st[i]
-                ind_zero_st[i]==1 ? ap1 = a/2.0 : ap1=x[ind_zero_st[i]-1]*b+a/2.0
-                ind_zero_end[i]==length(x)+1 ? ap2 = a/2.0 : ap2=x[ind_zero_end[i]]*b+a/2.0
-                aux += log(comp_scal_fac(k, a, b, ap1, ap2))
+                # Find boundary conditions (other X's or boundary of X)
+                ind_zero_st[i]==1 ? ap1 = a[1] :
+                    ap1 = 2.0*x[ind_zero_st[i]-1]*b + a[ids[ind_zero_st[i]]]
+                ind_zero_end[i]==length(x)+1 ? ap2 = a[end] :
+                    ap2 = 2.0*x[ind_zero_end[i]]*b + a[ids[ind_zero_end[i]-1]]
+
+                # Figure out b (block IDs of missing) and r (α indices)
+                b_id = ids[ind_zero_st[i]:(ind_zero_end[i]-1)]
+                n_miss = [count(x->x==n,b_id) for n in unique(b_id)]
+
+                # Call scaling factor function
+                aux += log(comp_scal_fac(n_miss, a[unique(b_id)], b, ap1, ap2))
             end
 
             # Add log of it to Llkhd
@@ -215,7 +288,10 @@ function create_Llkhd(xobs::Array{Array{Int64,1},1})
         # Return MINUS log-likelihood. Add as many logZ as samples we have
         -aux + length(xobs) * logZ
     end
+
+    # Return function
     return Llkhd_fun
+
 end # end create_Llkhd
 """
     `est_alpha(XOBS)`
@@ -232,8 +308,7 @@ julia> JuliASM.est_alpha(xobs)
 """
 function est_alpha(xobs::Array{Array{Int64,1},1})::Array{Float64,1}
     # Derivation of estimate:
-        # log(p)+log(2) = α-log(cosh(α))
-        # log(1-p)+log(2) = -α-log(cosh(α))
+        # log(p)+log(2) = α-log(cosh(α)); log(1-p)+log(2) = -α-log(cosh(α))
         # α = (log(p)-log(1-p))/2
 
     # Proportion of X=1
@@ -241,6 +316,7 @@ function est_alpha(xobs::Array{Array{Int64,1},1})::Array{Float64,1}
 
     # Return estimate
     return [0.5*(log(phat)-log(1.0-phat)),0.0]
+
 end # end est_alpha
 """
     `est_eta(XOBS)`
@@ -250,23 +326,34 @@ Estimate parameter vector η=[α, β] based on full or partial observations.
 # Examples
 ```julia-repl
 julia> Random.seed!(1234);
-julia> xobs=JuliASM.gen_ising_full_data(100,4);
-julia> JuliASM.est_eta(xobs)
-2-element Array{Float64,1}:
--0.021472968954113443
--0.04713360919013971
+julia> n=[4]
+julia> xobs=JuliASM.gen_ising_full_data(100,n);
+julia> JuliASM.est_eta(n,xobs)
+3-element Array{Float64,1}:
+ -0.05232269932606823
+  0.009316690953631898
+ -0.047507839311720854
 ```
 """
-function est_eta(xobs::Array{Array{Int64,1},1})::Array{Float64,1}
+function est_eta(n::Array{Int64,1},xobs::Array{Array{Int64,1},1})::Array{Float64,1}
+
+    # If N=1, then estimate α
+    length(n)==1 && n[1]==1 && return est_alpha(xobs)
+
+    # Define boundaries and initialization
+    L = create_Llkhd(n,xobs)
+    init = zeros(Float64,length(n)+1)
+    upper = 10.0 * ones(Float64,length(n)+1)
+    lower = -10.0 * ones(Float64,length(n)+1)
 
     # Boxed Simulated Annealing (SAMI): if no md it is still fast enough
-    L = create_Llkhd(xobs)
-    optim = optimize(L,[-10.0,-10.0],[10.0, 10.0],[0.0,0.0],SAMIN(rt=1e-4;
-                     f_tol=1e-3,x_tol=1e-3,verbosity=0),Optim.Options(iterations
-                     =10^6,show_trace=false,store_trace=false))
+    optim = optimize(L,lower,upper,init,SAMIN(rt=1e-4;f_tol=1e-3,x_tol=1e-3,
+                     verbosity=0),Optim.Options(iterations=10^6,
+                     show_trace=false,store_trace=false))
 
     # Return estimate
     return optim.minimizer
+
 end # end est_eta
 """
     `mle_mult(XOBS)`
@@ -313,6 +400,7 @@ function mle_mult(xobs::Array{Array{Int64,1},1})::Array{Float64,1}
 
     # Return phat
     return phat
+
 end # end mle_mult
 """
     `mle_bin_semi(XOBS)`
@@ -368,6 +456,7 @@ function mle_bin_semi(xobs::Array{Array{Int64,1},1})::Array{Float64,1}
 
     # Return phat
     return phat #/ sum(phat)
+
 end # end mle_bin_semi
 """
     `mle_bin_param(XOBS)`
@@ -423,4 +512,5 @@ function mle_bin_param(xobs::Array{Array{Int64,1},1})::Array{Float64,1}
 
     # Return phat
     return phat #/ sum(phat)
+
 end # end mle_bin_param

@@ -1,121 +1,114 @@
 """
-`comp_ex(N,α,β)`
+`comp_ex([N1,...,NK],[α1,...,αK],β)`
 
 Function that computes mean methylation vector E[X] assuming the Ising model
-for a methylation state vector of size N and parameters α and β.
+for a methylation state vector of size [N1,...,NK] and parameters [α1,...,αK]
+and β.
 
 # Examples
 ```julia-repl
-julia> JuliASM.comp_ex(4,0.0,0.0)
+julia> JuliASM.comp_ex([4],[0.0],0.0)
 4-element Array{Float64,1}:
-0.5
-0.5
-0.5
-0.5
+0.0
+0.0
+0.0
+0.0
 ```
 """
-function comp_ex(N::Int64,a::Float64, b::Float64)::Array{Float64,1}
+function comp_ex(n::Array{Int64,1},a::Array{Float64,1},b::Float64)::Array{Float64,1}
 
     # Loop over all positions
-    x = zeros(Int64,N)
-    y = zeros(Float64,N)
-    half = rem(N,2)==0 ? div(N,2) : div(N,2)+1
-    for j in 1:half
+    x = zeros(Int64,sum(n))
+    y = zeros(Float64,sum(n))
+    for j in 1:sum(n)
         x[j] = 1
-        y[j] = comp_lkhd(x,a,b) - comp_lkhd(-x,a,b)
+        y[j] = 2*comp_lkhd(x,n,a,b)-1
         x[j] = 0
     end
-
-    # Mirror first half
-    y[N:-1:(N-div(N,2)+1)]=y[1:div(N,2)]
 
     # Return
     return y
 
 end # end comp_ex
 """
-`comp_exx(N,α,β)`
+`comp_exx([N1,...,NK],[α1,...,αK],β)`
 
 Function that computes mean methylation vector E[XiXj] assuming the Ising model
-for a methylation state vector of size N and parameters α and β.
+for a methylation state vector of size [N1,...,NK] and parameters [α1,...,αK]
+and β.
 
 # Examples
 ```julia-repl
-julia> JuliASM.comp_exx(4,0.0,0.0)
+julia> JuliASM.comp_exx([4],[0.0],0.0)
 3-element Array{Float64,1}:
  0.0
  0.0
  0.0
 ```
 """
-function comp_exx(N::Int64,a::Float64, b::Float64)::Array{Float64,1}
+function comp_exx(n::Array{Int64,1},a::Array{Float64,1},b::Float64)::Array{Float64,1}
 
     # Loop over all positions
-    x = zeros(Int64,N)
-    y = zeros(Float64,N-1)
-    half = rem(N-1,2)==0 ? div(N-1,2) : div(N-1,2)+1
-    for j in 1:half
-        x[j] = 1
-        x[j+1] = 1
-        y[j] = comp_lkhd(x,a,b) + comp_lkhd(-x,a,b)
-        x[j] = -1
-        x[j+1] = 1
-        y[j] -= comp_lkhd(x,a,b) + comp_lkhd(-x,a,b)
-        x[j] = 0
-        x[j+1] = 0
+    x = zeros(Int64,sum(n))
+    y = zeros(Float64,sum(n)-1)
+    for j in 1:(sum(n)-1)
+        x[j] = x[j+1] = 1
+        y[j] = 2*(comp_lkhd(x,n,a,b) + comp_lkhd(-x,n,a,b))-1
+        x[j] = x[j+1] = 0
     end
-
-    # Mirror first half
-    y[(N-1):-1:(N-div(N-1,2))]=y[1:div(N-1,2)]
 
     # Return
     return y
 
 end # end comp_exx
 """
-    `comp_mml(ex)`
+    `comp_mml(EX)`
 
 Function that computes mean methylation level per CpG site assuming the Ising
 model for a methylation state vector of size N and parameters α and β.
 
 # Examples
 ```julia-repl
-julia> JuliASM.comp_mml(JuliASM.comp_ex(4,0.0,0.0))
-0.5
+julia> JuliASM.comp_mml(JuliASM.comp_ex([4],[0.0],0.0))
+0.0
 ```
 """
 function comp_mml(ex::Array{Float64,1})::Float64
 
     # Return
-    return 0.5/length(ex)*sum(ex) + 0.5
+    return 1.0/length(ex)*sum(ex)
 
 end # end comp_mml
 """
-    `comp_shanH(α,β,ex,exx)`
+    `comp_shanH([N1,...,NK],[α1,...,αK],β,EX,EXX)`
 
 Function that computes normalized Shannon entropy (in nats) assuming the Ising
-model for a methylation state vector of size N and parameters α and β.
+model for a methylation state vector of size [N1,...,NK] and parameters
+[α1,...,αK] and β.
 
 # Examples
 ```julia-repl
-julia> N=10
-julia> a=0.0
+julia> N=[10]
+julia> a=[0.0]
 julia> b=0.0
-julia> JuliASM.comp_shanH(a,b,JuliASM.comp_ex(N,a,b),JuliASM.comp_exx(N,a,b))
-2.8906482631788784
+julia> JuliASM.comp_shanH(N,a,b,JuliASM.comp_ex(N,a,b),JuliASM.comp_exx(N,a,b))
+6.931471805599453
 ```
 """
-function comp_shanH(a::Float64,b::Float64,ex::Array{Float64,1},exx::Array{Float64,1})::Float64
+function comp_shanH(n::Array{Int64,1},a::Array{Float64,1},b::Float64,ex::Array{Float64,1},exx::Array{Float64,1})::Float64
+
+    # Vector of α
+    avec = vcat([a[i]*ones(Float64,n[i]) for i in 1:length(n)]...)
 
     # Return
-    return 1.0/log(length(ex)+1)*(log(comp_Z(length(ex),a,b))-a*sum(ex)-b*sum(exx))
+    return log(comp_Z(n,a,b))-avec'*ex-b*sum(exx)
 
 end # end comp_shanH
 """
     `comp_mi(h,h1,h2)`
 
 Function that computes the mutual information between haplotype and methylation
-state assuming an Ising model for both single-allele and combined models.
+state assuming an Ising model for both single-allele and allele-agnostic models.
 
 # Examples
 ```julia-repl
@@ -140,7 +133,7 @@ julia> JuliASM.bifurcate([[1,1],[1,-1],[-1,1]], [1,2])
 (Array{Int64,1}[[1, 1], [1, -1]], Array{Int64,1}[[-1, 1]])
 ```
 """
-function bifurcate(xpool::Array{Array{Int64,1},1}, sel::Vector{T}) where T <: Integer
+function bifurcate(xpool::Array{Array{Int64,1},1},sel::Vector{T}) where T <: Integer
     x = xpool[sel]
     asel = trues(length(xpool))
     asel[sel] .= false

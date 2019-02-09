@@ -2,7 +2,7 @@
 # CONSTANTS
 ###############################################################################
 const THRESH_MAPQ = 20                      # MAPQ threshold
-const THRESH_COV = 10                       # Coverage threshold
+const THRESH_COV = 15                       # Coverage threshold
 const FLAGS_ALLOWED = [0,16,83,99,147,163]  # Flags allowed in BAM recs
 ###############################################################################
 # STRUCTS
@@ -71,6 +71,7 @@ function get_align_strand(pe::Bool,flag1::UInt16,flag2::UInt16)::String
 
     # Return strand
     return s
+
 end # end get_align_strand
 """
     `order_bams(PAIRED_END,RECORDS)`
@@ -84,6 +85,7 @@ julia> JuliASM.order_bams(true,RECORDS)
 ```
 """
 function order_bams(pe::Bool, records::Array{BAM.Record,1})::AlignTemp
+
     # Check which record appears first in forward strand
     if BAM.position(records[1])<=BAM.position(records[2])
         s = get_align_strand(pe, BAM.flag(records[1]), BAM.flag(records[2]))
@@ -92,6 +94,7 @@ function order_bams(pe::Bool, records::Array{BAM.Record,1})::AlignTemp
         s = get_align_strand(pe, BAM.flag(records[2]), BAM.flag(records[1]))
         return AlignTemp(s,records[2],records[1])
     end
+
 end
 """
     `clean_records(PAIRED_END,RECORDS)`
@@ -135,6 +138,7 @@ function clean_records(pe::Bool, records::Array{BAM.Record,1})::AllAlignTemps
 
     # Return struct
     return out
+
 end # end clean_records
 """
     `try_olaps(READER,CHR,WINDOW)`
@@ -147,6 +151,7 @@ julia> try_olaps(reader,chr,win)
 ```
 """
 function try_olaps(reader::BAM.Reader,chr::String,win::Array{Int64,1})::Array{BAM.Record,1}
+
     # NOTE: known bug that has to do w/ BioAlignments when close to end?
     records_olap =
     try
@@ -154,10 +159,12 @@ function try_olaps(reader::BAM.Reader,chr::String,win::Array{Int64,1})::Array{BA
     catch
         Array{BAM.Record,1}()
     end
+
     return records_olap
+
 end # try_olaps
 """
-    `read_bam(BAM_PATH, CHR, FEAT_ST, FEAT_END, CPG_POS; PE)`
+    `read_bam(BAM_PATH, CHR, FEAT_ST, FEAT_END, CPG_POS, PE)`
 
 Function that reads in BAM file in `BAM_PATH` and returns methylation vectors
 for those records that overlap with (1-based) genomic coordinates
@@ -168,11 +175,11 @@ chr:chrSt-chrEnd at cpg_pos. The information was taken from:
 
 # Examples
 ```julia-repl
-julia> read_bam(BAM_PATH,"chr1",30,80,[40,60];pe=false)
+julia> read_bam(BAM_PATH,"chr1",30,80,[40,60],false)
 ```
 """
 function read_bam(bam_path::String, chr::String, f_st::Int64, f_end::Int64,
-                  cpg_pos::Array{Int64,1},chr_size::Int64;pe::Bool=true)::Array{Array{Int64,1},1}
+                  cpg_pos::Array{Int64,1},chr_size::Int64,pe::Bool)::Array{Array{Int64,1},1}
 
     # Number of CpG sites is determined by that in the region
     N = length(cpg_pos)
@@ -237,6 +244,7 @@ function read_bam(bam_path::String, chr::String, f_st::Int64, f_end::Int64,
 
     # Return
     return xobs
+
 end # end read_bam
 """
     `write_gff!(OUT_GFF, GFF_RECORDS)`
@@ -285,6 +293,7 @@ function next_record(reader_vcf::VCF.Reader, chr_names::Array{String,1},
         # return empty record if finished stream
         return VCF.Record()
     end
+
 end # end next_record
 """
     `is_het_cpg!(VAR,SEQ,H1,H2)`
@@ -429,7 +438,7 @@ function read_vcf(out_gff_path::String, fasta_path::String, vcf_path::String,
             ind_PS = findfirst(x->x=="PS",VCF.format(record))
             curr_ps = VCF.genotype(record)[1][ind_PS]
             record,wEnd = get_records_ps!(reader_vcf, fasta_record, record, curr_ps,
-                                     wEnd, het_cpgs1, het_cpgs2)
+                                          wEnd, het_cpgs1, het_cpgs2)
         else
             # If no PS tag, then single SNP (marked as NOPS)
             curr_ps = "NOPS"
@@ -487,6 +496,7 @@ function read_gff_chr(gff_path::String,chr::String)::Array{GFF3.Record,1}
 
     # Return
     return features
+
 end # end read_gff_chr
 """
     `write_bG(BEDGRAPH_PATH, BEDGRAPH_RECORDS)`
@@ -510,6 +520,7 @@ function write_bG(bG_records::Array{Tuple{String,Int64,Int64,Float64},1},
 
     # No need to close stream
     return bG_records
+
 end # end write_bG
 """
     `get_cpg_pos(FEAT_ATTS)`
@@ -538,7 +549,39 @@ function get_cpg_pos(atts::Dict{String,Array{String,1}})::Array{Array{Int64,1},1
     end
 
     return [hom,sort!(append!(het1,hom)),sort!(append!(het2,hom))]
+
 end # end get_cpg_pos
+"""
+    `get_ns(CPG_POS,BLOCK_SIZE)`
+
+Functions that returns [N1,...,NK] given the position of the CpG sites and
+a block size BLOCK_SIZE.
+
+# Examples
+```julia-repl
+julia> get_ns([100,250,300,350],200)
+2-element Array{Int64,1}:
+ 3
+ 1
+```
+"""
+function get_ns(cpg_pos::Array{Int64,1},b_size::Int64)::Array{Int64,1}
+
+    # Partition array
+    y = Int64[]
+    for p in cpg_pos
+        j = 0
+        while true
+            ((p-cpg_pos[1]-j*b_size)>=0) && ((p-cpg_pos[1]-(j+1)*b_size)<=0) && break
+            j += 1
+        end
+        push!(y,j)
+    end
+
+    # Return array of arrays
+    return [sum(y.==i) for i in unique(y)]
+
+end # end get_ns
 """
     `mean_cov(XOBS)`
 
@@ -570,7 +613,7 @@ julia> run_asm_analysis(BAM1_PATH,BAM2_PATH,VCF_PATH,FASTA_PATH,WINDOW_SIZE,OUT_
 """
 function run_asm_analysis(bam1_path::String, bam2_path::String, vcf_path::String,
                           fasta_path::String, window_size::Int64, out_path::String;
-                          pe::Bool=true)
+                          pe::Bool=true,b_size::Int64=100)
 
     # Print initialization of juliASM
     println(stderr,"[$(now())]: Initializing JuliASM ...")
@@ -639,19 +682,21 @@ function run_asm_analysis(bam1_path::String, bam2_path::String, vcf_path::String
     close(reader_fasta)
 
     # bedGraph records
-    mml1_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
-    mml2_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
     h1_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
     h2_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
     mi_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
+    mml1_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
+    mml2_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
     pVal_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
 
     # Loop over chromosomes
+    n = n1 = n2 = []
     ex = exx = mi = 0.0
     cpg_pos = Array{Array{Int64,1},1}()
     f_atts = Dict{String,Array{String,1}}()
-    n = n1 = n2 = tot_feats = int_feats_1 = int_feats_2 = int_feats_mi = 0
+    tot_feats = int_feats_1 = int_feats_2 = int_feats_mi = 0
     for chr in chr_names
+
         # Get windows pertaining to current chromosome
         println(stderr,"[$(now())]: Processing 🧬  $(chr) ...")
         features_chr = read_gff_chr(out_gff_path,chr)
@@ -669,46 +714,49 @@ function run_asm_analysis(bam1_path::String, bam2_path::String, vcf_path::String
             cpg_pos = get_cpg_pos(f_atts)
 
             # Get vectors from BAM1/2 overlapping feature
-            n = length(cpg_pos[1])
-            n1 = length(cpg_pos[2])
-            n2 = length(cpg_pos[3])
-            xobs1 = read_bam(bam1_path,chr,f_st,f_end,cpg_pos[2],chr_size;pe=pe)
-            xobs2 = read_bam(bam2_path,chr,f_st,f_end,cpg_pos[3],chr_size;pe=pe)
+            n = get_ns(cpg_pos[1],b_size)
+            n1 = get_ns(cpg_pos[2],b_size)
+            n2 = get_ns(cpg_pos[3],b_size)
+            xobs1 = read_bam(bam1_path,chr,f_st,f_end,cpg_pos[2],chr_size,pe)
+            xobs2 = read_bam(bam2_path,chr,f_st,f_end,cpg_pos[3],chr_size,pe)
 
             # Estimate each single-allele model, mml and h
             if mean_cov(xobs1)>=THRESH_COV
-                n1==1 ? eta1=est_alpha(xobs1) : eta1=est_eta(xobs1)
-                ex = comp_ex(n1,eta1[1],eta1[2])
-                exx = comp_exx(n1,eta1[1],eta1[2])
-                h1 = comp_shanH(eta1[1],eta1[2],ex,exx)
+                eta1 = est_eta(n1,xobs1)
+                ex = comp_ex(n1,eta1[1:length(n1)],eta1[end])
+                exx = comp_exx(n1,eta1[1:length(n1)],eta1[end])
+                h1 = comp_shanH(n1,eta1[1:length(n1)],eta1[end],ex,exx)
                 push!(mml1_recs,(chr,f_st,f_end,comp_mml(ex)))
                 push!(h1_recs,(chr,f_st,f_end,h1))
                 int_feats_1 += 1
             end
             if mean_cov(xobs2)>=THRESH_COV
-                n2==1 ? eta2=est_alpha(xobs2) : eta2=est_eta(xobs2)
-                ex = comp_ex(n2,eta2[1],eta2[2])
-                exx = comp_exx(n2,eta2[1],eta2[2])
+                eta2 = est_eta(n2,xobs2)
+                ex = comp_ex(n2,eta2[1:length(n2)],eta2[end])
+                exx = comp_exx(n2,eta2[1:length(n2)],eta2[end])
+                h2 = comp_shanH(n2,eta2[1:length(n2)],eta2[end],ex,exx)
                 push!(mml2_recs,(chr,f_st,f_end,comp_mml(ex)))
-                h2 = comp_shanH(eta2[1],eta2[2],ex,exx)
                 push!(h2_recs,(chr,f_st,f_end,h2))
                 int_feats_2 += 1
             end
 
             # Compute mutual information
             if (mean_cov(xobs1)>=THRESH_COV) && (mean_cov(xobs2)>=THRESH_COV)
-                append!(xobs1,xobs2)
-                n==1 ? eta=est_alpha(xobs1) : eta=est_eta(xobs1)
-                ex = comp_ex(n,eta[1],eta[2])
-                exx = comp_exx(n,eta[1],eta[2])
-                h = comp_shanH(eta[1],eta[2],ex,exx)
-                mi = comp_mi(h,h1,h2)
+                ind1 = findall(x->x==true,[p in cpg_pos[1] for p in cpg_pos[2]])
+                ind2 = findall(x->x==true,[p in cpg_pos[1] for p in cpg_pos[3]])
+                xobs1 = [x[ind1] for x in xobs1]
+                xobs2 = [x[ind2] for x in xobs2]
+                eta = est_eta(n,vcat(xobs1,xobs2))
+                ex = comp_ex(n,eta[1:length(n)],eta[end])
+                exx = comp_exx(n,eta[1:length(n)],eta[end])
+                mi = comp_mi(comp_shanH(n,eta[1:length(n)],eta[end],ex,exx),h1,h2)
                 push!(mi_recs,(chr,f_st,f_end,mi))
                 # push!(pVal_recs,(chr,f_st,f_end,perm_test(xobs1,xobs2,mi,cpg_pos)))
                 int_feats_mi += 1
             end
 
         end
+
         # Add values to respective output BigWig files after each chr
         mml1_recs = write_bG(mml1_recs, mml1_path)
         mml2_recs = write_bG(mml2_recs, mml2_path)
@@ -716,11 +764,14 @@ function run_asm_analysis(bam1_path::String, bam2_path::String, vcf_path::String
         h2_recs = write_bG(h2_recs, h2_path)
         mi_recs = write_bG(mi_recs, mi_path)
         pVal_recs = write_bG(pVal_recs, pVal_path)
+
     end
+
     # Print number of features interrogated and finished message
     println(stderr,"[$(now())]: Total number of features: $(tot_feats).")
     println(stderr,"[$(now())]: G1:$(round(100*int_feats_1/tot_feats; sigdigits=2))%.")
     println(stderr,"[$(now())]: G2:$(round(100*int_feats_2/tot_feats;sigdigits=2))%.")
     println(stderr,"[$(now())]: Both:$(round(100*int_feats_mi/tot_feats;sigdigits=2))%.")
     print(stderr,"[$(now())]: Done. 😄")
+
 end # end run_asm_analysis
