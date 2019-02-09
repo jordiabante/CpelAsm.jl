@@ -2,7 +2,6 @@
 # CONSTANTS
 ###############################################################################
 const THRESH_MAPQ = 20                      # MAPQ threshold
-const THRESH_COV = 15                       # Coverage threshold
 const FLAGS_ALLOWED = [0,16,83,99,147,163]  # Flags allowed in BAM recs
 ###############################################################################
 # STRUCTS
@@ -613,7 +612,7 @@ julia> run_asm_analysis(BAM1_PATH,BAM2_PATH,VCF_PATH,FASTA_PATH,WINDOW_SIZE,OUT_
 """
 function run_asm_analysis(bam1_path::String, bam2_path::String, vcf_path::String,
                           fasta_path::String, window_size::Int64, out_path::String;
-                          pe::Bool=true,b_size::Int64=100)
+                          pe::Bool=true,b_size::Int64=100,cov_thresh::Int64)
 
     # Print initialization of juliASM
     println(stderr,"[$(now())]: Initializing JuliASM ...")
@@ -721,7 +720,7 @@ function run_asm_analysis(bam1_path::String, bam2_path::String, vcf_path::String
             xobs2 = read_bam(bam2_path,chr,f_st,f_end,cpg_pos[3],chr_size,pe)
 
             # Estimate each single-allele model, mml and h
-            if mean_cov(xobs1)>=THRESH_COV
+            if mean_cov(xobs1)>=cov_thresh
                 eta1 = est_eta(n1,xobs1)
                 ex = comp_ex(n1,eta1[1:length(n1)],eta1[end])
                 exx = comp_exx(n1,eta1[1:length(n1)],eta1[end])
@@ -730,7 +729,7 @@ function run_asm_analysis(bam1_path::String, bam2_path::String, vcf_path::String
                 push!(h1_recs,(chr,f_st,f_end,h1))
                 int_feats_1 += 1
             end
-            if mean_cov(xobs2)>=THRESH_COV
+            if mean_cov(xobs2)>=cov_thresh
                 eta2 = est_eta(n2,xobs2)
                 ex = comp_ex(n2,eta2[1:length(n2)],eta2[end])
                 exx = comp_exx(n2,eta2[1:length(n2)],eta2[end])
@@ -741,7 +740,7 @@ function run_asm_analysis(bam1_path::String, bam2_path::String, vcf_path::String
             end
 
             # Compute mutual information
-            if (mean_cov(xobs1)>=THRESH_COV) && (mean_cov(xobs2)>=THRESH_COV)
+            if (mean_cov(xobs1)>=cov_thresh) && (mean_cov(xobs2)>=cov_thresh)
                 ind1 = findall(x->x==true,[p in cpg_pos[1] for p in cpg_pos[2]])
                 ind2 = findall(x->x==true,[p in cpg_pos[1] for p in cpg_pos[3]])
                 xobs1 = [x[ind1] for x in xobs1]
