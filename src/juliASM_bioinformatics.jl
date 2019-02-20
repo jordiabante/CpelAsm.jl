@@ -422,23 +422,29 @@ function read_vcf(gff_path::String,fasta_path::String,vcf_path::String,blk_size:
         # Get entire (contiguous) haplotype using the PS field
         wSt = VCF.pos(record)
         wEnd = VCF.pos(record)
-        het_cpgs1 = Array{Int64,1}()
-        het_cpgs2 = Array{Int64,1}()
+        het1 = Array{Int64,1}()
+        het2 = Array{Int64,1}()
         if "PS" in VCF.format(record)
             # If PS tag, then phased
             ind_PS = findfirst(x->x=="PS",VCF.format(record))
             curr_ps = VCF.genotype(record)[1][ind_PS]
-            record,wEnd = get_records_ps!(reader_vcf,fasta_record,record,curr_ps,wEnd,het_cpgs1,het_cpgs2)
+            record,wEnd = get_records_ps!(reader_vcf,fasta_record,record,curr_ps,wEnd,het1,het2)
         else
             # If no PS tag, then single SNP (marked as NOPS)
             curr_ps = "NOPS"
-            is_het_cpg!(record,fasta_record,het_cpgs1,het_cpgs2)
+            is_het_cpg!(record,fasta_record,het1,het2)
             eof(reader_vcf) ? record=VCF.Record() : read!(reader_vcf, record)
         end
 
-        # Obtain DNA sequence from reference and CpG loci from it
+        # Get remainder from block size and distribute it evenly
         rmdr = div(blk_size-(wEnd-wSt)%blk_size,2)
         win = [max(1, wSt-rmdr), min(chr_size, wEnd+rmdr)]
+
+        # The following is relevant when f_st creates a CpG site on the left at f_st-1
+        win[1] = length(het1)>0 && minimum(het1)<win[1] ? minimum(het1) : win[1]
+        win[1] = length(het2)>0 && minimum(het2)<win[1] ? minimum(het2) : win[1]
+
+        # Obtain DNA sequence from reference and homozygous CpG loci from it
         wSeq = convert(String,FASTA.sequence(fasta_record,win[1]:win[2]))
         cpg_pos = map(x->getfield(x,:offset),eachmatch(r"CG",wSeq)).+win[1].-1
 
@@ -446,8 +452,8 @@ function read_vcf(gff_path::String,fasta_path::String,vcf_path::String,blk_size:
         if length(cpg_pos)>0
             out_str = "$(curr_chr)\t.\t$(curr_ps)\t$(win[1])\t$(win[2])"*
                       "\t.\t.\t.\tN=$(length(cpg_pos));CpGs=$(cpg_pos)"
-            length(het_cpgs1)>0 && (out_str*=";hetCpGg1=$(het_cpgs1)")
-            length(het_cpgs2)>0 && (out_str*=";hetCpGg2=$(het_cpgs2)")
+            length(het1)>0 && (out_str*=";hetCpGg1=$(het1)")
+            length(het2)>0 && (out_str*=";hetCpGg2=$(het2)")
             push!(gff_records,GFF3.Record(out_str))
         end
 
@@ -556,9 +562,9 @@ julia> get_ns([100,250,300,350],200,90)
 """
 function get_ns(cpg_pos::Array{Int64,1},blk_size::Int64,f_st::Int64)::Array{Int64,1}
 
-    # Check all cpg_pos are not upstream of f_st (redundant check)
+    # Check all cpg_pos are not upstream of f_st (provisional check)
     if minimum(cpg_pos) < f_st
-        println(stderr, "[$(now())]: CpG sites upstream of f_st.")
+        println(stderr, "[$(now())]: CpG sites in $cpg_pos upstream of f_st at $f_st.")
         println(stderr, "[$(now())]: Exiting JuliASM ...")
         exit(1)
     end
