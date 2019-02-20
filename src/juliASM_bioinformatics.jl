@@ -1,7 +1,7 @@
 ###############################################################################
 # CONSTANTS
 ###############################################################################
-const GFF_BUFFER = 5000000                  # Bytes of GFF records until write
+const GFF_BUFFER = 500000                   # Bytes of GFF records until write
 const THRESH_MAPQ = 20                      # MAPQ threshold
 const FLAGS_ALLOWED = [0,16,83,99,147,163]  # Flags allowed in BAM recs
 ###############################################################################
@@ -437,8 +437,8 @@ function read_vcf(gff_path::String,fasta_path::String,vcf_path::String,blk_size:
         end
 
         # Obtain DNA sequence from reference and CpG loci from it
-        rem = (wEnd-wSt<blk_size) ? div(blk_size-wEnd+wSt,2) : div((wEnd-wSt)%blk_size,2)
-        win = [max(1, wSt-rem), min(chr_size, wEnd+rem)]
+        rmdr = div(blk_size-(wEnd-wSt)%blk_size,2)
+        win = [max(1, wSt-rmdr), min(chr_size, wEnd+rmdr)]
         wSeq = convert(String,FASTA.sequence(fasta_record,win[1]:win[2]))
         cpg_pos = map(x->getfield(x,:offset),eachmatch(r"CG",wSeq)).+win[1].-1
 
