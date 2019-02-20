@@ -30,7 +30,9 @@ end
     # Check proper E[XX] computation
     @test sum(comp_exx([4],[0.0],1.0))≈2.285 atol=1e-3
     # Check proper MML computation
-    @test comp_mml(comp_ex([4],[0.0],0.0))≈0.0 atol=1e-3
-    # Check proper Shannon's entropy computation
-    @test comp_shanH([4],[0.0],0.0,comp_ex([4],[0.0],0.0),comp_exx([4],[0.0],0.0))≈2.773 atol=1e-3
+    @test comp_mml(comp_ex([4],[0.0],0.0))≈0.5 atol=1e-3
+    # Check proper NME computation
+    @test comp_nme([4],[0.0],0.0,comp_ex([4],[0.0],0.0),comp_exx([4],[0.0],0.0))≈1.0 atol=1e-3
+    # Check proper NMI computation
+    @test comp_nmi(1.0,0.5,1.5)≈0.0 atol=1e-3
 end

@@ -12,6 +12,7 @@ module JuliASM
 # DEPENDENCIES
 ##########################################################################
 using Random            # RNG
+using LinearAlgebra     # For Eigendecomposition of Σ
 using Dates             # For showing time
 using Distributions     # For sampling RVs
 using Plots             # For plots
@@ -24,7 +25,6 @@ using GeneticVariation  # For VCF file
 using BioSequences      # For FASTA file
 using Combinatorics     # For permutation test
 using ProgressMeter     # For tracking progress
-# using BlackBoxOptim     # Alternative global minimizer
 ##########################################################################
 # INCLUDES
 ##########################################################################
@@ -57,9 +57,12 @@ export read_vcf
 export read_gff_chr
 export comp_ex
 export comp_exx
+export comp_cov
 export comp_mml
-export comp_shanH
-export comp_mi
+export comp_nme
+export comp_nmi
+export comp_corr
+export comp_evec
 export run_asm_analysis
 
 end # module

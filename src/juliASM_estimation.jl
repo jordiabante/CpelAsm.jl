@@ -1,3 +1,10 @@
+###############################################################################
+# CONSTANTS
+###############################################################################
+const ETA_MAX_ABS=5.0
+###############################################################################
+# FUNCTIONS
+###############################################################################
 """
     `create_Ux([N1,...,NK],[α1,...,αK],β)`
 
@@ -16,7 +23,7 @@ function create_Ux(n::Array{Int64,1},a::Array{Float64,1}, b::Float64)
     # Define function given n, α, and β
     function Ux(x::Array{Int64,1})::Float64
         u = a[1] * sum(x[1:n[1]]) + b * sum(x[1:(end-1)] .* x[2:end])
-        for i in 2:length(n)
+        @inbounds for i in 2:length(n)
             u += a[i] * sum(x[(sum(n[1:(i-1)])+1):(sum(n[1:i]))])
         end
         return -u
@@ -203,7 +210,7 @@ function comp_lkhd(x::Array{Int64,1},n::Array{Int64,1},a::Array{Float64,1},b::Fl
 
     # Get overall scaling factor as product of individual factors
     sf = 1.0
-    for i in 1:length(ind_zero_st)
+    @inbounds for i in 1:length(ind_zero_st)
         # Find boundary conditions (other X's or boundary of X)
         ind_zero_st[i]==1 ? ap1 = a[1] :
             ap1 = 2.0*x[ind_zero_st[i]-1]*b + a[ids[ind_zero_st[i]]]
@@ -223,7 +230,7 @@ function comp_lkhd(x::Array{Int64,1},n::Array{Int64,1},a::Array{Float64,1},b::Fl
 
 end
 """
-    `create_Llkhd(XOBS)`
+    `create_Llkhd([N1,...,NK],XOBS)`
 
 Create function to compute the minus log-likelihood function for a region with N
 CpG sites given the M partial observations XOBS.
@@ -266,7 +273,7 @@ function create_Llkhd(n::Array{Int64,1},xobs::Array{Array{Int64,1},1})
             x[end]==0 && push!(ind_zero_end,length(x)+1)
 
             # Get scaling factors due to all missing data
-            for i in 1:length(ind_zero_st)
+            @inbounds for i in 1:length(ind_zero_st)
                 # Find boundary conditions (other X's or boundary of X)
                 ind_zero_st[i]==1 ? ap1 = a[1] :
                     ap1 = 2.0*x[ind_zero_st[i]-1]*b + a[ids[ind_zero_st[i]]]
@@ -313,13 +320,14 @@ function est_alpha(xobs::Array{Array{Int64,1},1})::Array{Float64,1}
 
     # Proportion of X=1
     phat = length(findall(x->x==[1],xobs)) / length(xobs)
+    a = 0.5*(log(phat)-log(1.0-phat))
 
     # Return estimate
-    return [0.5*(log(phat)-log(1.0-phat)),0.0]
+    return [min(max(-ETA_MAX_ABS,a),ETA_MAX_ABS),0.0]
 
 end # end est_alpha
 """
-    `est_eta(XOBS)`
+    `est_eta([N1,...,NK],XOBS)`
 
 Estimate parameter vector η=[α, β] based on full or partial observations.
 
@@ -343,13 +351,12 @@ function est_eta(n::Array{Int64,1},xobs::Array{Array{Int64,1},1})::Array{Float64
     # Define boundaries and initialization
     L = create_Llkhd(n,xobs)
     init = zeros(Float64,length(n)+1)
-    upper = 10.0 * ones(Float64,length(n)+1)
-    lower = -10.0 * ones(Float64,length(n)+1)
+    lower = -ETA_MAX_ABS * ones(Float64,length(n)+1)
+    upper = ETA_MAX_ABS * ones(Float64,length(n)+1)
 
-    # Boxed Simulated Annealing (SAMI): if no md it is still fast enough
-    optim = optimize(L,lower,upper,init,SAMIN(rt=1e-4;f_tol=1e-3,x_tol=1e-3,
-                     verbosity=0),Optim.Options(iterations=10^6,
-                     show_trace=false,store_trace=false))
+    # Boxed Simulated Annealing (SAMI)
+    optim = optimize(L,lower,upper,init,SAMIN(rt=1e-4;f_tol=1e-3,verbosity=0),
+                     Optim.Options(iterations=10^6,show_trace=false,store_trace=false))
 
     # Return estimate
     return optim.minimizer
