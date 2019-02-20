@@ -8,9 +8,8 @@ const LOG2 = log(2)                      # Ln(2)
 """
 `comp_ex([N1,...,NK],[α1,...,αK],β)`
 
-Function that computes the mean methylation vector E[X] assuming the Ising model
-for a methylation state vector of size [N1,...,NK] and parameters [α1,...,αK]
-and β.
+Function that computes the mean methylation vector E[X] assuming the Ising model for a methylation
+state vector of size `[N1,...,NK]` and parameters `[α1,...,αK]` and `β`.
 
 # Examples
 ```julia-repl
@@ -38,11 +37,10 @@ function comp_ex(n::Array{Int64,1},a::Array{Float64,1},b::Float64)::Array{Float6
 
 end # end comp_ex
 """
-`comp_exx([N1,...,NK],[α1,...,αK],β;DIST)`
+`comp_exx([N1,...,NK],[α1,...,αK],β;r=1)`
 
-Function that computes mean methylation vector E[X_{i}X_{+LAG}}] assuming the
-Ising model for a methylation state vector of size [N1,...,NK] and parameters
-[α1,...,αK] and β.
+Function that computes mean methylation vector E[X_{i}X_{i+r}}] assuming the Ising model for a
+methylation state vector of size `[N1,...,NK]` and parameters `[α1,...,αK]` and `β`.
 
 # Examples
 ```julia-repl
@@ -53,15 +51,15 @@ julia> JuliASM.comp_exx([4],[0.0],0.0)
  0.0
 ```
 """
-function comp_exx(n::Array{Int64,1},a::Array{Float64,1},b::Float64;dist::Int64=1)::Array{Float64,1}
+function comp_exx(n::Array{Int64,1},a::Array{Float64,1},b::Float64;r::Int64=1)::Array{Float64,1}
 
     # Loop over all positions
     x = zeros(Int64,sum(n))
-    y = zeros(Float64,sum(n)-dist)
-    @inbounds for j in 1:(sum(n)-dist)
-        x[j] = x[j+dist] = 1
+    y = zeros(Float64,sum(n)-r)
+    @inbounds for j in 1:(sum(n)-r)
+        x[j] = x[j+r] = 1
         y[j] = comp_lkhd(x,n,a,b) + comp_lkhd(-x,n,a,b)
-        x[j] = x[j+dist] = 0
+        x[j] = x[j+r] = 0
     end
 
     # Return
@@ -71,13 +69,19 @@ end # end comp_exx
 """
     `comp_cov([N1,...,NK],[α1,...,αK],β,EX,EXX)`
 
-Function that returns the covariance matrix of a methylation vector given the
-[N1,...,NK], [α1,...,αK], β, E[X], and E[XX].
+Function that returns the covariance matrix of a methylation vector given the `[N1,...,NK]`,
+`[α1,...,αK]`, `β`, E[X], and E[XX].
 
 # Examples
 ```julia-repl
+julia> ex = JuliASM.comp_ex([4],[0.0],0.0)
+julia> exx = JuliASM.comp_exx([4],[0.0],0.0)
 julia> JuliASM.comp_cov([4],[0.0],0.0,ex,exx)
-??
+4×4 Array{Float64,2}:
+ 1.0          0.0          2.22045e-16  0.0
+ 0.0          1.0          2.22045e-16  2.22045e-16
+ 2.22045e-16  2.22045e-16  1.0          0.0
+ 0.0          2.22045e-16  0.0          1.0
 ```
 """
 function comp_cov(n::Array{Int64,1},a::Array{Float64,1},b::Float64,ex::Array{Float64,1},exx::Array{Float64,1})::Array{Float64,2}
@@ -91,7 +95,7 @@ function comp_cov(n::Array{Int64,1},a::Array{Float64,1},b::Float64,ex::Array{Flo
 
     # Add covariance terms E[X_{i}X_{i+k-1}]
     @inbounds for k=3:ntot
-        cov[k:(ntot+1):((ntot-k+1)*ntot)] = comp_exx(n,a,b;dist=k-1)
+        cov[k:(ntot+1):((ntot-k+1)*ntot)] = comp_exx(n,a,b;r=k-1)
     end
 
     # Symmetrize
@@ -110,13 +114,20 @@ end # end comp_cov
 """
     `comp_evec(Σ)`
 
-Function that returns the eigenvector associated with the largest eigenvalue of
-the covariance matrix Σ.
+Function that returns the eigenvector associated with the largest eigenvalue of the covariance
+matrix Σ.
 
 # Examples
 ```julia-repl
+julia> ex = JuliASM.comp_ex([4],[0.0],0.0);
+julia> exx = JuliASM.comp_exx([4],[0.0],0.0);
+julia> cov = JuliASM.comp_cov([4],[0.0],0.0,ex,exx);
 julia> JuliASM.comp_evec(cov)
-??
+4-element Array{Float64,1}:
+ 0.0
+ 0.0
+ 0.0
+ 1.0
 ```
 """
 function comp_evec(cov::Array{Float64,2})::Array{Float64,1}
@@ -128,8 +139,7 @@ end # end comp_evec
 """
     `comp_mml(EX)`
 
-Function that computes mean methylation level per CpG site assuming the Ising
-model for a methylation state vector of size N and parameters α and β.
+Function that computes mean methylation level (MML) given the first order moment E[X].
 
 # Examples
 ```julia-repl
@@ -146,8 +156,8 @@ end # end comp_mml
 """
     `comp_corr(EX,EXX)`
 
-Function that returns the correlation vector between consecutive CpG sites given
-the vector of E[X] and E[XX].
+Function that returns the correlation vector between consecutive CpG sites given the vector of
+first order moments E[X] and second order moments E[XX].
 
 # Examples
 ```julia-repl
@@ -170,8 +180,8 @@ end # end comp_corr
 """
     `comp_nme([N1,...,NK],[α1,...,αK],β,EX,EXX)`
 
-Function that computes normalized methylation entropy assuming the Ising model for
-a methylation state vector of size [N1,...,NK] and parameters [α1,...,αK] and β.
+Function that computes normalized methylation entropy (NME) assuming the Ising model for a
+methylation state vector of size `[N1,...,NK]` and parameters `[α1,...,αK]` and `β`.
 
 # Examples
 ```julia-repl
@@ -194,9 +204,8 @@ end # end comp_nme
 """
     `comp_nmi(nme0,nme1,nme2)`
 
-Function that computes the normalized mutual information between haplotype and
-methylation state assuming an Ising model for both single-allele and allele-
-agnostic models.
+Function that computes the normalized mutual information (NMI) between haplotype and methylation
+state assuming an Ising model for both single-allele and allele-agnostic models.
 
 # Examples
 ```julia-repl

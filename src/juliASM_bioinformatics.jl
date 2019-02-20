@@ -1,6 +1,7 @@
 ###############################################################################
 # CONSTANTS
 ###############################################################################
+const GFF_BUFFER = 5000000                  # Bytes of GFF records until write
 const THRESH_MAPQ = 20                      # MAPQ threshold
 const FLAGS_ALLOWED = [0,16,83,99,147,163]  # Flags allowed in BAM recs
 ###############################################################################
@@ -21,9 +22,9 @@ end
 """
     `get_align_strand(PAIRED_END,FLAG1,FLAG2)`
 
-Function that returns the strand of methylation call based on Bismark's logic.
-In single-end mode, OT and CTOT reads will both receive a FLAG of 0 while
-OB and CTOB both receive a FLAG of 16. In paired end mode:
+Function that returns the strand of methylation call based on Bismark's logic. In single-end mode,
+OT and CTOT reads will both receive a FLAG of 0 while OB and CTOB both receive a FLAG of 16. In
+paired end mode:
 
              Read 1       Read 2
   OT:         99          147
@@ -75,8 +76,8 @@ end # end get_align_strand
 """
     `order_bams(PAIRED_END,RECORDS)`
 
-Function that returns an AlignTemp object with R1 as the first record in the
-forward strand and with the methylation call strand taken from get_align_strand.
+Function that returns an AlignTemp object with R1 as the first record in the forward strand and
+with the methylation call strand taken from `get_align_strand`.
 
 # Examples
 ```julia-repl
@@ -98,11 +99,10 @@ end
 """
     `clean_records(PAIRED_END,RECORDS)`
 
-Function that takes a set of records and returns an AllAlignTemps object that
-contains all the properly aligned templates as an array of AlignTemp, which
-contains information about the methylation call strand as well as the relevant
-BAM records. In the PE case, R1 corresponds to the BAM record that appears
-before in the forward strand.
+Function that takes a set of records and returns an AllAlignTemps object that contains all the
+properly aligned templates as an array of AlignTemp, which contains information about the
+methylation call strand as well as the relevant BAM records. In the PE case, R1 corresponds to
+the BAM record that appears before in the forward strand.
 
 # Examples
 ```julia-repl
@@ -141,7 +141,7 @@ end # end clean_records
 """
     `try_olaps(READER,CHR,WINDOW)`
 
-Function that tries to find overlaps in BAM reader @ WINDOW.
+Function that tries to find BAM records overlaping with `CHR` at positions `WINDOW`.
 
 # Examples
 ```julia-repl
@@ -162,11 +162,11 @@ function try_olaps(reader::BAM.Reader,chr::String,win::Array{Int64,1})::Array{BA
 
 end # try_olaps
 """
-    `read_bam(BAM_PATH, CHR, FEAT_ST, FEAT_END, CPG_POS, PE)`
+    `read_bam(BAM_PATH,CHR,FEAT_ST,FEAT_END,CPG_POS,PE)`
 
-Function that reads in BAM file in `BAM_PATH` and returns methylation vectors
-for those records that overlap with (1-based) genomic coordinates
-chr:chrSt-chrEnd at cpg_pos. The information was taken from:
+Function that reads in BAM file in `BAM_PATH` and returns methylation vectors for those records
+that overlap with (1-based) genomic coordinates `chr:chrSt-chrEnd` at `cpg_pos`. The information
+was taken from:
 
   XS: meth calls (https://github.com/FelixKrueger/Bismark/tree/master/Docs)
   XS: uniqueness (http://bowtie-bio.sourceforge.net/bowtie2/manual.shtml)
@@ -244,7 +244,7 @@ function read_bam(bam_path::String,chr::String,f_st::Int64,f_end::Int64,cpg_pos:
 
 end # end read_bam
 """
-    `write_gff!(OUT_GFF, GFF_RECORDS)`
+    `write_gff!(OUT_GFF,GFF_RECORDS)`
 
 Function that appends `GFF_RECORDS` into `OUT_GFF`.
 
@@ -265,10 +265,10 @@ function write_gff!(gff_path::String, gff_records::Vector{GFF3.Record})
 
 end # end write_gff
 """
-    `next_record(READER, CHR_NAMES, RECORD)`
+    `next_record(READER,CHR_NAMES,RECORD)`
 
-Recursive function that returns next record in stream if in chr_names, and false
-if the stream reached its end. This function is only used in `read_vcf()`.
+Recursive function that returns next record in stream if in chr_names, and false if the stream
+reached its end. This function is only used in `read_vcf()`.
 
 # Examples
 ```julia-repl
@@ -294,9 +294,8 @@ end # end next_record
 """
     `is_het_cpg!(VAR,SEQ,H1,H2)`
 
-Function that adds position of heterozygous CpG site, if existant, to the
-correct haplotype. Assumes that ref is the one pertaining to genome 1, and alt
-is the one pertaining to genome 2.
+Function that adds position of heterozygous CpG site, if existant, to the correct haplotype.
+Assumes that REF is the one pertaining to genome 1, and ALT is the one pertaining to genome 2.
 
 # Examples
 ```julia-repl
@@ -338,8 +337,8 @@ end # end is_het_cpg!
 """
     `get_records_ps!(VCF_READER,SEQ,RECORD,CURR_PS,WIN_END,H1,H2)`
 
-Recursive function that returns the end of current PS phased SNPs along the
-next SNP. This function is only used in `read_vcf()`.
+Recursive function that returns the end of current PS phased SNPs along the next SNP. This
+function is only used in `read_vcf()`.
 
 # Examples
 ```julia-repl
@@ -374,17 +373,16 @@ function get_records_ps!(reader::VCF.Reader,seq::FASTA.Record,record::VCF.Record
 
 end # end get_records_ps
 """
-    `read_vcf(OUT_GFF_PATH,FASTA_PATH,VCF_PATH,WINDOW_SIZE)`
+    `read_vcf(GFF_PATH,FASTA_PATH,VCF_PATH,BLOCK_SIZE)`
 
-Function that creates a GFF file containing the heterozygous SNPs along with
-the positions of the sorrounding CpG sites within a window of `WINDOW_SIZE`. For
-phased VCF records, GT must be specified using A|B notation, while for unphased
-records it assumes GT is always "0/1". The phasing is specified through the
-standard notation PS.
+Function that creates a GFF file containing the genomic regions to be analyzed by `JuliASM`. If a
+set of SNPs is phased, this function will create a single window for all. In case, the set of SNPs
+is not phased, then an individual window will be created for each SNP. The phasing of the VCF
+records should be specified by means of the standard `PS` tag.
 
 # Examples
 ```julia-repl
-julia> read_vcf(OUT_GFF_PATH,FASTA_PATH,VCF_PATH,WINDOW_SIZE)
+julia> read_vcf(GFF_PATH,FASTA_PATH,VCF_PATH,BLOCK_SIZE)
 ```
 """
 function read_vcf(gff_path::String,fasta_path::String,vcf_path::String,blk_size::Int64)
@@ -453,8 +451,8 @@ function read_vcf(gff_path::String,fasta_path::String,vcf_path::String,blk_size:
             push!(gff_records,GFF3.Record(out_str))
         end
 
-        # Check if gff_records object is too big (8 bytes x record) and dump it
-        sizeof(gff_records)>=80000 && write_gff!(gff_path, gff_records)
+        # Check if gff_records object is too big and dump it if so
+        sizeof(gff_records)>GFF_BUFFER && write_gff!(gff_path, gff_records)
 
         # If new record empty break while loop
         VCF.haspos(record) || break
@@ -468,9 +466,9 @@ end # end read_vcf
 """
     `read_gff_chr(GFF_PATH,CHR)`
 
-Function that reads in a GFF3 file in GFF_PATH and returns an array of
-GenomicFeatures Record objects contained in chromosome CHR. The format is the
-standard defined by ENSEMBL (https://useast.ensembl.org/info/website/upload/gff3.html).
+Function that reads in a GFF3 file in `GFF_PATH` and returns an array of GenomicFeatures Record
+objects contained in chromosome `CHR`. The format is the standard defined by ENSEMBL in
+https://useast.ensembl.org/info/website/upload/gff3.html.
 
 # Examples
 ```julia-repl
@@ -516,8 +514,8 @@ end # end write_bG
 """
     `get_cpg_pos(FEAT_ATTS)`
 
-Function that takes the attributes in the GFF file and returns the homozygous
-and heterozygous CpG sites in it.
+Function that takes the attributes in the GFF file and returns the homozygous and heterozygous CpG
+sites in it.
 
 # Examples
 ```julia-repl
@@ -545,8 +543,8 @@ end # end get_cpg_pos
 """
     `get_ns(CPG_POS,BLOCK_SIZE,FEAT_ST)`
 
-Functions that returns [N1,...,NK] given the position of the CpG sites and
-a block size BLOCK_SIZE.
+Functions that returns `[N1,...,NK]` given the position of the CpG sites and a block size
+`BLOCK_SIZE` into which the region is partitioned.
 
 # Examples
 ```julia-repl
@@ -583,7 +581,7 @@ end # end get_ns
 """
     `mean_cov(XOBS)`
 
-Function returns the average coverage per CpG given some observations.
+Function returns the average coverage per CpG given some observations `XOBS`.
 
 # Examples
 ```julia-repl
@@ -600,9 +598,8 @@ end # end mean_cov
 """
     `run_asm_analysis(BAM1_PATH,BAM2_PATH,VCF_PATH,FASTA_PATH,OUT_PATH)`
 
-Function that runs JuliASM on a pair of BAM files (allele 1, allele 2) given a
-VCF file that contains the heterozygous SNPs and a FASTA file that contains the
-reference genome.
+Function that runs JuliASM on a pair of BAM files (allele 1, allele 2) given a VCF file that
+contains the heterozygous SNPs and a FASTA file that contains the reference genome.
 
 # Examples
 ```julia-repl
@@ -700,7 +697,7 @@ function run_asm_analysis(bam1_path::String,bam2_path::String, vcf_path::String,
         chr_size = chr_sizes[findfirst(x->x==chr, chr_names)]
 
         # Loop over windows in chromosome
-        @showprogress 1 "Computing..." for feat in features_chr
+        @showprogress 1 "" for feat in features_chr
             # Get window of interest
             tot_feats += 1
             f_st = GFF3.seqstart(feat)

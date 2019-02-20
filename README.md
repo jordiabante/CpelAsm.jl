@@ -46,8 +46,7 @@ bam2_path="$(dir)/bam/example.a2.bam"
 fasta_path = "$(dir)/fasta/example.fa"
 vcf_path = "$(dir)/vcf/example.vcf"
 out_path="$(dir)/out/"
-window_size=100
-run_asm_analysis(bam1_path,bam2_path,vcf_path,fasta_path,window_size,out_path)
+run_asm_analysis(bam1_path,bam2_path,vcf_path,fasta_path,out_path)
 ```
 
 ## Authors
