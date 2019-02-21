@@ -613,7 +613,8 @@ julia> run_asm_analysis(BAM1_PATH,BAM2_PATH,VCF_PATH,FASTA_PATH,OUT_PATH)
 ```
 """
 function run_asm_analysis(bam1_path::String,bam2_path::String, vcf_path::String,fasta_path::String,
-                          out_path::String; pe::Bool=true,blk_size::Int64=100,cov_thresh::Int64)
+                          out_path::String;intersect::Bool=true,pe::Bool=true,blk_size::Int64=100,
+                          cov_thresh::Int64=15)
 
     # Print initialization of juliASM
     println(stderr,"[$(now())]: Initializing JuliASM ...")
@@ -718,7 +719,9 @@ function run_asm_analysis(bam1_path::String,bam2_path::String, vcf_path::String,
             n1 = get_ns(cpg_pos[2],blk_size,f_st)
             n2 = get_ns(cpg_pos[3],blk_size,f_st)
             xobs1 = read_bam(bam1_path,chr,f_st,f_end,cpg_pos[2],chr_size,pe)
+            intersect && (mean_cov(xobs1)>=cov_thresh || continue)
             xobs2 = read_bam(bam2_path,chr,f_st,f_end,cpg_pos[3],chr_size,pe)
+            intersect && (mean_cov(xobs2)>=cov_thresh || continue)
 
             # Estimate each single-allele model, mml and nme
             if mean_cov(xobs1)>=cov_thresh
