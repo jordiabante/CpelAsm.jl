@@ -1,6 +1,7 @@
 ###############################################################################
 # CONSTANTS
 ###############################################################################
+const BG_BUFFER = 50000                     # Bytes of bedGraph records until write
 const GFF_BUFFER = 500000                   # Bytes of GFF records until write
 const THRESH_MAPQ = 20                      # MAPQ threshold
 const FLAGS_ALLOWED = [0,16,83,99,147,163]  # Flags allowed in BAM recs
@@ -494,27 +495,23 @@ function read_gff_chr(gff_path::String,chr::String)::Array{GFF3.Record,1}
 
 end # end read_gff_chr
 """
-    `write_bG(BEDGRAPH_PATH, BEDGRAPH_RECORDS)`
+    `write_bG!(BEDGRAPH_PATH, BEDGRAPH_RECORDS)`
 
 Function that writes records in `BEDGRAPH_RECORDS` into `BEDGRAPH_PATH`.
 
 # Examples
 ```julia-repl
-julia> write_bG(BEDGRAPH_PATH,BEDGRAPH_RECORDS)
+julia> write_bG!(BEDGRAPH_PATH,BEDGRAPH_RECORDS)
 ```
 """
-function write_bG(bG_records::Array{Tuple{String,Int64,Int64,Float64},1},
-                  bG_path::String)::Array{Tuple{String,Int64,Int64,Float64},1}
+function write_bG!(bG_records::Array{Tuple{String,Int64,Int64,Float64},1},bG_path::String)
 
-    # Open output bedGraph file in append mode
+    # Open output bedGraph file in append mode (no need to close it)
     open(bG_path, "a") do f
         while length(bG_records)>0
             write(f,join(string.(collect(popfirst!(bG_records))),"\t"),"\n")
         end
     end
-
-    # No need to close stream
-    return bG_records
 
 end # end write_bG
 """
@@ -713,18 +710,20 @@ function run_asm_analysis(bam1_path::String,bam2_path::String, vcf_path::String,
 
             # Get homozygous & heterozygous CpG sites (1:hom, 2:hap1, 3: hap2)
             cpg_pos = get_cpg_pos(f_atts)
-
-            # Get vectors from BAM1/2 overlapping feature
             n = get_ns(cpg_pos[1],blk_size,f_st)
             n1 = get_ns(cpg_pos[2],blk_size,f_st)
             n2 = get_ns(cpg_pos[3],blk_size,f_st)
+
+            # Get vectors from BAM1/2 overlapping feature & compute average coverage
             xobs1 = read_bam(bam1_path,chr,f_st,f_end,cpg_pos[2],chr_size,pe)
-            intersect && (mean_cov(xobs1)>=cov_thresh || continue)
+            mean_cov1 = mean_cov(xobs1)
+            intersect && (mean_cov1>=cov_thresh || continue)
             xobs2 = read_bam(bam2_path,chr,f_st,f_end,cpg_pos[3],chr_size,pe)
-            intersect && (mean_cov(xobs2)>=cov_thresh || continue)
+            mean_cov2 = mean_cov(xobs2)
+            intersect && (mean_cov2>=cov_thresh || continue)
 
             # Estimate each single-allele model, mml and nme
-            if mean_cov(xobs1)>=cov_thresh
+            if mean_cov1>=cov_thresh
                 eta1 = est_eta(n1,xobs1)
                 ex = comp_ex(n1,eta1[1:(end-1)],eta1[end])
                 exx = comp_exx(n1,eta1[1:(end-1)],eta1[end])
@@ -733,7 +732,10 @@ function run_asm_analysis(bam1_path::String,bam2_path::String, vcf_path::String,
                 push!(nme1_recs,(chr,f_st,f_end,nme1))
                 int_feats_1 += 1
             end
-            if mean_cov(xobs2)>=cov_thresh
+            sizeof(mml1_recs)>BG_BUFFER && write_bG!(mml1_recs,mml1_path)
+            sizeof(nme1_recs)>BG_BUFFER && write_bG!(nme1_recs,nme1_path)
+
+            if mean_cov2>=cov_thresh
                 eta2 = est_eta(n2,xobs2)
                 ex = comp_ex(n2,eta2[1:(end-1)],eta2[end])
                 exx = comp_exx(n2,eta2[1:(end-1)],eta2[end])
@@ -742,9 +744,11 @@ function run_asm_analysis(bam1_path::String,bam2_path::String, vcf_path::String,
                 push!(nme2_recs,(chr,f_st,f_end,nme2))
                 int_feats_2 += 1
             end
+            sizeof(mml2_recs)>BG_BUFFER && write_bG!(mml2_recs,mml2_path)
+            sizeof(nme2_recs)>BG_BUFFER && write_bG!(nme2_recs,nme2_path)
 
             # Compute mutual information
-            if (mean_cov(xobs1)>=cov_thresh) && (mean_cov(xobs2)>=cov_thresh)
+            if (mean_cov1>=cov_thresh) && (mean_cov2>=cov_thresh)
                 ind1 = findall(x->x==true,[p in cpg_pos[1] for p in cpg_pos[2]])
                 ind2 = findall(x->x==true,[p in cpg_pos[1] for p in cpg_pos[3]])
                 xobs1 = [x[ind1] for x in xobs1]
@@ -757,16 +761,17 @@ function run_asm_analysis(bam1_path::String,bam2_path::String, vcf_path::String,
                 # push!(pVal_recs,(chr,f_st,f_end,perm_test(xobs1,xobs2,mi,cpg_pos)))
                 int_feats_nmi += 1
             end
+            sizeof(nmi_recs)>BG_BUFFER && write_bG!(nmi_recs,nmi_path)
 
         end
 
-        # Add values to respective output BigWig files after each chr
-        mml1_recs = write_bG(mml1_recs, mml1_path)
-        mml2_recs = write_bG(mml2_recs, mml2_path)
-        nme1_recs = write_bG(nme1_recs, nme1_path)
-        nme2_recs = write_bG(nme2_recs, nme2_path)
-        nmi_recs = write_bG(nmi_recs, nmi_path)
-        # pVal_recs = write_bG(pVal_recs, pVal_path)
+        # Add last to respective bedGraph file
+        write_bG!(mml1_recs, mml1_path)
+        write_bG!(mml2_recs, mml2_path)
+        write_bG!(nme1_recs, nme1_path)
+        write_bG!(nme2_recs, nme2_path)
+        write_bG!(nmi_recs, nmi_path)
+        # write_bG!(pVal_recs, pVal_path)
 
     end
 
