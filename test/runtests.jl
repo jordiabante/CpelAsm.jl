@@ -12,7 +12,7 @@ test_path = JuliASM_path * "/test/"
     # Check proper computation partition function
     @test comp_Z([4],[1.0],1.0)≈1149.716 atol=1e-3
     # Check proper computation scaling factor
-    @test comp_scal_fac([1],[1.0],1.0,1.0,1.0)≈3.086 atol=1e-3
+    @test comp_g([1],[1.0],1.0,1.0,1.0)≈3.086 atol=1e-3
     # Check proper likelihood
     @test comp_lkhd([0,1,1,1,0],[5],[1.0],1.0)≈0.986 atol=1e-3
 end
@@ -32,7 +32,7 @@ end
     # Check proper MML computation
     @test comp_mml(comp_ex([4],[0.0],0.0))≈0.5 atol=1e-3
     # Check proper NME computation
-    @test comp_nme([4],[0.0],0.0,comp_ex([4],[0.0],0.0),comp_exx([4],[0.0],0.0))≈1.0 atol=1e-3
+    @test comp_nme(trues(4),[4],[0.0],0.0,zeros(4),zeros(3))≈1.0 atol=1e-3
     # Check proper NMI computation
-    @test comp_nmi(1.0,0.5,1.5)≈0.0 atol=1e-3
+    @test comp_nmi(1.0,0.0,1.0)≈0.5 atol=1e-3
 end

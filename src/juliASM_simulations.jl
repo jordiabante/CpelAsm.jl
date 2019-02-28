@@ -6,17 +6,17 @@ Generate state space 𝒳 for the methylation vector with N CpG sites.
 # Examples
 ```julia-repl
 julia> xcal=JuliASM.generate_xcal(2)
-4-element Array{Array{Int64,1},1}:
+4-element Array{Vector{Int64},1}:
  [-1, -1]
  [1, -1]
  [-1, 1]
  [1, 1]
 ```
 """
-function generate_xcal(n::Int64)::Array{Array{Int64,1},1}
+function generate_xcal(n::Int64)::Array{Vector{Int64},1}
 
     # Generate iterative object
-    xcal = Array{Int64,1}[]
+    xcal = Vector{Int64}[]
     [push!(xcal,2 .* digits(i, base=2, pad=n) - ones(n)) for i in 0:(2^n-1)]
 
     # Return 𝒳
@@ -33,7 +33,7 @@ U(X) parametrized by [α1,...,αK] and β.
 ```julia-repl
 julia> Random.seed!(1234);
 julia> xobs=JuliASM.gen_ising_full_data(10,4);
-10-element Array{Array{Int64,1},1}:
+10-element Array{Vector{Int64},1}:
  [-1, -1, -1, -1]
  [1, -1, -1, -1]
  [-1, 1, -1, -1]
@@ -46,7 +46,7 @@ julia> xobs=JuliASM.gen_ising_full_data(10,4);
  [-1, 1, 1, 1]
 ```
 """
-function gen_ising_full_data(m::Int64,n::Array{Int64,1};a::Array{Float64,1}=zeros(Float64,length(n)),b::Float64=0.0)::Array{Array{Int64,1},1}
+function gen_ising_full_data(m::Int64,n::Vector{Int64};a=zeros(length(n)),b)::Array{Vector{Int64},1}
 
     # Generate iterative object
     xcal = generate_xcal(sum(n))
@@ -80,7 +80,7 @@ function U(X) parametrized by [α1,...,αK] and β. The values code for:
 ```julia-repl
 julia> Random.seed!(1234);
 julia> xobs=gen_ising_part_data(10,[4])
-10-element Array{Array{Int64,1},1}:
+10-element Array{Vector{Int64},1}:
 [-1, -1, -1, -1]
 [1, -1, -1, -1]
 [-1, 1, -1, -1]
@@ -93,7 +93,8 @@ julia> xobs=gen_ising_part_data(10,[4])
 [-1, 1, 1, 1]
 ```
 """
-function gen_ising_part_data(m::Int64,n::Array{Int64,1};a::Array{Float64,1}=zeros(Float64,length(n)),b::Float64=0.0)::Array{Array{Int64,1},1}
+function gen_ising_part_data(m::Int64,n::Vector{Int64};a=zeros(length(n)),
+                             b=0.0)::Array{Vector{Int64},1}
 
     # Get full data
     full_data = gen_ising_full_data(m,n;a=a,b=b)
@@ -124,7 +125,7 @@ julia> xobs=gen_mult_full_data(2);
 [1, -1, 1, -1]
 ```
 """
-function gen_mult_full_data(m::Int64;n=4,p::Array{Float64,1}=1/(2^n)*ones(Float64,2^n))::Array{Array{Int64,1},1}
+function gen_mult_full_data(m::Int64;n=4,p=1.0/(2.0^n)*ones(2^n))::Array{Vector{Int64},1}
 
     # Generate iterative object
     xcal = generate_xcal(n)
@@ -150,7 +151,7 @@ with vector probabilities `p=[p_1,...,p_{2^N}]`. The values code for:
 ```julia-repl
 julia> Random.seed!(1234);
 julia> xobs=gen_mult_part_data(10)
-10-element Array{Array{Int64,1},1}:
+10-element Array{Vector{Int64},1}:
  [-1, -1, -1, -1]
  [1, -1, -1, -1]
  [-1, 1, -1, -1]
@@ -163,7 +164,7 @@ julia> xobs=gen_mult_part_data(10)
  [0, 1, 1, 1]
 ```
 """
-function gen_mult_part_data(m::Int64;n=4,p::Array{Float64,1}=1/(2^n)*ones(Float64,2^n))::Array{Array{Int64,1},1}
+function gen_mult_part_data(m::Int64;n=4,p=1.0/(2.0^n)*ones(2^n))::Array{Vector{Int64},1}
 
     # Get full data
     full_data = gen_mult_full_data(m;n=n,p=p)
@@ -226,7 +227,7 @@ distance from the true parameter vector when observing complete observations.
 julia> p=comp_estimates(10000,2,15)
 ```
 """
-function comp_estimates(r::Int64,n::Int64,m::Int64;p::Array{Float64,1}=1/(2^n)*ones(Float64,2^n))
+function comp_estimates(r::Int64,n::Int64,m::Int64;p=1/(2^n)*ones(Float64,2^n))
 
     # Initialize output vectors and 𝒳
     euc_mult = []

@@ -18,10 +18,10 @@ julia> Ux_fun([1,1,1,1])
 -7.0
 ```
 """
-function create_Ux(n::Array{Int64,1},a::Array{Float64,1}, b::Float64)
+function create_Ux(n::Vector{Int64},a::Vector{Float64}, b::Float64)
 
     # Define function given n, α, and β
-    function Ux(x::Array{Int64,1})::Float64
+    function Ux(x::Vector{Int64})::Float64
         u = a[1] * sum(x[1:n[1]]) + b * sum(x[1:(end-1)] .* x[2:end])
         @inbounds for i in 2:length(n)
             u += a[i] * sum(x[(sum(n[1:(i-1)])+1):(sum(n[1:i]))])
@@ -85,7 +85,7 @@ Function that returns V matrix assuming [α1,α2] and β.
 julia> JuliASM.get_V([1.0,1.0],1.0)
 ```
 """
-function get_V(a::Array{Float64,1}, b::Float64)::Array{Float64,2}
+function get_V(a::Vector{Float64},b::Float64)::Array{Float64,2}
 
     # Compute auxiliary vars
     exp_b = exp(b)
@@ -104,12 +104,12 @@ Function that boundary vector for Z computation.
 # Examples
 ```julia-repl
 julia> JuliASM.get_u(0.0)
-2-element Array{Float64,1}:
+2-element Vector{Float64}:
  1.0
  1.0
 ```
 """
-function get_u(a::Float64)::Array{Float64,1}
+function get_u(a::Float64)::Vector{Float64}
 
     # Compute auxiliary
     exp_aux = exp(a/2.0)
@@ -126,11 +126,11 @@ parameters [α1,...,αK] and β.
 
 # Examples
 ```julia-repl
-julia>JuliASM.comp_Z([1,1,1],[1.0,1.0,1.0],1.0)
+julia> JuliASM.comp_Z([1,1,1],[1.0,1.0,1.0],1.0)
 155.37102759254836
 ```
 """
-function comp_Z(n::Array{Int64,1},a::Array{Float64,1},b::Float64)::Float64
+function comp_Z(n::Vector{Int64},a::Vector{Float64},b::Float64)::Float64
 
     # Boundary conditions.
     y = get_u(a[1])'*get_W(n[1],a[1],b)
@@ -144,7 +144,7 @@ function comp_Z(n::Array{Int64,1},a::Array{Float64,1},b::Float64)::Float64
 
 end
 """
-    `comp_scal_fac([R1,...,RK],[α1,...,αK],β,αp1,αp2)`
+    `comp_g([R1,...,RK],[α1,...,αK],β,αp1,αp2)`
 
 Compute scaling factor in a model with [R1,...,RK] unobserved CpG cites from
 each block, with parameters [α1,...,αK] and β. The transfer-matrix method is
@@ -154,11 +154,11 @@ boundary.
 
 # Examples
 ```julia-repl
-julia>JuliASM.comp_scal_fac([1],[1.0],1.0,3.0,3.0)
+julia> JuliASM.comp_g([1],[1.0],1.0,3.0,3.0)
 20.135323991555527
 ```
 """
-function comp_scal_fac(r::Array{Int64,1},a::Array{Float64,1},b::Float64,ap1::Float64, ap2::Float64)::Float64
+function comp_g(r::Vector{Int64},a::Vector{Float64},b::Float64,ap1::Float64,ap2::Float64)::Float64
 
     # Return one if r=0
     r==0 && return 1.0
@@ -186,43 +186,39 @@ julia> JuliASM.comp_lkhd([1,1,0,1,1],[5],[1.0],1.0)
 0.953646032691218
 ```
 """
-function comp_lkhd(x::Array{Int64,1},n::Array{Int64,1},a::Array{Float64,1},b::Float64)::Float64
+function comp_lkhd(x::Vector{Int64},n::Vector{Int64},a::Vector{Float64},b::Float64)::Float64
 
     # Avoid the rest if N=1
     length(x)==1 && return 0.5 * exp(x[1]*a[1]) / cosh(a[1])
 
     # Get partition function and energy function
-    Ux = create_Ux(n,a,b)
     Z = comp_Z(n,a,b)
+    Ux = create_Ux(n,a,b)
 
     # Find changes to/from 0 in x vector
-    ind_zero_st = findall(isequal(-1),abs.(x[2:end]) - abs.(x[1:(end-1)])) .+ 1
-    ind_zero_end = findall(isequal(1),abs.(x[2:end]) - abs.(x[1:(end-1)])) .+ 1
+    zerost = findall(isequal(-1),abs.(x[2:end]) - abs.(x[1:(end-1)])) .+ 1
+    zeroend = findall(isequal(1),abs.(x[2:end]) - abs.(x[1:(end-1)])) .+ 1
 
     # Determine whether it starts/finishes with 0
-    x[1]==0 && pushfirst!(ind_zero_st,1)
-    x[end]==0 && push!(ind_zero_end,length(x)+1)
+    x[1]==0 && pushfirst!(zerost,1)
+    x[end]==0 && push!(zeroend,length(x)+1)
 
-    # Initialize variables used in for loop
-    ap1 = ap2 = 0.0     # boundary values left and right
-    b_id = n_miss = []  # Block IDs of missing CpG; number missing per ID
-    ids = vcat([i*ones(Int64,n[i]) for i in 1:length(n)]...)    # ID's of CpGs
+    # Find subregion label for each CpG site
+    subid = vcat([i*ones(Int64,n[i]) for i in 1:length(n)]...)
 
     # Get overall scaling factor as product of individual factors
     sf = 1.0
-    @inbounds for i in 1:length(ind_zero_st)
+    @inbounds for i in 1:length(zerost)
         # Find boundary conditions (other X's or boundary of X)
-        ind_zero_st[i]==1 ? ap1 = a[1] :
-            ap1 = 2.0*x[ind_zero_st[i]-1]*b + a[ids[ind_zero_st[i]]]
-        ind_zero_end[i]==length(x)+1 ? ap2 = a[end] :
-            ap2 = 2.0*x[ind_zero_end[i]]*b + a[ids[ind_zero_end[i]-1]]
+        ap1 = zerost[i]==1 ? a[1] : 2.0*x[zerost[i]-1]*b+a[subid[zerost[i]]]
+        ap2 = zeroend[i]==sum(n)+1 ? a[end] : 2.0*x[zeroend[i]]*b+a[subid[zeroend[i]-1]]
 
         # Figure out b (block IDs of missing) and r (α indices)
-        b_id = ids[ind_zero_st[i]:(ind_zero_end[i]-1)]
+        b_id = subid[zerost[i]:(zeroend[i]-1)]
         n_miss = [count(x->x==n,b_id) for n in unique(b_id)]
 
         # Call scaling factor function
-        sf *= comp_scal_fac(n_miss, a[unique(b_id)], b, ap1, ap2)
+        sf *= comp_g(n_miss,a[unique(b_id)],b,ap1,ap2)
     end
 
     # Return energy function properly scaled.
@@ -242,10 +238,10 @@ julia> xobs=JuliASM.gen_ising_full_data(20,n);
 julia> LogLike=JuliASM.create_Llkhd(n,xobs)
 ```
 """
-function create_Llkhd(n::Array{Int64,1},xobs::Array{Array{Int64,1},1})
+function create_Llkhd(n::Vector{Int64},xobs::Array{Vector{Int64},1})
 
     # Define minus log-likelihood function
-    function Llkhd_fun(eta::Array{Float64,1})::Float64
+    function Llkhd_fun(eta::Vector{Float64})::Float64
         # Get parameters
         aux = 0.0
         a = eta[1:(end-1)]
@@ -258,34 +254,32 @@ function create_Llkhd(n::Array{Int64,1},xobs::Array{Array{Int64,1},1})
         # Initialize variables used in for loop
         ap1 = ap2 = 0.0                 # Boundary values left and right
         b_id = n_miss = []              # Block IDs of missing CpG; number missing per ID
-        ind_zero_st = ind_zero_end = [] # Indices of zeros
-        ids = vcat([i*ones(Int64,n[i]) for i in 1:length(n)]...)    # ID's of CpGs
+        zerost = zeroend = [] # Indices of zeros
+        subid = vcat([i*ones(Int64,n[i]) for i in 1:length(n)]...)    # ID's of CpGs
 
         # Contribution of each observation
         for x in xobs
 
             # Find changes to/from 0 in x vector
-            ind_zero_st = findall(isequal(-1),abs.(x[2:end]) - abs.(x[1:(end-1)])) .+ 1
-            ind_zero_end = findall(isequal(1),abs.(x[2:end]) - abs.(x[1:(end-1)])) .+ 1
+            zerost = findall(isequal(-1),abs.(x[2:end]) - abs.(x[1:(end-1)])) .+ 1
+            zeroend = findall(isequal(1),abs.(x[2:end]) - abs.(x[1:(end-1)])) .+ 1
 
             # Determine whether it starts/finishes with 0
-            x[1]==0 && pushfirst!(ind_zero_st,1)
-            x[end]==0 && push!(ind_zero_end,length(x)+1)
+            x[1]==0 && pushfirst!(zerost,1)
+            x[end]==0 && push!(zeroend,length(x)+1)
 
             # Get scaling factors due to all missing data
-            @inbounds for i in 1:length(ind_zero_st)
+            @inbounds for i in 1:length(zerost)
                 # Find boundary conditions (other X's or boundary of X)
-                ind_zero_st[i]==1 ? ap1 = a[1] :
-                    ap1 = 2.0*x[ind_zero_st[i]-1]*b + a[ids[ind_zero_st[i]]]
-                ind_zero_end[i]==length(x)+1 ? ap2 = a[end] :
-                    ap2 = 2.0*x[ind_zero_end[i]]*b + a[ids[ind_zero_end[i]-1]]
+                ap1 = zerost[i]==1 ? a[1] : 2.0*x[zerost[i]-1]*b+a[subid[zerost[i]]]
+                ap2 = zeroend[i]==sum(n)+1 ? a[end] : 2.0*x[zeroend[i]]*b+a[subid[zeroend[i]-1]]
 
                 # Figure out b (block IDs of missing) and r (α indices)
-                b_id = ids[ind_zero_st[i]:(ind_zero_end[i]-1)]
+                b_id = subid[zerost[i]:(zeroend[i]-1)]
                 n_miss = [count(x->x==n,b_id) for n in unique(b_id)]
 
                 # Call scaling factor function
-                aux += log(comp_scal_fac(n_miss, a[unique(b_id)], b, ap1, ap2))
+                aux += log(comp_g(n_miss,a[unique(b_id)],b,ap1,ap2))
             end
 
             # Add log of it to Llkhd
@@ -313,7 +307,7 @@ julia> JuliASM.est_alpha(xobs)
 -0.020002667306849575
 ```
 """
-function est_alpha(xobs::Array{Array{Int64,1},1})::Array{Float64,1}
+function est_alpha(xobs::Array{Vector{Int64},1})::Vector{Float64}
     # Derivation of estimate:
         # log(p)+log(2) = α-log(cosh(α)); log(1-p)+log(2) = -α-log(cosh(α))
         # α = (log(p)-log(1-p))/2
@@ -337,13 +331,13 @@ julia> Random.seed!(1234);
 julia> n=[4]
 julia> xobs=JuliASM.gen_ising_full_data(100,n);
 julia> JuliASM.est_eta(n,xobs)
-3-element Array{Float64,1}:
+3-element Vector{Float64}:
  -0.05232269932606823
   0.009316690953631898
  -0.047507839311720854
 ```
 """
-function est_eta(n::Array{Int64,1},xobs::Array{Array{Int64,1},1})::Array{Float64,1}
+function est_eta(n::Vector{Int64},xobs::Array{Vector{Int64},1})::Vector{Float64}
 
     # If N=1, then estimate α
     length(n)==1 && n[1]==1 && return est_alpha(xobs)
@@ -373,7 +367,7 @@ and full observations.
 julia> Random.seed!(1234);
 julia> xobs=JuliASM.gen_mult_full_data(100);
 julia> JuliASM.mle_mult(xobs)
-16-element Array{Float64,1}:
+16-element Vector{Float64}:
  0.07
  0.08
  0.06
@@ -392,7 +386,7 @@ julia> JuliASM.mle_mult(xobs)
  0.05
 ```
 """
-function mle_mult(xobs::Array{Array{Int64,1},1})::Array{Float64,1}
+function mle_mult(xobs::Array{Vector{Int64},1})::Vector{Float64}
 
     # Get xcal
     N = size(xobs[1])[1]
@@ -422,7 +416,7 @@ in size proportionally to the number of CpG sites.
 julia> Random.seed!(1234);
 julia> xobs=JuliASM.gen_mult_full_data(100);
 julia> JuliASM.mle_bin_semi(xobs)
-16-element Array{Float64,1}:
+16-element Vector{Float64}:
  0.06662343999999999
  0.07512856000000001
  0.04824455999999999
@@ -441,7 +435,7 @@ julia> JuliASM.mle_bin_semi(xobs)
  0.056629439999999996
 ```
 """
-function mle_bin_semi(xobs::Array{Array{Int64,1},1})::Array{Float64,1}
+function mle_bin_semi(xobs::Array{Vector{Int64},1})::Vector{Float64}
 
     # Get xcal
     N = size(xobs[1])[1]
@@ -478,7 +472,7 @@ not grow with the number of CpG sites considered.
 julia> Random.seed!(1234);
 julia> xobs=JuliASM.gen_mult_full_data(100);
 julia> JuliASM.mle_bin_param(xobs)
-16-element Array{Float64,1}:
+16-element Vector{Float64}:
  0.06765201
  0.06499899
  0.06499899
@@ -496,9 +490,8 @@ julia> JuliASM.mle_bin_param(xobs)
  0.06000099
  0.05764800999999999
 ```
-
 """
-function mle_bin_param(xobs::Array{Array{Int64,1},1})::Array{Float64,1}
+function mle_bin_param(xobs::Array{Vector{Int64},1})::Vector{Float64}
 
     # Get xcal
     N = size(xobs[1])[1]

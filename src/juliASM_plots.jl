@@ -9,6 +9,7 @@ julia>p=JuliASM.plot_histogram(x, labels)
 ```
 """
 function plot_histogram(x, labels; xlabel=L"Value",ylabel=L"Frequency")
+
     xmin = 0.9 * minimum(reduce(vcat,x))
     xmax = 1.1 * maximum(reduce(vcat,x))
     # x_colors = [:blue :red :green :orange :pink :]
@@ -19,6 +20,7 @@ function plot_histogram(x, labels; xlabel=L"Value",ylabel=L"Frequency")
         # title=title, titlefontsize=12,
         )
     return p
+
 end # end plot_histogram
 """
     `plot_heatmap(X,η)`
@@ -31,7 +33,8 @@ observation vector x with true parameter being η.
 julia>p=JuliASM.plot_heatmap(x,eta)
 ```
 """
-function plot_heatmap(x::Array{Array{Int64,1},1},eta::Array{Float64,1}; maxVal=4.0)
+function plot_heatmap(x::Array{Vector{Int64},1},eta::Vector{Float64}; maxVal=4.0)
+    
     # Ranges
     par1=-maxVal:0.1:maxVal
     par2=-maxVal:1:maxVal
@@ -61,4 +64,5 @@ function plot_heatmap(x::Array{Array{Int64,1},1},eta::Array{Float64,1}; maxVal=4
 
     # Return plot object
     return p
+
 end # end plot_heatmap

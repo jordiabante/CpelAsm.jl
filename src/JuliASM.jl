@@ -7,7 +7,7 @@ module JuliASM
 # ESTIMATION
 # 1. Coverage? Check informME and do simulations.
 # STATISTICAL ANALYSIS
-# 2. Refine permutation test?
+# 2. Permutation test?
 ##########################################################################
 # DEPENDENCIES
 ##########################################################################
@@ -42,7 +42,7 @@ export gen_ising_part_data
 export gen_mult_full_data
 export gen_mult_part_data
 export comp_Z
-export comp_scal_fac
+export comp_g
 export comp_lkhd
 export est_alpha
 export est_eta
