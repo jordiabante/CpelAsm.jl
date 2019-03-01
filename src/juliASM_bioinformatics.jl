@@ -3,7 +3,7 @@
 ###################################################################################################
 const BG_BUFFER = 50000                     # Bytes of bedGraph records until write
 const GFF_BUFFER = 500000                   # Bytes of GFF records until write
-const THRESH_MAPQ = 20                      # MAPQ threshold
+const THRESH_MAPQ = 39                      # MAPQ threshold (-10*log(p)) only true uni-reads
 const FLAGS_ALLOWED = [0,16,83,99,147,163]  # Flags allowed in BAM recs
 ###################################################################################################
 # STRUCTS
@@ -588,14 +588,16 @@ Function returns the average coverage per CpG given some observations `XOBS`.
 
 # Examples
 ```julia-repl
+julia> xobs=[[1,-1] for i=1:10]; append!(xobs,[[1,0] for i=1:10]);
 julia> mean_cov(xobs)
+15.0
 ```
 """
 function mean_cov(xobs::Array{Vector{Int64},1})::Float64
 
     # Return 0 if no observations
     length(xobs)>0 || return 0.0
-    return sum(sum(map(x->abs.(x),xobs),dims=(1))[1])/length(xobs[1])
+    return norm(hcat(xobs...),1)/length(xobs[1])
 
 end # end mean_cov
 """

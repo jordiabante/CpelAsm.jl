@@ -1,10 +1,10 @@
-###############################################################################
+###################################################################################################
 # CONSTANTS
-###############################################################################
-const ETA_MAX_ABS=5.0
-###############################################################################
+###################################################################################################
+const ETA_MAX_ABS=2.5
+###################################################################################################
 # FUNCTIONS
-###############################################################################
+###################################################################################################
 """
     `create_Ux([N1,...,NK],[α1,...,αK],β)`
 
@@ -340,17 +340,17 @@ julia> JuliASM.est_eta(n,xobs)
 function est_eta(n::Vector{Int64},xobs::Array{Vector{Int64},1})::Vector{Float64}
 
     # If N=1, then estimate α
-    length(n)==1 && n[1]==1 && return est_alpha(xobs)
+    sum(n)==1 && return est_alpha(xobs)
 
     # Define boundaries and initialization
     L = create_Llkhd(n,xobs)
     init = zeros(Float64,length(n)+1)
     lower = -ETA_MAX_ABS * ones(Float64,length(n)+1)
     upper = ETA_MAX_ABS * ones(Float64,length(n)+1)
+    opts = Optim.Options(iterations=10^6,show_trace=false,store_trace=false)
 
     # Boxed Simulated Annealing (SAMI)
-    optim = optimize(L,lower,upper,init,SAMIN(rt=1e-4;f_tol=1e-3,verbosity=0),
-                     Optim.Options(iterations=10^6,show_trace=false,store_trace=false))
+    optim = Optim.optimize(L,lower,upper,init,SAMIN(rt=1e-4;f_tol=1e-3,verbosity=0),opts)
 
     # Return estimate
     return optim.minimizer

@@ -1,3 +1,6 @@
+###################################################################################################
+# FUNCTIONS
+###################################################################################################
 """
     `plot_histogram(X, LABELS)`
 
@@ -34,7 +37,7 @@ julia>p=JuliASM.plot_heatmap(x,eta)
 ```
 """
 function plot_heatmap(x::Array{Vector{Int64},1},eta::Vector{Float64}; maxVal=4.0)
-    
+
     # Ranges
     par1=-maxVal:0.1:maxVal
     par2=-maxVal:1:maxVal

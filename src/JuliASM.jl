@@ -1,41 +1,41 @@
 __precompile__()
 
 module JuliASM
-##########################################################################
+###################################################################################################
 # TODO JORDI
-##########################################################################
+###################################################################################################
 # ESTIMATION
 # 1. Coverage? Check informME and do simulations.
 # STATISTICAL ANALYSIS
 # 2. Permutation test?
-##########################################################################
+###################################################################################################
 # DEPENDENCIES
-##########################################################################
-using Random            # RNG
-using LinearAlgebra     # For Eigendecomposition of Σ
-using Dates             # For showing time
-using Distributions     # For sampling RVs
-using Plots             # For plots
-using LaTeXStrings      # For labels in plots
-using ForwardDiff       # For auto-differentiation
-using Optim             # For local minimizer
-using BioAlignments     # For reading-in BAM/SAM files
-using GenomicFeatures   # For BED, GFF3, and bigWig files
-using GeneticVariation  # For VCF file
-using BioSequences      # For FASTA file
-using Combinatorics     # For permutation test
-using ProgressMeter     # For tracking progress
-##########################################################################
+###################################################################################################
+using Random                    # RNG
+using LinearAlgebra             # For Eigendecomposition of Σ
+using Dates                     # For showing time
+using Distributions             # For sampling RVs
+using Plots                     # For plots
+using LaTeXStrings              # For labels in plots
+using ForwardDiff               # For auto-differentiation
+using Optim                     # For local minimizer
+using BioAlignments             # For reading-in BAM/SAM files
+using GenomicFeatures           # For BED, GFF3, and bigWig files
+using GeneticVariation          # For VCF file
+using BioSequences              # For FASTA file
+using Combinatorics             # For permutation test
+using ProgressMeter             # For tracking progress
+###################################################################################################
 # INCLUDES
-##########################################################################
+###################################################################################################
 include("juliASM_plots.jl")
 include("juliASM_estimation.jl")
 include("juliASM_simulations.jl")
 include("juliASM_bioinformatics.jl")
 include("juliASM_output.jl")
-##########################################################################
+###################################################################################################
 # EXPORTS
-##########################################################################
+###################################################################################################
 export generate_xcal
 export gen_ising_full_data
 export gen_ising_part_data

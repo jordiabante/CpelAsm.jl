@@ -1,3 +1,6 @@
+###################################################################################################
+# FUNCTIONS
+###################################################################################################
 """
     `generate_xcal(N)`
 
@@ -46,7 +49,8 @@ julia> xobs=JuliASM.gen_ising_full_data(10,4);
  [-1, 1, 1, 1]
 ```
 """
-function gen_ising_full_data(m::Int64,n::Vector{Int64};a=zeros(length(n)),b)::Array{Vector{Int64},1}
+function gen_ising_full_data(m::Int64,n::Vector{Int64};a=zeros(length(n)),
+                             b=0.0)::Array{Vector{Int64},1}
 
     # Generate iterative object
     xcal = generate_xcal(sum(n))
