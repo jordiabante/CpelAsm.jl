@@ -12,6 +12,7 @@ module JuliASM
 # DEPENDENCIES
 ###################################################################################################
 using Random                    # RNG
+using StatsBase                 # For statistics
 using LinearAlgebra             # For Eigendecomposition of Σ
 using Dates                     # For showing time
 using Distributions             # For sampling RVs
@@ -53,7 +54,7 @@ export mle_bin_param
 export mle_asymptotics
 export comp_estimates
 export read_bam
-export read_vcf
+export gen_gffs
 export read_gff_chr
 export comp_ex
 export comp_exx
@@ -63,6 +64,8 @@ export comp_nme
 export comp_nmi
 export comp_corr
 export comp_evec
-export run_asm_analysis
+export comp_tobs
+export comp_tnull
+export run_analysis
 
 end # module
