@@ -467,6 +467,7 @@ function gen_gffs(gff::Vector{String},fa::String,vcf::String,win_exp::Int64,blk_
 
         # Obtain homozygous window
         hom_win = div(win[2]-win[1],2).*[-1,1].+(prev_end+div(win[1]-prev_end,2))
+        hom_win = [max(1,hom_win[1]),min(chr_size,hom_win[2])]
 
         # if no overlap with heterozygous
         if length(intersect(hom_win[1]:hom_win[2],win[1]:win[2]))==0
@@ -643,7 +644,7 @@ julia> comp_tobs(BAM1_PATH,BAM2_PATH,GFF_PATH,FA_PATH,OUT_PATHS)
 ```
 """
 function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::Vector{String};
-                   diff::Bool=true,pe::Bool=true,blk_size::Int64=500,cov_ths::Int64=15)
+                   diff::Bool=true,pe::Bool=true,blk_size::Int64=200,cov_ths::Int64=15)
 
     # BigWig output files
     mml1_path,mml2_path,nme1_path,nme2_path,nmi_path = out_paths
@@ -762,7 +763,7 @@ julia> comp_tnull(BAM_PATH,GFF_PATH,FA_PATH,OUT_PATH)
 ```
 """
 function comp_tnull(bam::String,gff::String,fa::String,out_paths::Vector{String};pe::Bool=true,
-                    blk_size::Int64=500,cov_ths::Int64=15)
+                    blk_size::Int64=200,cov_ths::Int64=15)
 
     # BigWig output files
     dmml_path,dnme_path,nmi_path = out_paths
@@ -856,7 +857,7 @@ julia> run_analysis(BAM1_PATH,BAM2_PATH,BAMU_PATH,VCF_PATH,FA_PATH,OUT_PATH)
 ```
 """
 function run_analysis(bam1::String,bam2::String,bamU::String,vcf::String,fa::String,outdir::String;
-                      diff::Bool=true,pe::Bool=true,blk_size::Int64=500,win_exp::Int64=100,
+                      diff::Bool=true,pe::Bool=true,blk_size::Int64=200,win_exp::Int64=100,
                       cov_ths::Int64=15)
 
     # Print initialization of juliASM
