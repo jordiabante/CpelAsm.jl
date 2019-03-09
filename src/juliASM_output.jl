@@ -5,7 +5,7 @@ const LOG2 = log(2)                         # Ln(2)
 const XCAL1 = [-1,1]                        # 𝒳 with N=1
 const XCAL2 = [[-1,-1],[-1,1],[1,-1],[1,1]] # 𝒳 with N=2
 ###################################################################################################
-# FUNCTIONS
+# USED FUNCTIONS
 ###################################################################################################
 """
 `comp_ex([N1,...,NK],[α1,...,αK],β)`
@@ -69,77 +69,6 @@ function comp_exx(n::Array{Int64,1},a::Array{Float64,1},b::Float64;r::Int64=1)::
 
 end # end comp_exx
 """
-    `comp_cov([N1,...,NK],[α1,...,αK],β,EX,EXX)`
-
-Function that returns the covariance matrix of a methylation vector given the `[N1,...,NK]`,
-`[α1,...,αK]`, `β`, E[X], and E[XX].
-
-# Examples
-```julia-repl
-julia> ex = JuliASM.comp_ex([4],[0.0],0.0)
-julia> exx = JuliASM.comp_exx([4],[0.0],0.0)
-julia> JuliASM.comp_cov([4],[0.0],0.0,ex,exx)
-4×4 Array{Float64,2}:
- 1.0          0.0          2.22045e-16  0.0
- 0.0          1.0          2.22045e-16  2.22045e-16
- 2.22045e-16  2.22045e-16  1.0          0.0
- 0.0          2.22045e-16  0.0          1.0
-```
-"""
-function comp_cov(n::Array{Int64,1},a::Array{Float64,1},b::Float64,ex::Array{Float64,1},
-                  exx::Array{Float64,1})::Array{Float64,2}
-
-    # Initialize matrix
-    ntot = sum(n)
-    cov = zeros(Float64,ntot,ntot)
-
-    # Add first subdiagonal E[X_{i}X_{i+1}]
-    cov[2:(ntot+1):((ntot-1)*ntot)] = exx
-
-    # Add covariance terms E[X_{i}X_{i+k-1}]
-    @inbounds for k=3:ntot
-        cov[k:(ntot+1):((ntot-k+1)*ntot)] = comp_exx(n,a,b;r=k-1)
-    end
-
-    # Symmetrize
-    cov += transpose(cov)
-
-    # Substract E[X_i]E[X_j]
-    cov -= ex * ex'
-
-    # Add 1's to diagonal of matrix
-    cov[1:(ntot+1):ntot^2] += ones(Float64,ntot)
-
-    # Return Σ
-    return cov
-
-end # end comp_cov
-"""
-    `comp_evec(Σ)`
-
-Function that returns the eigenvector associated with the largest eigenvalue of the covariance
-matrix Σ.
-
-# Examples
-```julia-repl
-julia> ex = JuliASM.comp_ex([4],[0.0],0.0);
-julia> exx = JuliASM.comp_exx([4],[0.0],0.0);
-julia> cov = JuliASM.comp_cov([4],[0.0],0.0,ex,exx);
-julia> JuliASM.comp_evec(cov)
-4-element Array{Float64,1}:
- 0.0
- 0.0
- 0.0
- 1.0
-```
-"""
-function comp_evec(cov::Array{Float64,2})::Array{Float64,1}
-
-    # Return evec
-    return abs.(eigvecs(cov)[:,size(cov)[1]])
-
-end # end comp_evec
-"""
     `comp_mml(EX)`
 
 Function that computes mean methylation level (MML) given the first order moment E[X].
@@ -156,69 +85,6 @@ function comp_mml(ex::Array{Float64,1})::Float64
     return abs(round(0.5/length(ex)*sum(ex)+0.5;digits=4))
 
 end # end comp_mml
-"""
-    `comp_corr(EX,EXX)`
-
-Function that returns the correlation vector between consecutive CpG sites given the vector of
-first order moments E[X] and second order moments E[XX].
-
-# Examples
-```julia-repl
-julia> JuliASM.comp_corr(JuliASM.comp_ex([4],[0.0],0.0),JuliASM.comp_exx([4],[0.0],0.0))
-3-element Array{Float64,1}:
- 0.0
- 8.881784197001252e-16
- 0.0
-```
-"""
-function comp_corr(ex::Array{Float64,1},exx::Array{Float64,1})::Array{Float64,1}
-
-    # Initialize vector of 1's
-    ov = ones(Float64,length(ex)-1)
-
-    # Return ρ
-    return (exx.-ex[1:(end-1)].*ex[2:end]) ./ sqrt.((ov.-ex[1:(end-1)].^2).*(ov.-ex[2:end].^2))
-
-end # end comp_corr
-"""
-THIS FUNCTION IS JUST FOR TESTING PURPOSES!
-
-    `comp_nme_xcal(Z,[N1,...,NK],[α1,...,αK],β,EX,EXX)`
-
-Function that computes normalized methylation entropy (NME) over the homozygous CpG sites. This is
-done by assuming an Ising model for the allele-specific methylation state vector of size
-`[N1,...,NK]`, parameters `[α1,...,αK]` and `β`. The homozygous part of the allele-specific vector
-is determined by binary vector Z (i.e., via Hadamard product Z*X, where * is the Hadamard product).
-
-# Examples
-```julia-repl
-julia> n=[10]
-julia> z=trues(sum(n))
-julia> a=[0.0]
-julia> b=0.0
-julia> JuliASM.comp_nme_xcal(z,n,a,b,JuliASM.comp_ex(n,a,b),JuliASM.comp_exx(n,a,b))
-1.0
-```
-"""
-function comp_nme_xcal(z::BitArray{1},n::Vector{Int64},a::Vector{Float64},b::Float64,
-                       ex::Vector{Float64},exx::Vector{Float64})::Float64
-
-    # Loop over 𝒳h
-    h = 0.0
-    w = zeros(Int64,sum(n))
-    hom_ind = findall(y->y==true,z)
-    xcal = generate_xcal(length(hom_ind))
-    for x in xcal
-        w[hom_ind] =+ x
-        lkhd = comp_lkhd(w,n,a,b)
-        h += lkhd * log(lkhd)
-        w[hom_ind] =- x
-    end
-
-    # Return
-    return -h/(sum(z)*LOG2)
-
-end # end comp_nme_xcal
 """
     `comp_exlng(Z,[N1,...,NK],[α1,...,αK],β)`
 
@@ -329,23 +195,26 @@ function comp_nme(z::BitArray{1},n::Vector{Int64},a::Vector{Float64},b::Float64,
 
 end # end comp_nme
 """
-    `comp_nmi(nme0,nme1,nme2)`
+    `comp_uc(nme0,nme1,nme2)`
 
-Function that computes the normalized mutual information (NMI) between haplotype and methylation
+Function that computes the uncertainty coefficient (UC) between haplotype and methylation
 state assuming an Ising model for both single-allele and allele-agnostic models.
 
 # Examples
 ```julia-repl
-julia> JuliASM.comp_nmi(1.0,0.5,1.5)
+julia> JuliASM.comp_uc(1.0,0.5,1.5)
 0.0
 ```
 """
-function comp_nmi(h::Float64,h1::Float64,h2::Float64)::Float64
+function comp_uc(nme0::Float64,nme1::Float64,nme2::Float64)::Float64
 
     # Return
-    return abs(round(h-0.5*(h1+h2);digits=4))
+    return abs(round(1.0-0.5*(nme1+nme2)/nme0;digits=4))
 
-end # end comp_nmi
+end # end comp_uc
+###################################################################################################
+# UNUSED FUNCTIONS
+###################################################################################################
 """
     `bifurcate(xpool,sel)`
 
@@ -410,3 +279,155 @@ function perm_test(xobs1::Array{Array{Int64,1},1},xobs2::Array{Array{Int64,1},1}
     return better/(worse+better)
 
 end # end perm_test
+"""
+    `comp_cov([N1,...,NK],[α1,...,αK],β,EX,EXX)`
+
+Function that returns the covariance matrix of a methylation vector given the `[N1,...,NK]`,
+`[α1,...,αK]`, `β`, E[X], and E[XX].
+
+# Examples
+```julia-repl
+julia> ex = JuliASM.comp_ex([4],[0.0],0.0)
+julia> exx = JuliASM.comp_exx([4],[0.0],0.0)
+julia> JuliASM.comp_cov([4],[0.0],0.0,ex,exx)
+4×4 Array{Float64,2}:
+ 1.0          0.0          2.22045e-16  0.0
+ 0.0          1.0          2.22045e-16  2.22045e-16
+ 2.22045e-16  2.22045e-16  1.0          0.0
+ 0.0          2.22045e-16  0.0          1.0
+```
+"""
+function comp_cov(n::Array{Int64,1},a::Array{Float64,1},b::Float64,ex::Array{Float64,1},
+                  exx::Array{Float64,1})::Array{Float64,2}
+
+    # Initialize matrix
+    ntot = sum(n)
+    cov = zeros(Float64,ntot,ntot)
+
+    # Add first subdiagonal E[X_{i}X_{i+1}]
+    cov[2:(ntot+1):((ntot-1)*ntot)] = exx
+
+    # Add covariance terms E[X_{i}X_{i+k-1}]
+    @inbounds for k=3:ntot
+        cov[k:(ntot+1):((ntot-k+1)*ntot)] = comp_exx(n,a,b;r=k-1)
+    end
+
+    # Symmetrize
+    cov += transpose(cov)
+
+    # Substract E[X_i]E[X_j]
+    cov -= ex * ex'
+
+    # Add 1's to diagonal of matrix
+    cov[1:(ntot+1):ntot^2] += ones(Float64,ntot)
+
+    # Return Σ
+    return cov
+
+end # end comp_cov
+"""
+    `comp_evec(Σ)`
+
+Function that returns the eigenvector associated with the largest eigenvalue of the covariance
+matrix Σ.
+
+# Examples
+```julia-repl
+julia> ex = JuliASM.comp_ex([4],[0.0],0.0);
+julia> exx = JuliASM.comp_exx([4],[0.0],0.0);
+julia> cov = JuliASM.comp_cov([4],[0.0],0.0,ex,exx);
+julia> JuliASM.comp_evec(cov)
+4-element Array{Float64,1}:
+ 0.0
+ 0.0
+ 0.0
+ 1.0
+```
+"""
+function comp_evec(cov::Array{Float64,2})::Array{Float64,1}
+
+    # Return evec
+    return abs.(eigvecs(cov)[:,size(cov)[1]])
+
+end # end comp_evec
+"""
+    `comp_corr(EX,EXX)`
+
+Function that returns the correlation vector between consecutive CpG sites given the vector of
+first order moments E[X] and second order moments E[XX].
+
+# Examples
+```julia-repl
+julia> JuliASM.comp_corr(JuliASM.comp_ex([4],[0.0],0.0),JuliASM.comp_exx([4],[0.0],0.0))
+3-element Array{Float64,1}:
+ 0.0
+ 8.881784197001252e-16
+ 0.0
+```
+"""
+function comp_corr(ex::Array{Float64,1},exx::Array{Float64,1})::Array{Float64,1}
+
+    # Initialize vector of 1's
+    ov = ones(Float64,length(ex)-1)
+
+    # Return ρ
+    return (exx.-ex[1:(end-1)].*ex[2:end]) ./ sqrt.((ov.-ex[1:(end-1)].^2).*(ov.-ex[2:end].^2))
+
+end # end comp_corr
+"""
+THIS FUNCTION IS JUST FOR TESTING PURPOSES!
+
+    `comp_nme_xcal(Z,[N1,...,NK],[α1,...,αK],β,EX,EXX)`
+
+Function that computes normalized methylation entropy (NME) over the homozygous CpG sites. This is
+done by assuming an Ising model for the allele-specific methylation state vector of size
+`[N1,...,NK]`, parameters `[α1,...,αK]` and `β`. The homozygous part of the allele-specific vector
+is determined by binary vector Z (i.e., via Hadamard product Z*X, where * is the Hadamard product).
+
+# Examples
+```julia-repl
+julia> n=[10]
+julia> z=trues(sum(n))
+julia> a=[0.0]
+julia> b=0.0
+julia> JuliASM.comp_nme_xcal(z,n,a,b,JuliASM.comp_ex(n,a,b),JuliASM.comp_exx(n,a,b))
+1.0
+```
+"""
+function comp_nme_xcal(z::BitArray{1},n::Vector{Int64},a::Vector{Float64},b::Float64,
+                       ex::Vector{Float64},exx::Vector{Float64})::Float64
+
+    # Loop over 𝒳h
+    h = 0.0
+    w = zeros(Int64,sum(n))
+    hom_ind = findall(y->y==true,z)
+    xcal = generate_xcal(length(hom_ind))
+    for x in xcal
+        w[hom_ind] =+ x
+        lkhd = comp_lkhd(w,n,a,b)
+        h += lkhd * log(lkhd)
+        w[hom_ind] =- x
+    end
+
+    # Return
+    return -h/(sum(z)*LOG2)
+
+end # end comp_nme_xcal
+"""
+    `comp_nmi(nme0,nme1,nme2)`
+
+Function that computes the normalized mutual information (NMI) between haplotype and methylation
+state assuming an Ising model for both single-allele and allele-agnostic models.
+
+# Examples
+```julia-repl
+julia> JuliASM.comp_nmi(1.0,0.5,1.5)
+0.0
+```
+"""
+function comp_nmi(nme0::Float64,nme1::Float64,nme2::Float64)::Float64
+
+    # Return
+    return abs(round(nme0-0.5*(nme1+nme2);digits=4))
+
+end # end comp_nmi

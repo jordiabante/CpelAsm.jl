@@ -62,6 +62,7 @@ export comp_cov
 export comp_mml
 export comp_nme
 export comp_nmi
+export comp_uc
 export comp_corr
 export comp_evec
 export comp_tobs

@@ -401,13 +401,13 @@ function gen_gffs(gff::Vector{String},fa::String,vcf::String,win_exp::Int64,blk_
     curr_chr = chr_names[1]
     fa_record = reader_fa[curr_chr]
     close(reader_fa)
+    prev_end=1
 
     # Chrom sizes
     chr_sizes = reader_fa.index.lengths
     chr_size = chr_sizes[findfirst(x->x==curr_chr,chr_names)]
 
     # Loop over variants
-    prev_end=1
     while true
 
         # Check if chromosome is in FASTA file. If not, obtain the next valid 1
@@ -420,6 +420,7 @@ function gen_gffs(gff::Vector{String},fa::String,vcf::String,win_exp::Int64,blk_
             fa_record = reader_fa[curr_chr]
             chr_size = chr_sizes[findfirst(x->x==curr_chr, chr_names)]
             close(reader_fa)
+            prev_end=1
         end
 
         # Get entire (contiguous) haplotype using the PS field
@@ -634,7 +635,7 @@ end # end mean_cov
 """
     `comp_tobs(BAM1_PATH,BAM2_PATH,GFF_PATH,FA_PATH,OUT_PATHS)`
 
-Function that computes MML1/2, NME1/2, and NMI on a pair of BAM files (allele 1, allele 2) given a
+Function that computes MML1/2, NME1/2, and UC on a pair of BAM files (allele 1, allele 2) given a
 (phased) VCF file that contains the heterozygous SNPs and a FASTA file that contains the reference
 genome.
 
@@ -647,7 +648,7 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
                    diff::Bool=true,pe::Bool=true,blk_size::Int64=200,cov_ths::Int64=15)
 
     # BigWig output files
-    mml1_path,mml2_path,nme1_path,nme2_path,nmi_path = out_paths
+    mml1_path,mml2_path,nme1_path,nme2_path,uc_path = out_paths
 
     # Find chromosomes
     reader_fa = open(FASTA.Reader,fa,index=fa*".fai")
@@ -657,14 +658,14 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
     close(reader_fa)
 
     # bedGraph records
-    nmi_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
+    uc_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
     nme1_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
     nme2_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
     mml1_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
     mml2_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
 
     # Loop over chromosomes
-    tot_feats = int_feats_1 = int_feats_2 = int_feats_nmi = 0
+    tot_feats = int_feats_1 = int_feats_2 = int_feats_uc = 0
     for chr in chr_names
 
         # Get windows pertaining to current chromosome
@@ -730,10 +731,10 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
                 nme0 = comp_nme(trues(sum(n)),n,eta[1:(end-1)],eta[end],ex,exx)
                 nme1 = comp_nme(z1,n1,eta1[1:(end-1)],eta1[end],ex1,exx1)
                 nme2 = comp_nme(z2,n2,eta2[1:(end-1)],eta2[end],ex2,exx2)
-                push!(nmi_recs,(chr,f_st,f_end,comp_nmi(nme0,nme1,nme2)))
-                int_feats_nmi += 1
+                push!(uc_recs,(chr,f_st,f_end,comp_uc(nme0,nme1,nme2)))
+                int_feats_uc += 1
             end
-            sizeof(nmi_recs)>BG_BUFFER && write_bG!(nmi_recs,nmi_path)
+            sizeof(uc_recs)>BG_BUFFER && write_bG!(uc_recs,uc_path)
 
         end
 
@@ -742,13 +743,13 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
         write_bG!(mml2_recs, mml2_path)
         write_bG!(nme1_recs, nme1_path)
         write_bG!(nme2_recs, nme2_path)
-        write_bG!(nmi_recs, nmi_path)
+        write_bG!(uc_recs, uc_path)
 
     end
 
     # Print number of features interrogated and finished message
     println(stderr,"[$(now())]: Total number of haplotypes: $(tot_feats).")
-    println(stderr,"[$(now())]: Analyzed:$(round(100*int_feats_nmi/tot_feats;sigdigits=2))%.")
+    println(stderr,"[$(now())]: Analyzed:$(round(100*int_feats_uc/tot_feats;sigdigits=2))%.")
 
 end # end comp_tobs
 """
@@ -766,7 +767,7 @@ function comp_tnull(bam::String,gff::String,fa::String,out_paths::Vector{String}
                     blk_size::Int64=200,cov_ths::Int64=15)
 
     # BigWig output files
-    dmml_path,dnme_path,nmi_path = out_paths
+    dmml_path,dnme_path,uc_path = out_paths
 
     # Find chromosomes
     reader_fa = open(FASTA.Reader,fa,index=fa*".fai")
@@ -776,7 +777,7 @@ function comp_tnull(bam::String,gff::String,fa::String,out_paths::Vector{String}
     close(reader_fa)
 
     # bedGraph records
-    nmi_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
+    uc_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
     dnme_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
     dmml_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
 
@@ -829,15 +830,15 @@ function comp_tnull(bam::String,gff::String,fa::String,out_paths::Vector{String}
             ex = comp_ex(n,eta[1:(end-1)],eta[end])
             exx = comp_exx(n,eta[1:(end-1)],eta[end])
             nme0 = comp_nme(trues(sum(n)),n,eta[1:(end-1)],eta[end],ex,exx)
-            push!(nmi_recs,(chr,f_st,f_end,comp_nmi(nme0,nme1,nme2)))
-            sizeof(nmi_recs)>BG_BUFFER && write_bG!(nmi_recs,nmi_path)
+            push!(uc_recs,(chr,f_st,f_end,comp_nmi(nme0,nme1,nme2)))
+            sizeof(uc_recs)>BG_BUFFER && write_bG!(uc_recs,uc_path)
 
         end
 
         # Add last to respective bedGraph file
         write_bG!(dmml_recs,dmml_path)
         write_bG!(dnme_recs,dnme_path)
-        write_bG!(nmi_recs,nmi_path)
+        write_bG!(uc_recs,uc_path)
 
     end
 
@@ -874,16 +875,16 @@ function run_analysis(bam1::String,bam2::String,bamU::String,vcf::String,fa::Str
 
     # BigWig output files
     prefix_sample = split(basename(bam1),".")[1]
-    nmi_path = "$(outdir)/$(prefix_sample)_nmi.bedGraph"
+    uc_path = "$(outdir)/$(prefix_sample)_uc.bedGraph"
     mml1_path = "$(outdir)/$(prefix_sample)_mml1.bedGraph"
     mml2_path = "$(outdir)/$(prefix_sample)_mml2.bedGraph"
     nme1_path = "$(outdir)/$(prefix_sample)_nme1.bedGraph"
     nme2_path = "$(outdir)/$(prefix_sample)_nme2.bedGraph"
-    null_nmi_path = "$(outdir)/$(prefix_sample)_nmi_null.bedGraph"
+    null_uc_path = "$(outdir)/$(prefix_sample)_uc_null.bedGraph"
     null_dmml_path = "$(outdir)/$(prefix_sample)_dmml_null.bedGraph"
     null_dnme_path = "$(outdir)/$(prefix_sample)_dnme_null.bedGraph"
-    tobs_path = [mml1_path,mml2_path,nme1_path,nme2_path,nmi_path]
-    tnull_path = [null_dmml_path,null_dnme_path,null_nmi_path]
+    tobs_path = [mml1_path,mml2_path,nme1_path,nme2_path,uc_path]
+    tnull_path = [null_dmml_path,null_dnme_path,null_uc_path]
 
     # Check for existance of at least an output files
     if all(isfile.(vcat(tobs_path,tnull_path)))
