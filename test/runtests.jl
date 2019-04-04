@@ -33,6 +33,4 @@ end
     @test comp_mml(comp_ex([4],[0.0],0.0))≈0.5 atol=1e-3
     # Check proper NME computation
     @test comp_nme(trues(4),[4],[0.0],0.0,zeros(4),zeros(3))≈1.0 atol=1e-3
-    # Check proper NMI computation
-    @test comp_uc(1.0,0.0,1.0)≈0.5 atol=1e-3
 end

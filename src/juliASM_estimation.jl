@@ -146,11 +146,10 @@ end
 """
     `comp_g([R1,...,RK],[α1,...,αK],β,αp1,αp2)`
 
-Compute scaling factor in a model with [R1,...,RK] unobserved CpG cites from
-each block, with parameters [α1,...,αK] and β. The transfer-matrix method is
-used to obtain a computationally efficient expression without the need of
-recursive expressions. αp1 and αp2 are determined by the respective kind of
-boundary.
+Compute scaling factor in a model with [R1,...,RK] unobserved CpG cites from each block, with
+parameters [α1,...,αK] and β. The transfer-matrix method is used to obtain a computationally
+efficient expression without the need of recursive expressions. αp1 and αp2 are determined by the
+respective kind of boundary.
 
 # Examples
 ```julia-repl
@@ -177,8 +176,8 @@ end
 """
     `comp_lkhd(X,[N1,...,NK],[α1,...,αK],β)`
 
-Compute likelihood of a partial/full observation X that can be missing
-values anywhere (given by 0's).
+Compute likelihood of a partial/full observation X that can be missing values anywhere (given by
+0's).
 
 # Examples
 ```julia-repl

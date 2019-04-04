@@ -5,6 +5,17 @@ const LOG2 = log(2)                         # Ln(2)
 const XCAL1 = [-1,1]                        # 𝒳 with N=1
 const XCAL2 = [[-1,-1],[-1,1],[1,-1],[1,1]] # 𝒳 with N=2
 ###################################################################################################
+# STRUCTS
+###################################################################################################
+mutable struct IntBitVec <: AbstractVector{Bool}
+    data::UInt64
+end
+Base.size(::IntBitVec) = (64,)
+@inline function Base.getindex(v::IntBitVec,i::Int)
+   @boundscheck checkbounds(v, i)
+   v.data & (1 << (i-1)) != 0
+end
+###################################################################################################
 # USED FUNCTIONS
 ###################################################################################################
 """
@@ -195,90 +206,171 @@ function comp_nme(z::BitArray{1},n::Vector{Int64},a::Vector{Float64},b::Float64,
 
 end # end comp_nme
 """
-    `comp_uc(nme0,nme1,nme2)`
+    `gen_x_mc(N,α,β)`
 
-Function that computes the uncertainty coefficient (UC) between haplotype and methylation
-state assuming an Ising model for both single-allele and allele-agnostic models.
+Function that generates a methylation vector from an Ising model with `[N1,...,NK]`, and parameters
+`[α1,...,αK]` and `β`.
 
 # Examples
 ```julia-repl
-julia> JuliASM.comp_uc(1.0,0.5,1.5)
+julia> JuliASM.gen_x_mc([5],[0.0],0.0)
+```
+"""
+function gen_x_mc(n::Vector{Int64},a::Vector{Float64},b::Float64)::Vector{Int64}
+
+    # Find subregion label for each CpG site
+    subid = vcat([i*ones(Int64,n[i]) for i in 1:length(n)]...)
+
+    # Sample first CpG site
+    x = Vector{Int64}()
+    p = comp_lkhd(pushfirst!(zeros(Int64,sum(n)-1),1),n,a,b)
+    push!(x,sample(XCAL1,Weights([1-p,p])))
+    sum(n)>1 || return x
+
+    # Sequentially sample from Markov chain
+    @inbounds for i=2:sum(n)
+
+        # Add boundary function g() if necessary
+        expaux = exp(a[subid[i]]+b*x[i-1])
+        if i < sum(n)
+            ap1p = 2.0*b + a[subid[i]]
+            ap1m = -2.0*b + a[subid[i]]
+            n_miss = [count(x->x==sr,subid[(i+1):sum(n)]) for sr in unique(subid[(i+1):sum(n)])]
+            gp = comp_g(n_miss,a[unique(subid[(i+1):sum(n)])],b,ap1p,a[end])
+            gm = comp_g(n_miss,a[unique(subid[(i+1):sum(n)])],b,ap1m,a[end])
+            p = gp*expaux/(gp*expaux+gm/expaux)
+        else
+            p = expaux/(expaux+1.0/expaux)
+        end
+
+        # Add i-th CpG site
+        push!(x,sample(XCAL1,Weights([1-p,p])))
+
+    end
+
+    # Return methylation vector
+    return x
+
+end # end gen_x_mc
+"""
+    `comp_nme_mix_mc(Z1,Z2,N1,N2,eta1,eta2)`
+
+Function that estimates the entropy for the Ising mixture model using Monte Carlo. This is done
+assuming an Ising model for the allele-specific methylation state vector of size `[N1,...,NK]`,
+parameters `[α1,...,αK]` and `β`, for each allele. The homozygous part of each model is determined
+by binary vector Z (i.e., via Hadamard product Z*X, where * is the Hadamard product).
+
+# Examples
+```julia-repl
+julia> n1=[10]; n2=[10];
+julia> z1=trues(sum(n1)); z2=trues(sum(n2));
+julia> a1=[2.0]; b1=1.0; a2=[-2.0]; b2=1.0;
+julia> JuliASM.comp_nme_mix_mc(z1,z2,n1,n2,vcat(a1,b1),vcat(a2,b2))
 0.0
 ```
 """
-function comp_uc(nme0::Float64,nme1::Float64,nme2::Float64)::Float64
+function comp_nme_mix_mc(z1::BitArray{1},z2::BitArray{1},n1::Vector{Int64},n2::Vector{Int64},
+                         e1::Vector{Float64},e2::Vector{Float64};L::Int64=1000)::Float64
+
+    # For loop to sample from mixture
+    h = 0.0
+    @inbounds for i=1:L
+
+        # Sample allele
+        y = sample(1:2,Weights([0.5,0.5]))
+
+        # Sample x given allele
+        x = y==1 ? gen_x_mc(n1,e1[1:(end-1)],e1[end]) : gen_x_mc(n2,e2[1:(end-1)],e2[end])
+        x0 = y==1 ? x[z1] : x[z2]
+
+        # Add contribution
+        x1 = zeros(Int64,sum(n1))
+        x2 = zeros(Int64,sum(n2))
+        x1[z1] = x0
+        x2[z2] = x0
+        h += log(comp_lkhd(x1,n1,e1[1:(end-1)],e1[end])+comp_lkhd(x2,n2,e2[1:(end-1)],e2[end]))
+
+    end
 
     # Return
-    return abs(round(1.0-0.5*(nme1+nme2)/nme0;digits=4))
+    return 1.0/sum(z1)*(1.0-h/(L*LOG2))
+
+end # end comp_nme_mix_mc
+"""
+    `comp_nme_mix_exact(Z1,Z2,N1,N2,eta1,eta2)`
+
+Function that exactly computes the NME for the Ising mixture model. This is done by assuming an
+Ising model for the allele-specific methylation state vector of size `[N1,...,NK]`, parameters
+`[α1,...,αK]` and `β`. The homozygous part of the allele-specific vector is determined by binary
+vector Z (i.e., via Hadamard product Z*X, where * is the Hadamard product). This is done by
+traversing 𝒳h.
+
+# Examples
+```julia-repl
+julia> n1=[10]; n2=[10];
+julia> z1=trues(sum(n1)); z2=trues(sum(n2));
+julia> a1=[2.0]; b1=1.0; a2=[-2.0]; b2=1.0;
+julia> JuliASM.comp_nme_mix_exact(z1,z2,n1,n2,vcat(a1,b1),vcat(a2,b2))
+0.1087021260719882
+```
+"""
+function comp_nme_mix_exact(z1::BitArray{1},z2::BitArray{1},n1::Vector{Int64},n2::Vector{Int64},
+                            e1::Vector{Float64},e2::Vector{Float64})::Float64
+
+    # Loop over 𝒳h
+    h = 0.0
+    n = sum(z1)
+    w1 = zeros(Int64,sum(n1))
+    w2 = zeros(Int64,sum(n2))
+    @inbounds for i=1:(2^n)
+        z = IntBitVec(i)[1:n]
+        x = -ones(Int64,n)
+        x[z] .= 1
+        w1[z1] =+ x
+        w2[z2] =+ x
+        lkhd1 = comp_lkhd(w1,n1,e1[1:(end-1)],e1[end])
+        lkhd2 = comp_lkhd(w2,n2,e2[1:(end-1)],e2[end])
+        h += (lkhd1+lkhd2) * log(lkhd1+lkhd2)
+        w1[z1] =- x
+        w2[z2] =- x
+    end
+
+    # Return
+    return 1.0/n*(1.0-0.5*h/LOG2)
+
+end # end comp_nme_mix_exact
+"""
+    `comp_uc(Z1,Z2,N1,N2,eta1,eta2,h1,h2)`
+
+Function that exactly computes uncertainty coefficient (UC) over the homozygous CpG sites. This is
+done by assuming an Ising model for the allele-specific methylation state vector of size
+`[N1,...,NK]`, parameters `[α1,...,αK]` and `β`. The homozygous part of the allele-specific vector
+is determined by binary vector Z (i.e., via Hadamard product Z*X, where * is the Hadamard product).
+
+# Examples
+```julia-repl
+julia> n1=[10]; n2=[10]
+julia> z1=trues(sum(n1)); z2=trues(sum(n2))
+julia> a1=[2.0]; a2=[-2.0]; b1=0.0; b2=0.0
+julia> h1=JuliASM.comp_nme(z1,n1,a1,b1,JuliASM.comp_ex(n1,a1,b1),JuliASM.comp_exx(n1,a1,b1))
+julia> h2=JuliASM.comp_nme(z2,n2,a2,b2,JuliASM.comp_ex(n2,a2,b2),JuliASM.comp_exx(n2,a2,b2))
+julia> JuliASM.comp_uc(z1,z2,n1,n2,vcat(a1,b1),vcat(a2,b2),h1,h2)
+1.0
+```
+"""
+function comp_uc(z1::BitArray{1},z2::BitArray{1},n1::Vector{Int64},n2::Vector{Int64},
+                 e1::Vector{Float64},e2::Vector{Float64},h1::Float64,h2::Float64)::Float64
+
+    # Compute h(x)
+    h = sum(z1)<17 ? comp_nme_mix_exact(z1,z2,n1,n2,e1,e2) : comp_nme_mix_mc(z1,z2,n1,n2,e1,e2)
+
+    # Return
+    return 1.0-0.5*(h1+h2)/h
 
 end # end comp_uc
 ###################################################################################################
 # UNUSED FUNCTIONS
 ###################################################################################################
-"""
-    `bifurcate(xpool,sel)`
-
-Function that divides xpool into two mutually exclusive sets based on sel.
-
-# Examples
-```julia-repl
-julia> JuliASM.bifurcate([[1,1],[1,-1],[-1,1]], [1,2])
-(Array{Int64,1}[[1, 1], [1, -1]], Array{Int64,1}[[-1, 1]])
-```
-"""
-function bifurcate(xpool::Array{Array{Int64,1},1},sel::Vector{T}) where T <: Integer
-
-    x = xpool[sel]
-    asel = trues(length(xpool))
-    asel[sel] .= false
-    y = xpool[asel]
-    return x,y
-
-end
-"""
-    `perm_test(XOBS1,XOBS2,TOBS,POS_CG)`
-
-# Examples
-```julia-repl
-julia> Random.seed!(1234);
-julia> xobs1=JuliASM.gen_ising_full_data(100,4;a=1.0);
-julia> xobs2=JuliASM.gen_ising_full_data(100,4;a=-1.0);
-julia> eta1=JuliASM.est_eta(xobs1);
-julia> eta2=JuliASM.est_eta(xobs2);
-julia> hom=[1,5,10,15];
-julia> cpg_pos=[hom,hom,hom];
-julia> tobs=JuliASM.comp_mi(cpg_pos,eta1,eta2);
-julia> JuliASM.perm_test(xobs1,xobs2,tobs,cpg_pos)
-0.0
-```
-"""
-function perm_test(xobs1::Array{Array{Int64,1},1},xobs2::Array{Array{Int64,1},1},
-                   tobs::Float64,cpg_pos::Array{Array{Int64,1},1})::Float64
-    # Initialize
-    better = worse = 0.0
-    xpool = vcat(xobs1, xobs2)
-
-    # Loop over combinations and compute statistic
-    i = 1
-    for subset in combinations(1:length(xpool), length(xobs2))
-      # Bifurcate
-      test, control = bifurcate(xpool, subset)
-
-      # Estimate parameters
-      length(cpg_pos[2])==1 ? eta1=est_alpha(control) : eta1=est_eta(control)
-      length(cpg_pos[3])==1 ? eta2=est_alpha(test) : eta2=est_eta(test)
-
-      # TODO: Compute MI for partition and compared to that observed
-      comp_mi(cpg_pos,eta1,eta2)>tobs ? better+=1.0 : worse+=1.0
-
-      # If enough permutations leave
-      i<100 ? i+=1 : break
-    end
-
-    # Return p-value
-    return better/(worse+better)
-
-end # end perm_test
 """
     `comp_cov([N1,...,NK],[α1,...,αK],β,EX,EXX)`
 
@@ -375,8 +467,6 @@ function comp_corr(ex::Array{Float64,1},exx::Array{Float64,1})::Array{Float64,1}
 
 end # end comp_corr
 """
-THIS FUNCTION IS JUST FOR TESTING PURPOSES!
-
     `comp_nme_xcal(Z,[N1,...,NK],[α1,...,αK],β,EX,EXX)`
 
 Function that computes normalized methylation entropy (NME) over the homozygous CpG sites. This is
@@ -402,7 +492,7 @@ function comp_nme_xcal(z::BitArray{1},n::Vector{Int64},a::Vector{Float64},b::Flo
     w = zeros(Int64,sum(n))
     hom_ind = findall(y->y==true,z)
     xcal = generate_xcal(length(hom_ind))
-    for x in xcal
+    @inbounds for x in xcal
         w[hom_ind] =+ x
         lkhd = comp_lkhd(w,n,a,b)
         h += lkhd * log(lkhd)
@@ -414,20 +504,49 @@ function comp_nme_xcal(z::BitArray{1},n::Vector{Int64},a::Vector{Float64},b::Flo
 
 end # end comp_nme_xcal
 """
-    `comp_nmi(nme0,nme1,nme2)`
+    `comp_uc_xcal(Z1,Z2,N1,N2,eta1,eta2)`
 
-Function that computes the normalized mutual information (NMI) between haplotype and methylation
-state assuming an Ising model for both single-allele and allele-agnostic models.
+Function that exactly computes uncertainty coefficient (UC) over the homozygous CpG sites. This is
+done by assuming an Ising model for the allele-specific methylation state vector of size
+`[N1,...,NK]`, parameters `[α1,...,αK]` and `β`. The homozygous part of the allele-specific vector
+is determined by binary vector Z (i.e., via Hadamard product Z*X, where * is the Hadamard product).
 
 # Examples
 ```julia-repl
-julia> JuliASM.comp_nmi(1.0,0.5,1.5)
-0.0
+julia> n1=[10]; n2=[10]
+julia> z1=trues(sum(n1)); z2=trues(sum(n2))
+julia> eta1=[2.0,0.0]; eta2=[-2.0,0.0]
+julia> JuliASM.comp_uc_xcal(z1,z2,n1,n2,eta1,eta2)
+1.0
 ```
 """
-function comp_nmi(nme0::Float64,nme1::Float64,nme2::Float64)::Float64
+function comp_uc_xcal(z1::BitArray{1},z2::BitArray{1},n1::Vector{Int64},n2::Vector{Int64},
+                      eta1::Vector{Float64},eta2::Vector{Float64})::Float64
+
+    # Loop over 𝒳h
+    num = 0.0
+    den = 0.0
+    n = sum(z1)
+    w1 = zeros(Int64,sum(n1))
+    w2 = zeros(Int64,sum(n2))
+    hom_ind_1 = findall(y->y==true,z1)
+    hom_ind_2 = findall(y->y==true,z2)
+    @inbounds for i=1:(2^n)
+        z = IntBitVec(i)[1:n]
+        x = -ones(Int64,n)
+        x[z] .= 1
+        w1[hom_ind_1] =+ x
+        w2[hom_ind_2] =+ x
+        lkhd1 = comp_lkhd(w1,n1,eta1[1:(end-1)],eta1[end])
+        lkhd2 = comp_lkhd(w2,n2,eta2[1:(end-1)],eta2[end])
+        lkhd0 = 0.5*(lkhd1+lkhd2)
+        den += lkhd0 * log(lkhd0)
+        num += lkhd1 * log(lkhd1) + lkhd2 * log(lkhd2)
+        w1[hom_ind_1] =- x
+        w2[hom_ind_2] =- x
+    end
 
     # Return
-    return abs(round(nme0-0.5*(nme1+nme2);digits=4))
+    return 1-0.5*num/den
 
-end # end comp_nmi
+end # end comp_uc_xcal

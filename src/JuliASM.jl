@@ -61,6 +61,8 @@ export comp_exx
 export comp_cov
 export comp_mml
 export comp_nme
+export comp_nme_mix_mc
+export comp_nme_mix_exact
 export comp_nmi
 export comp_uc
 export comp_corr

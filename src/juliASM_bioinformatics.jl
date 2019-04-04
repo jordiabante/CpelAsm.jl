@@ -527,13 +527,13 @@ function read_gff_chr(gff::String,chr::String)::Vector{GFF3.Record}
 
 end # end read_gff_chr
 """
-    `write_bG!(BEDGRAPH_PATH, BEDGRAPH_RECORDS)`
+    `write_bG!(BEDGRAPH_RECORDS,BEDGRAPH_PATH)`
 
 Function that writes records in `BEDGRAPH_RECORDS` into `BEDGRAPH_PATH`.
 
 # Examples
 ```julia-repl
-julia> write_bG!(BEDGRAPH_PATH,BEDGRAPH_RECORDS)
+julia> write_bG!(BEDGRAPH_RECORDS,BEDGRAPH_PATH)
 ```
 """
 function write_bG!(bG_records::Array{Tuple{String,Int64,Int64,Float64},1},bG_path::String)
@@ -652,9 +652,8 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
 
     # Find chromosomes
     reader_fa = open(FASTA.Reader,fa,index=fa*".fai")
-    chr_names = reader_fa.index.names
     chr_sizes = reader_fa.index.lengths
-    chr_list = [(chr_names[i],chr_sizes[i]) for i in 1:length(chr_names)]
+    chr_names = reader_fa.index.names
     close(reader_fa)
 
     # bedGraph records
@@ -720,18 +719,14 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
             sizeof(mml2_recs)>BG_BUFFER && write_bG!(mml2_recs,mml2_path)
             sizeof(nme2_recs)>BG_BUFFER && write_bG!(nme2_recs,nme2_path)
 
-            # Compute mutual information
+            # Compute coefficient of uncertainty
             if (mean_cov1>=cov_ths) && (mean_cov2>=cov_ths)
                 z1 = BitArray([p in cpg_pos[1] ? true : false for p in cpg_pos[2]])
                 z2 = BitArray([p in cpg_pos[1] ? true : false for p in cpg_pos[3]])
-                xobs = vcat([x[z1] for x in xobs1],[x[z2] for x in xobs2])
-                eta = est_eta(n,xobs)
-                ex = comp_ex(n,eta[1:(end-1)],eta[end])
-                exx = comp_exx(n,eta[1:(end-1)],eta[end])
-                nme0 = comp_nme(trues(sum(n)),n,eta[1:(end-1)],eta[end],ex,exx)
                 nme1 = comp_nme(z1,n1,eta1[1:(end-1)],eta1[end],ex1,exx1)
                 nme2 = comp_nme(z2,n2,eta2[1:(end-1)],eta2[end],ex2,exx2)
-                push!(uc_recs,(chr,f_st,f_end,comp_uc(nme0,nme1,nme2)))
+                uc = round(comp_uc(z1,z2,n1,n2,eta1,eta2,nme1,nme2);digits=4)
+                push!(uc_recs,(chr,f_st,f_end,uc))
                 int_feats_uc += 1
             end
             sizeof(uc_recs)>BG_BUFFER && write_bG!(uc_recs,uc_path)
@@ -771,9 +766,8 @@ function comp_tnull(bam::String,gff::String,fa::String,out_paths::Vector{String}
 
     # Find chromosomes
     reader_fa = open(FASTA.Reader,fa,index=fa*".fai")
-    chr_names = reader_fa.index.names
     chr_sizes = reader_fa.index.lengths
-    chr_list = [(chr_names[i],chr_sizes[i]) for i in 1:length(chr_names)]
+    chr_names = reader_fa.index.names
     close(reader_fa)
 
     # bedGraph records
@@ -803,8 +797,8 @@ function comp_tnull(bam::String,gff::String,fa::String,out_paths::Vector{String}
 
             # Check average coverage
             xobs = read_bam(bam,chr,f_st,f_end,cpg_pos,chr_size,pe)
-            part_cov = mean_cov(xobs)/2.0
-            part_cov >= cov_ths || continue
+            part_cov = mean_cov(xobs)
+            part_cov >= 2*cov_ths || continue
 
             # Randomly partition observations
             part = sample(1:length(xobs),div(length(xobs),2),replace=false)
@@ -825,12 +819,9 @@ function comp_tnull(bam::String,gff::String,fa::String,out_paths::Vector{String}
             sizeof(dnme_recs)>BG_BUFFER && write_bG!(dnme_recs,dnme_path)
             sizeof(dmml_recs)>BG_BUFFER && write_bG!(dmml_recs,dmml_path)
 
-            # Compute mutual information
-            eta = est_eta(n,xobs)
-            ex = comp_ex(n,eta[1:(end-1)],eta[end])
-            exx = comp_exx(n,eta[1:(end-1)],eta[end])
-            nme0 = comp_nme(trues(sum(n)),n,eta[1:(end-1)],eta[end],ex,exx)
-            push!(uc_recs,(chr,f_st,f_end,comp_nmi(nme0,nme1,nme2)))
+            # Compute coefficient of uncertainty
+            uc = round(comp_uc(trues(sum(n)),trues(sum(n)),n,n,eta1,eta2,nme1,nme2);digits=4)
+            push!(uc_recs,(chr,f_st,f_end,uc))
             sizeof(uc_recs)>BG_BUFFER && write_bG!(uc_recs,uc_path)
 
         end
@@ -857,7 +848,7 @@ haplotype in the VCF file.
 julia> run_analysis(BAM1_PATH,BAM2_PATH,BAMU_PATH,VCF_PATH,FA_PATH,OUT_PATH)
 ```
 """
-function run_analysis(bam1::String,bam2::String,bamU::String,vcf::String,fa::String,outdir::String;
+function run_analysis(bam1::String,bam2::String,bam0::String,vcf::String,fa::String,outdir::String;
                       diff::Bool=true,pe::Bool=true,blk_size::Int64=200,win_exp::Int64=100,
                       cov_ths::Int64=15)
 
@@ -907,7 +898,7 @@ function run_analysis(bam1::String,bam2::String,bamU::String,vcf::String,fa::Str
 
     # Compute null statistics from homozygous loci
     println(stderr,"[$(now())]: Computing null statistics using homozygous loci ...")
-    comp_tnull(bamU,hom_gff,fa,tnull_path;pe=pe,blk_size=blk_size,cov_ths=cov_ths)
+    comp_tnull(bam0,hom_gff,fa,tnull_path;pe=pe,blk_size=blk_size,cov_ths=cov_ths)
 
     # Compute p-values for each statistic
     println(stderr,"[$(now())]: Computing p-values ...")
