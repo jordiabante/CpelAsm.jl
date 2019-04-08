@@ -2,13 +2,6 @@ __precompile__()
 
 module JuliASM
 ###################################################################################################
-# TODO JORDI
-###################################################################################################
-# ESTIMATION
-# 1. Coverage? Check informME and do simulations.
-# STATISTICAL ANALYSIS
-# 2. Permutation test?
-###################################################################################################
 # DEPENDENCIES
 ###################################################################################################
 using Random                    # RNG
@@ -38,6 +31,7 @@ include("juliASM_output.jl")
 # EXPORTS
 ###################################################################################################
 export generate_xcal
+export gen_x_mc
 export gen_ising_full_data
 export gen_ising_part_data
 export gen_mult_full_data

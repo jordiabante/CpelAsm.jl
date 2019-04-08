@@ -293,7 +293,7 @@ function comp_nme_mix_mc(z1::BitArray{1},z2::BitArray{1},n1::Vector{Int64},n2::V
     end
 
     # Return
-    return 1.0/sum(z1)*(1.0-h/(L*LOG2))
+    return min(1.0,max(0.0,1.0/sum(z1)*(1.0-h/(L*LOG2))))
 
 end # end comp_nme_mix_mc
 """
@@ -336,7 +336,7 @@ function comp_nme_mix_exact(z1::BitArray{1},z2::BitArray{1},n1::Vector{Int64},n2
     end
 
     # Return
-    return 1.0/n*(1.0-0.5*h/LOG2)
+    return min(1.0,max(0.0,1.0/n*(1.0-0.5*h/LOG2)))
 
 end # end comp_nme_mix_exact
 """
@@ -365,7 +365,7 @@ function comp_uc(z1::BitArray{1},z2::BitArray{1},n1::Vector{Int64},n2::Vector{In
     h = sum(z1)<17 ? comp_nme_mix_exact(z1,z2,n1,n2,e1,e2) : comp_nme_mix_mc(z1,z2,n1,n2,e1,e2)
 
     # Return
-    return 1.0-0.5*(h1+h2)/h
+    return min(1.0,max(0.0,1.0-0.5*(h1+h2)/h))
 
 end # end comp_uc
 ###################################################################################################
