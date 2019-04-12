@@ -645,7 +645,7 @@ julia> comp_tobs(BAM1_PATH,BAM2_PATH,GFF_PATH,FA_PATH,OUT_PATHS)
 ```
 """
 function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::Vector{String};
-                   diff::Bool=true,pe::Bool=true,blk_size::Int64=200,cov_ths::Int64=15)
+                   pe::Bool=true,blk_size::Int64=200,cov_ths::Int64=15)
 
     # BigWig output files
     mml1_path,mml2_path,nme1_path,nme2_path,uc_path = out_paths
@@ -656,16 +656,15 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
     chr_names = reader_fa.index.names
     close(reader_fa)
 
-    # bedGraph records
-    uc_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
-    nme1_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
-    nme2_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
-    mml1_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
-    mml2_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
-
     # Loop over chromosomes
-    tot_feats = int_feats_1 = int_feats_2 = int_feats_uc = 0
-    for chr in chr_names
+    @sync @distributed for chr in chr_names
+
+        # bedGraph records
+        uc_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
+        mml1_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
+        mml2_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
+        nme1_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
+        nme2_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
 
         # Get windows pertaining to current chromosome
         println(stderr,"[$(now())]: Processing 🧬  $(chr) ...")
@@ -673,9 +672,8 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
         chr_size = chr_sizes[findfirst(x->x==chr, chr_names)]
 
         # Loop over windows in chromosome
-        @showprogress 1 "" for feat in features_chr
+        for feat in features_chr
             # Get window of interest
-            tot_feats += 1
             f_st = GFF3.seqstart(feat)
             f_end = GFF3.seqend(feat)
             f_atts = Dict(GFF3.attributes(feat))
@@ -689,47 +687,43 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
             # Get vectors from BAM1/2 overlapping feature & compute average coverage
             xobs1 = read_bam(bam1,chr,f_st,f_end,cpg_pos[2],chr_size,pe)
             mean_cov1 = mean_cov(xobs1)
-            diff && (mean_cov1>=cov_ths || continue)
+            mean_cov1>=cov_ths || continue
             xobs2 = read_bam(bam2,chr,f_st,f_end,cpg_pos[3],chr_size,pe)
             mean_cov2 = mean_cov(xobs2)
-            diff && (mean_cov2>=cov_ths || continue)
+            mean_cov2>=cov_ths || continue
 
             # Estimate each single-allele model, mml and nme
-            if mean_cov1>=cov_ths
-                eta1 = est_eta(n1,xobs1)
-                ex1 = comp_ex(n1,eta1[1:(end-1)],eta1[end])
-                exx1 = comp_exx(n1,eta1[1:(end-1)],eta1[end])
-                nme1 = comp_nme(trues(sum(n1)),n1,eta1[1:(end-1)],eta1[end],ex1,exx1)
-                push!(mml1_recs,(chr,f_st,f_end,comp_mml(ex1)))
-                push!(nme1_recs,(chr,f_st,f_end,nme1))
-                int_feats_1 += 1
-            end
+            eta1 = est_eta(n1,xobs1)
+            eta2 = est_eta(n2,xobs2)
+            ex1 = comp_ex(n1,eta1[1:(end-1)],eta1[end])
+            ex2 = comp_ex(n2,eta2[1:(end-1)],eta2[end])
+            exx1 = comp_exx(n1,eta1[1:(end-1)],eta1[end])
+            exx2 = comp_exx(n2,eta2[1:(end-1)],eta2[end])
+            nme1 = comp_nme(trues(sum(n1)),n1,eta1[1:(end-1)],eta1[end],ex1,exx1)
+            nme2 = comp_nme(trues(sum(n2)),n2,eta2[1:(end-1)],eta2[end],ex2,exx2)
+
+            # Add records
+            push!(nme1_recs,(chr,f_st,f_end,nme1))
+            push!(nme2_recs,(chr,f_st,f_end,nme2))
+            push!(mml1_recs,(chr,f_st,f_end,comp_mml(ex1)))
+            push!(mml2_recs,(chr,f_st,f_end,comp_mml(ex2)))
+
+            # Compute homozygous nme and coefficient of uncertainty
+            z1 = BitArray([p in cpg_pos[1] ? true : false for p in cpg_pos[2]])
+            z2 = BitArray([p in cpg_pos[1] ? true : false for p in cpg_pos[3]])
+            nme1 = comp_nme(z1,n1,eta1[1:(end-1)],eta1[end],ex1,exx1)
+            nme2 = comp_nme(z2,n2,eta2[1:(end-1)],eta2[end],ex2,exx2)
+            uc = round(comp_uc(z1,z2,n1,n2,eta1,eta2,nme1,nme2);digits=4)
+
+            # Add record
+            push!(uc_recs,(chr,f_st,f_end,uc))
+
+            # Dumpt data if necessary
+            sizeof(uc_recs)>BG_BUFFER && write_bG!(uc_recs,uc_path)
             sizeof(mml1_recs)>BG_BUFFER && write_bG!(mml1_recs,mml1_path)
             sizeof(nme1_recs)>BG_BUFFER && write_bG!(nme1_recs,nme1_path)
-
-            if mean_cov2>=cov_ths
-                eta2 = est_eta(n2,xobs2)
-                ex2 = comp_ex(n2,eta2[1:(end-1)],eta2[end])
-                exx2 = comp_exx(n2,eta2[1:(end-1)],eta2[end])
-                nme2 = comp_nme(trues(sum(n2)),n2,eta2[1:(end-1)],eta2[end],ex2,exx2)
-                push!(mml2_recs,(chr,f_st,f_end,comp_mml(ex2)))
-                push!(nme2_recs,(chr,f_st,f_end,nme2))
-                int_feats_2 += 1
-            end
             sizeof(mml2_recs)>BG_BUFFER && write_bG!(mml2_recs,mml2_path)
             sizeof(nme2_recs)>BG_BUFFER && write_bG!(nme2_recs,nme2_path)
-
-            # Compute coefficient of uncertainty
-            if (mean_cov1>=cov_ths) && (mean_cov2>=cov_ths)
-                z1 = BitArray([p in cpg_pos[1] ? true : false for p in cpg_pos[2]])
-                z2 = BitArray([p in cpg_pos[1] ? true : false for p in cpg_pos[3]])
-                nme1 = comp_nme(z1,n1,eta1[1:(end-1)],eta1[end],ex1,exx1)
-                nme2 = comp_nme(z2,n2,eta2[1:(end-1)],eta2[end],ex2,exx2)
-                uc = round(comp_uc(z1,z2,n1,n2,eta1,eta2,nme1,nme2);digits=4)
-                push!(uc_recs,(chr,f_st,f_end,uc))
-                int_feats_uc += 1
-            end
-            sizeof(uc_recs)>BG_BUFFER && write_bG!(uc_recs,uc_path)
 
         end
 
@@ -741,10 +735,6 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
         write_bG!(uc_recs, uc_path)
 
     end
-
-    # Print number of features interrogated and finished message
-    println(stderr,"[$(now())]: Total number of haplotypes: $(tot_feats).")
-    println(stderr,"[$(now())]: Analyzed:$(round(100*int_feats_uc/tot_feats;sigdigits=2))%.")
 
 end # end comp_tobs
 """
@@ -770,22 +760,21 @@ function comp_tnull(bam::String,gff::String,fa::String,out_paths::Vector{String}
     chr_names = reader_fa.index.names
     close(reader_fa)
 
-    # bedGraph records
-    uc_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
-    dnme_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
-    dmml_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
-
     # Loop over chromosomes
-    for chr in chr_names
+    @sync @distributed for chr in chr_names
 
         # Get windows pertaining to current chromosome
-        println(stderr,"[$(now())]: Processing 🧬  $(chr) ...")
         prev_st = 1
         features_chr = read_gff_chr(gff,chr)
         chr_size = chr_sizes[findfirst(x->x==chr,chr_names)]
 
+        # bedGraph records
+        uc_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
+        dnme_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
+        dmml_recs = Array{Tuple{String,Int64,Int64,Float64},1}()
+
         # Loop over windows in chromosome
-        @showprogress 1 "" for feat in features_chr
+        for feat in features_chr
             # Get homozygous window
             f_st = GFF3.seqstart(feat)
             f_end = GFF3.seqend(feat)
@@ -814,14 +803,16 @@ function comp_tnull(bam::String,gff::String,fa::String,out_paths::Vector{String}
             exx2 = comp_exx(n,eta2[1:(end-1)],eta2[end])
             nme1 = comp_nme(trues(sum(n)),n,eta1[1:(end-1)],eta1[end],ex1,exx1)
             nme2 = comp_nme(trues(sum(n)),n,eta2[1:(end-1)],eta2[end],ex2,exx2)
-            push!(dnme_recs,(chr,f_st,f_end,abs(round(nme1-nme2;digits=4))))
-            push!(dmml_recs,(chr,f_st,f_end,abs(round(comp_mml(ex1)-comp_mml(ex2);digits=4))))
-            sizeof(dnme_recs)>BG_BUFFER && write_bG!(dnme_recs,dnme_path)
-            sizeof(dmml_recs)>BG_BUFFER && write_bG!(dmml_recs,dmml_path)
+            uc = round(comp_uc(trues(sum(n)),trues(sum(n)),n,n,eta1,eta2,nme1,nme2);digits=4)
 
             # Compute coefficient of uncertainty
-            uc = round(comp_uc(trues(sum(n)),trues(sum(n)),n,n,eta1,eta2,nme1,nme2);digits=4)
             push!(uc_recs,(chr,f_st,f_end,uc))
+            push!(dnme_recs,(chr,f_st,f_end,abs(round(nme1-nme2;digits=4))))
+            push!(dmml_recs,(chr,f_st,f_end,abs(round(comp_mml(ex1)-comp_mml(ex2);digits=4))))
+
+            # Dump in case of necessary
+            sizeof(dnme_recs)>BG_BUFFER && write_bG!(dnme_recs,dnme_path)
+            sizeof(dmml_recs)>BG_BUFFER && write_bG!(dmml_recs,dmml_path)
             sizeof(uc_recs)>BG_BUFFER && write_bG!(uc_recs,uc_path)
 
         end
@@ -849,8 +840,7 @@ julia> run_analysis(BAM1_PATH,BAM2_PATH,BAMU_PATH,VCF_PATH,FA_PATH,OUT_PATH)
 ```
 """
 function run_analysis(bam1::String,bam2::String,bam0::String,vcf::String,fa::String,outdir::String;
-                      diff::Bool=true,pe::Bool=true,blk_size::Int64=200,win_exp::Int64=100,
-                      cov_ths::Int64=15)
+                      pe::Bool=true,blk_size::Int64=200,win_exp::Int64=100,cov_ths::Int64=15)
 
     # Print initialization of juliASM
     println(stderr,"[$(now())]: Starting JuliASM analysis ...")
@@ -894,11 +884,21 @@ function run_analysis(bam1::String,bam2::String,bam0::String,vcf::String,fa::Str
 
     # Compute observed statistics from heterozygous loci
     println(stderr,"[$(now())]: Computing observed statistics using heterozygous loci...")
-    comp_tobs(bam1,bam2,het_gff,fa,tobs_path;diff=diff,pe=pe,blk_size=blk_size,cov_ths=cov_ths)
+    comp_tobs(bam1,bam2,het_gff,fa,tobs_path;pe=pe,blk_size=blk_size,cov_ths=cov_ths)
+
+    # Sort files
+    for f in tobs_path
+        run(`sort -k1,1 -k2,2n -o $f $f`)
+    end
 
     # Compute null statistics from homozygous loci
     println(stderr,"[$(now())]: Computing null statistics using homozygous loci ...")
     comp_tnull(bam0,hom_gff,fa,tnull_path;pe=pe,blk_size=blk_size,cov_ths=cov_ths)
+
+    # Sort files
+    for f in tnull_path
+        run(`sort -k1,1 -k2,2n -o $f $f`)
+    end
 
     # Compute p-values for each statistic
     println(stderr,"[$(now())]: Computing p-values ...")

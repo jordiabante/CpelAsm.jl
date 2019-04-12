@@ -194,24 +194,22 @@ below).
 
 # Examples
 ```julia-repl
-julia> p=mle_asymptotics(10000,2,15)
+julia> p=mle_asymptotics(1000,15,2)
 ```
 """
 function mle_asymptotics(r::Int64,m::Int64,n::Int64)
 
     # Get r samples of MLE
-    a_mle = []
-    b_mle = []
-    for i in 1:r
-        xobs = gen_ising_full_data(m,[n])
+    a_mle = SharedArray{Float64}(r)
+    b_mle = SharedArray{Float64}(r)
+    for i=1:r
+        xobs = [gen_x_mc(div(n,k)*ones(Int64,k),ones(Float64,k),b) for c=1:1000]
         mle = est_eta([n],xobs)
-        push!(a_mle,mle[1])
-        push!(b_mle,mle[2])
-        print("Progress: $(round(i/r*100))%  \r")
-        flush(stdout)
+        a_mle[i]=mle[1]
+        b_mle[i]=mle[2]
     end
 
-    # Plot √(n)(α̂-α)
+    # Plot √n(α̂-α)
     gr()
     p = histogram(sqrt(m) * [a_mle,b_mle], line=(3,0.2,:green),
     fillcolor=[:red :black], fillalpha=0.2, nbins=75)

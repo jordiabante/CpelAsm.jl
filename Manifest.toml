@@ -5,10 +5,10 @@ uuid = "7d9fca2a-8960-54d3-9f78-7d1dccf2cb97"
 version = "0.3.0"
 
 [[Automa]]
-deps = ["DataStructures", "Printf", "Test", "TranscodingStreams"]
-git-tree-sha1 = "1b1defa8b36d44dd22c715b5c884c8f795eea7fe"
+deps = ["DataStructures", "Printf", "Random", "Test", "TranscodingStreams"]
+git-tree-sha1 = "c81526bf5f6fb4616b4e22a3cd62ac20e255fd3c"
 uuid = "67c07d97-cdcb-5c2c-af73-a7f9c32a568b"
-version = "0.7.0"
+version = "0.8.0"
 
 [[BGZFStreams]]
 deps = ["CodecZlib", "Test"]
@@ -105,9 +105,9 @@ version = "0.2.0"
 
 [[Compat]]
 deps = ["Base64", "Dates", "DelimitedFiles", "Distributed", "InteractiveUtils", "LibGit2", "Libdl", "LinearAlgebra", "Markdown", "Mmap", "Pkg", "Printf", "REPL", "Random", "Serialization", "SharedArrays", "Sockets", "SparseArrays", "Statistics", "Test", "UUIDs", "Unicode"]
-git-tree-sha1 = "49269e311ffe11ac5b334681d212329002a9832a"
+git-tree-sha1 = "84aa74986c5b9b898b0d1acaf3258741ee64754f"
 uuid = "34da2185-b29b-5c13-b0c7-acf172513d20"
-version = "1.5.1"
+version = "2.1.0"
 
 [[Contour]]
 deps = ["LinearAlgebra", "StaticArrays", "Test"]
@@ -131,9 +131,9 @@ uuid = "8bb1440f-4735-579b-a4ab-409b98df4dab"
 
 [[DiffEqDiffTools]]
 deps = ["LinearAlgebra", "Test"]
-git-tree-sha1 = "4b21dd83c341412a0607334ac64bb5593a4bd583"
+git-tree-sha1 = "30f82c63cb9d293513b360572e283c19577fcf82"
 uuid = "01453d9d-ee7c-5054-8395-0335cb756afa"
-version = "0.8.0"
+version = "0.8.1"
 
 [[DiffResults]]
 deps = ["Compat", "StaticArrays"]
@@ -171,9 +171,9 @@ version = "0.10.1"
 
 [[GR]]
 deps = ["Base64", "DelimitedFiles", "LinearAlgebra", "Pkg", "Printf", "Random", "Serialization", "Sockets", "Test"]
-git-tree-sha1 = "41bd911efffb56957b45366770eaaa443de3f782"
+git-tree-sha1 = "08c4fc28ae58479f93616d5df164ab6b73541f2d"
 uuid = "28b8d3ca-fb5f-59d9-8090-bfdbd6d07a71"
-version = "0.38.1"
+version = "0.39.0"
 
 [[GeneticVariation]]
 deps = ["Automa", "BGZFStreams", "BioCore", "BioSequences", "BufferedStreams", "Combinatorics", "IntervalTrees", "Test", "Twiddle"]
@@ -307,9 +307,9 @@ version = "0.3.0"
 
 [[PlotUtils]]
 deps = ["Colors", "Dates", "Printf", "Random", "Reexport", "Test"]
-git-tree-sha1 = "fd28f30a294a38ec847de95d8ac7ac916ccd7c06"
+git-tree-sha1 = "5da9a79a138db46558e6e08f649865b4c1f1ce93"
 uuid = "995b91a9-d308-5afd-9ec6-746e21dbc043"
-version = "0.5.5"
+version = "0.5.7"
 
 [[Plots]]
 deps = ["Base64", "Contour", "Dates", "FixedPointNumbers", "GR", "JSON", "LinearAlgebra", "Measures", "NaNMath", "Pkg", "PlotThemes", "PlotUtils", "Printf", "REPL", "Random", "RecipesBase", "Reexport", "Requires", "Showoff", "SparseArrays", "StaticArrays", "Statistics", "StatsBase", "Test", "UUIDs"]
@@ -448,9 +448,9 @@ uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [[TranscodingStreams]]
 deps = ["Pkg", "Random", "Test"]
-git-tree-sha1 = "8a032ceb5cf7a28bf1bdb77746b250b9e9fda565"
+git-tree-sha1 = "f42956022d8084539f1d7219f632542b0ea686ce"
 uuid = "3bb67fe8-82b1-5028-8e26-92a6c54297fa"
-version = "0.9.0"
+version = "0.9.3"
 
 [[Twiddle]]
 deps = ["Test"]

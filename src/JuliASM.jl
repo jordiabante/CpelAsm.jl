@@ -4,7 +4,8 @@ module JuliASM
 ###################################################################################################
 # DEPENDENCIES
 ###################################################################################################
-using Random                    # RNG
+using Distributed               # For parallelization
+using Random                    # For random number generation
 using StatsBase                 # For statistics
 using LinearAlgebra             # For Eigendecomposition of Σ
 using Dates                     # For showing time
