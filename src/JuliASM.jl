@@ -7,6 +7,7 @@ module JuliASM
 using Distributed               # For parallelization
 using Random                    # For random number generation
 using StatsBase                 # For statistics
+using Calculus                  # For Hessian estimation
 using LinearAlgebra             # For Eigendecomposition of Σ
 using Dates                     # For showing time
 using Distributions             # For sampling RVs

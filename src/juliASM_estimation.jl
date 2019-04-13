@@ -2,6 +2,7 @@
 # CONSTANTS
 ###################################################################################################
 const ETA_MAX_ABS=5.0
+const CI_THRESH=0.5
 ###################################################################################################
 # FUNCTIONS
 ###################################################################################################
@@ -144,6 +145,51 @@ function comp_Z(n::Vector{Int64},a::Vector{Float64},b::Float64)::Float64
 
 end
 """
+    `get_fim([N1,...,NK],θhat)`
+
+Estimate Fisher information matrix of a model with [N1,...,NK] CpG cites and evaluated at estimated
+parameter vector θhat.
+
+# Examples
+```julia-repl
+julia> JuliASM.get_fim([1,1,1],[1.0,1.0,1.0,1.0])
+4×4 Array{Float64,2}:
+ 155.371  148.363  143.026  295.454
+ 148.363  155.371  148.363  296.727
+ 143.026  148.363  155.371  295.454
+ 295.454  296.727  295.454  596.795
+```
+"""
+function get_fim(n::Vector{Int64},θhat::Vector{Float64})::Array{Float64,2}
+
+    # Define function
+    function f(θ::Vector{Float64})
+        comp_Z(n,θ[1:(end-1)],θ[end])
+    end
+
+    # Return I(θ)
+    return hessian(f,θhat)
+
+end
+"""
+    `keep_region(M,[N1,...,NK],θhat)`
+
+Function that returns a bool indicating whether model with [N1,...,NK] CpG cites and with parameter
+estimate vector θhat, from M observations, should be kept for downstream analysis.
+
+# Examples
+```julia-repl
+julia> JuliASM.keep_region(10,[1,1,1],[1.0,1.0,1.0,1.0])
+true
+```
+"""
+function keep_region(m::Int64,n::Vector{Int64},θhat::Vector{Float64})::Bool
+
+    # Return true if all CIs are below threshold width
+    return all(4*sqrt.(diag(inv(get_fim(n,θhat)))/m).<=CI_THRESH)
+
+end
+"""
     `comp_g([R1,...,RK],[α1,...,αK],β,αp1,αp2)`
 
 Compute scaling factor in a model with [R1,...,RK] unobserved CpG cites from each block, with
@@ -240,11 +286,11 @@ julia> LogLike=JuliASM.create_Llkhd(n,xobs)
 function create_Llkhd(n::Vector{Int64},xobs::Array{Vector{Int64},1})
 
     # Define minus log-likelihood function
-    function Llkhd_fun(eta::Vector{Float64})::Float64
+    function Llkhd_fun(theta::Vector{Float64})::Float64
         # Get parameters
         aux = 0.0
-        a = eta[1:(end-1)]
-        b = eta[end]
+        a = theta[1:(end-1)]
+        b = theta[end]
 
         # Get energy function and partition function
         Ux = create_Ux(n,a,b)
@@ -320,7 +366,7 @@ function est_alpha(xobs::Array{Vector{Int64},1})::Vector{Float64}
 
 end # end est_alpha
 """
-    `est_eta([N1,...,NK],XOBS)`
+    `est_theta([N1,...,NK],XOBS)`
 
 Estimate parameter vector η=[α, β] based on full or partial observations.
 
@@ -329,14 +375,14 @@ Estimate parameter vector η=[α, β] based on full or partial observations.
 julia> Random.seed!(1234);
 julia> n=[4]
 julia> xobs=JuliASM.gen_ising_full_data(100,n);
-julia> JuliASM.est_eta(n,xobs)
+julia> JuliASM.est_theta(n,xobs)
 3-element Vector{Float64}:
  -0.05232269932606823
   0.009316690953631898
  -0.047507839311720854
 ```
 """
-function est_eta(n::Vector{Int64},xobs::Array{Vector{Int64},1})::Vector{Float64}
+function est_theta(n::Vector{Int64},xobs::Array{Vector{Int64},1})::Vector{Float64}
 
     # If N=1, then estimate α
     sum(n)==1 && return est_alpha(xobs)
@@ -354,7 +400,7 @@ function est_eta(n::Vector{Int64},xobs::Array{Vector{Int64},1})::Vector{Float64}
     # Return estimate
     return optim.minimizer
 
-end # end est_eta
+end # end est_theta
 """
     `mle_mult(XOBS)`
 

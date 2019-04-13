@@ -692,15 +692,19 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
             mean_cov2 = mean_cov(xobs2)
             mean_cov2>=cov_ths || continue
 
-            # Estimate each single-allele model, mml and nme
-            eta1 = est_eta(n1,xobs1)
-            eta2 = est_eta(n2,xobs2)
-            ex1 = comp_ex(n1,eta1[1:(end-1)],eta1[end])
-            ex2 = comp_ex(n2,eta2[1:(end-1)],eta2[end])
-            exx1 = comp_exx(n1,eta1[1:(end-1)],eta1[end])
-            exx2 = comp_exx(n2,eta2[1:(end-1)],eta2[end])
-            nme1 = comp_nme(trues(sum(n1)),n1,eta1[1:(end-1)],eta1[end],ex1,exx1)
-            nme2 = comp_nme(trues(sum(n2)),n2,eta2[1:(end-1)],eta2[end],ex2,exx2)
+            # Estimate each single-allele model and check confidence intervals
+            theta1 = est_theta(n1,xobs1)
+            keep_region(length(xobs1),n1,theta1) || continue
+            theta2 = est_theta(n2,xobs2)
+            keep_region(length(xobs2),n2,theta2) || continue
+
+            # Estimate output
+            ex1 = comp_ex(n1,theta1[1:(end-1)],theta1[end])
+            ex2 = comp_ex(n2,theta2[1:(end-1)],theta2[end])
+            exx1 = comp_exx(n1,theta1[1:(end-1)],theta1[end])
+            exx2 = comp_exx(n2,theta2[1:(end-1)],theta2[end])
+            nme1 = comp_nme(trues(sum(n1)),n1,theta1[1:(end-1)],theta1[end],ex1,exx1)
+            nme2 = comp_nme(trues(sum(n2)),n2,theta2[1:(end-1)],theta2[end],ex2,exx2)
 
             # Add records
             push!(nme1_recs,(chr,f_st,f_end,nme1))
@@ -711,9 +715,9 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
             # Compute homozygous nme and coefficient of uncertainty
             z1 = BitArray([p in cpg_pos[1] ? true : false for p in cpg_pos[2]])
             z2 = BitArray([p in cpg_pos[1] ? true : false for p in cpg_pos[3]])
-            nme1 = comp_nme(z1,n1,eta1[1:(end-1)],eta1[end],ex1,exx1)
-            nme2 = comp_nme(z2,n2,eta2[1:(end-1)],eta2[end],ex2,exx2)
-            uc = round(comp_uc(z1,z2,n1,n2,eta1,eta2,nme1,nme2);digits=4)
+            nme1 = comp_nme(z1,n1,theta1[1:(end-1)],theta1[end],ex1,exx1)
+            nme2 = comp_nme(z2,n2,theta2[1:(end-1)],theta2[end],ex2,exx2)
+            uc = round(comp_uc(z1,z2,n1,n2,theta1,theta2,nme1,nme2);digits=4)
 
             # Add record
             push!(uc_recs,(chr,f_st,f_end,uc))
@@ -795,15 +799,19 @@ function comp_tnull(bam::String,gff::String,fa::String,out_paths::Vector{String}
             xobs2 = xobs[setdiff(1:length(xobs),part)]
 
             # Estimate each single-allele model, mml and nme
-            eta1 = est_eta(n,xobs1)
-            eta2 = est_eta(n,xobs2)
-            ex1 = comp_ex(n,eta1[1:(end-1)],eta1[end])
-            ex2 = comp_ex(n,eta2[1:(end-1)],eta2[end])
-            exx1 = comp_exx(n,eta1[1:(end-1)],eta1[end])
-            exx2 = comp_exx(n,eta2[1:(end-1)],eta2[end])
-            nme1 = comp_nme(trues(sum(n)),n,eta1[1:(end-1)],eta1[end],ex1,exx1)
-            nme2 = comp_nme(trues(sum(n)),n,eta2[1:(end-1)],eta2[end],ex2,exx2)
-            uc = round(comp_uc(trues(sum(n)),trues(sum(n)),n,n,eta1,eta2,nme1,nme2);digits=4)
+            theta1 = est_theta(n,xobs1)
+            keep_region(length(xobs1),n,theta1) || continue
+            theta2 = est_theta(n,xobs2)
+            keep_region(length(xobs2),n,theta2) || continue
+
+            # Estimate output quantities
+            ex1 = comp_ex(n,theta1[1:(end-1)],theta1[end])
+            ex2 = comp_ex(n,theta2[1:(end-1)],theta2[end])
+            exx1 = comp_exx(n,theta1[1:(end-1)],theta1[end])
+            exx2 = comp_exx(n,theta2[1:(end-1)],theta2[end])
+            nme1 = comp_nme(trues(sum(n)),n,theta1[1:(end-1)],theta1[end],ex1,exx1)
+            nme2 = comp_nme(trues(sum(n)),n,theta2[1:(end-1)],theta2[end],ex2,exx2)
+            uc = round(comp_uc(trues(sum(n)),trues(sum(n)),n,n,theta1,theta2,nme1,nme2);digits=4)
 
             # Compute coefficient of uncertainty
             push!(uc_recs,(chr,f_st,f_end,uc))
@@ -888,7 +896,7 @@ function run_analysis(bam1::String,bam2::String,bam0::String,vcf::String,fa::Str
 
     # Sort files
     for f in tobs_path
-        run(`sort -k1,1 -k2,2n -o $f $f`)
+        run(`sort -V -k 1,1 -k 2,2n -o $f $f`)
     end
 
     # Compute null statistics from homozygous loci
@@ -897,7 +905,7 @@ function run_analysis(bam1::String,bam2::String,bam0::String,vcf::String,fa::Str
 
     # Sort files
     for f in tnull_path
-        run(`sort -k1,1 -k2,2n -o $f $f`)
+        run(`sort -V -k 1,1 -k 2,2n -o $f $f`)
     end
 
     # Compute p-values for each statistic

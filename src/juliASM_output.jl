@@ -34,7 +34,7 @@ julia> JuliASM.comp_ex([4],[0.0],0.0)
 0.5
 ```
 """
-function comp_ex(n::Array{Int64,1},a::Array{Float64,1},b::Float64)::Array{Float64,1}
+function comp_ex(n::Vector{Int64},a::Vector{Float64},b::Float64)::Vector{Float64}
 
     # Loop over all positions
     x = zeros(Int64,sum(n))
@@ -64,7 +64,7 @@ julia> JuliASM.comp_exx([4],[0.0],0.0)
  0.0
 ```
 """
-function comp_exx(n::Array{Int64,1},a::Array{Float64,1},b::Float64;r::Int64=1)::Array{Float64,1}
+function comp_exx(n::Vector{Int64},a::Vector{Float64},b::Float64;r::Int64=1)::Vector{Float64}
 
     # Loop over all positions
     x = zeros(Int64,sum(n))
@@ -90,7 +90,7 @@ julia> JuliASM.comp_mml(JuliASM.comp_ex([4],[0.0],0.0))
 0.5
 ```
 """
-function comp_mml(ex::Array{Float64,1})::Float64
+function comp_mml(ex::Vector{Float64})::Float64
 
     # Return
     return abs(round(0.5/length(ex)*sum(ex)+0.5;digits=4))
@@ -253,7 +253,7 @@ function gen_x_mc(n::Vector{Int64},a::Vector{Float64},b::Float64)::Vector{Int64}
 
 end # end gen_x_mc
 """
-    `comp_nme_mix_mc(Z1,Z2,N1,N2,eta1,eta2)`
+    `comp_nme_mix_mc(Z1,Z2,N1,N2,theta1,theta2)`
 
 Function that estimates the entropy for the Ising mixture model using Monte Carlo. This is done
 assuming an Ising model for the allele-specific methylation state vector of size `[N1,...,NK]`,
@@ -270,7 +270,7 @@ julia> JuliASM.comp_nme_mix_mc(z1,z2,n1,n2,vcat(a1,b1),vcat(a2,b2))
 ```
 """
 function comp_nme_mix_mc(z1::BitArray{1},z2::BitArray{1},n1::Vector{Int64},n2::Vector{Int64},
-                         e1::Vector{Float64},e2::Vector{Float64};L::Int64=1000)::Float64
+                         t1::Vector{Float64},t2::Vector{Float64};L::Int64=1000)::Float64
 
     # For loop to sample from mixture
     h = 0.0
@@ -280,7 +280,7 @@ function comp_nme_mix_mc(z1::BitArray{1},z2::BitArray{1},n1::Vector{Int64},n2::V
         y = sample(1:2,Weights([0.5,0.5]))
 
         # Sample x given allele
-        x = y==1 ? gen_x_mc(n1,e1[1:(end-1)],e1[end]) : gen_x_mc(n2,e2[1:(end-1)],e2[end])
+        x = y==1 ? gen_x_mc(n1,t1[1:(end-1)],t1[end]) : gen_x_mc(n2,t2[1:(end-1)],t2[end])
         x0 = y==1 ? x[z1] : x[z2]
 
         # Add contribution
@@ -288,7 +288,7 @@ function comp_nme_mix_mc(z1::BitArray{1},z2::BitArray{1},n1::Vector{Int64},n2::V
         x2 = zeros(Int64,sum(n2))
         x1[z1] = x0
         x2[z2] = x0
-        h += log(comp_lkhd(x1,n1,e1[1:(end-1)],e1[end])+comp_lkhd(x2,n2,e2[1:(end-1)],e2[end]))
+        h += log(comp_lkhd(x1,n1,t1[1:(end-1)],t1[end])+comp_lkhd(x2,n2,t2[1:(end-1)],t2[end]))
 
     end
 
@@ -297,7 +297,7 @@ function comp_nme_mix_mc(z1::BitArray{1},z2::BitArray{1},n1::Vector{Int64},n2::V
 
 end # end comp_nme_mix_mc
 """
-    `comp_nme_mix_exact(Z1,Z2,N1,N2,eta1,eta2)`
+    `comp_nme_mix_exact(Z1,Z2,N1,N2,theta1,theta2)`
 
 Function that exactly computes the NME for the Ising mixture model. This is done by assuming an
 Ising model for the allele-specific methylation state vector of size `[N1,...,NK]`, parameters
@@ -315,7 +315,7 @@ julia> JuliASM.comp_nme_mix_exact(z1,z2,n1,n2,vcat(a1,b1),vcat(a2,b2))
 ```
 """
 function comp_nme_mix_exact(z1::BitArray{1},z2::BitArray{1},n1::Vector{Int64},n2::Vector{Int64},
-                            e1::Vector{Float64},e2::Vector{Float64})::Float64
+                            t1::Vector{Float64},t2::Vector{Float64})::Float64
 
     # Loop over 𝒳h
     h = 0.0
@@ -328,8 +328,8 @@ function comp_nme_mix_exact(z1::BitArray{1},z2::BitArray{1},n1::Vector{Int64},n2
         x[z] .= 1
         w1[z1] =+ x
         w2[z2] =+ x
-        lkhd1 = comp_lkhd(w1,n1,e1[1:(end-1)],e1[end])
-        lkhd2 = comp_lkhd(w2,n2,e2[1:(end-1)],e2[end])
+        lkhd1 = comp_lkhd(w1,n1,t1[1:(end-1)],t1[end])
+        lkhd2 = comp_lkhd(w2,n2,t2[1:(end-1)],t2[end])
         h += (lkhd1+lkhd2) * log(lkhd1+lkhd2)
         w1[z1] =- x
         w2[z2] =- x
@@ -340,7 +340,7 @@ function comp_nme_mix_exact(z1::BitArray{1},z2::BitArray{1},n1::Vector{Int64},n2
 
 end # end comp_nme_mix_exact
 """
-    `comp_uc(Z1,Z2,N1,N2,eta1,eta2,h1,h2)`
+    `comp_uc(Z1,Z2,N1,N2,theta1,theta2,h1,h2)`
 
 Function that exactly computes uncertainty coefficient (UC) over the homozygous CpG sites. This is
 done by assuming an Ising model for the allele-specific methylation state vector of size
@@ -359,10 +359,10 @@ julia> JuliASM.comp_uc(z1,z2,n1,n2,vcat(a1,b1),vcat(a2,b2),h1,h2)
 ```
 """
 function comp_uc(z1::BitArray{1},z2::BitArray{1},n1::Vector{Int64},n2::Vector{Int64},
-                 e1::Vector{Float64},e2::Vector{Float64},h1::Float64,h2::Float64)::Float64
+                 t1::Vector{Float64},t2::Vector{Float64},h1::Float64,h2::Float64)::Float64
 
     # Compute h(x)
-    h = sum(z1)<17 ? comp_nme_mix_exact(z1,z2,n1,n2,e1,e2) : comp_nme_mix_mc(z1,z2,n1,n2,e1,e2)
+    h = sum(z1)<17 ? comp_nme_mix_exact(z1,z2,n1,n2,t1,t2) : comp_nme_mix_mc(z1,z2,n1,n2,t1,t2)
 
     # Return
     return min(1.0,max(0.0,1.0-0.5*(h1+h2)/h))
@@ -389,8 +389,8 @@ julia> JuliASM.comp_cov([4],[0.0],0.0,ex,exx)
  0.0          2.22045e-16  0.0          1.0
 ```
 """
-function comp_cov(n::Array{Int64,1},a::Array{Float64,1},b::Float64,ex::Array{Float64,1},
-                  exx::Array{Float64,1})::Array{Float64,2}
+function comp_cov(n::Vector{Int64},a::Vector{Float64},b::Float64,ex::Vector{Float64},
+                  exx::Vector{Float64})::Array{Float64,2}
 
     # Initialize matrix
     ntot = sum(n)
@@ -436,7 +436,7 @@ julia> JuliASM.comp_evec(cov)
  1.0
 ```
 """
-function comp_evec(cov::Array{Float64,2})::Array{Float64,1}
+function comp_evec(cov::Array{Float64,2})::Vector{Float64}
 
     # Return evec
     return abs.(eigvecs(cov)[:,size(cov)[1]])
@@ -457,7 +457,7 @@ julia> JuliASM.comp_corr(JuliASM.comp_ex([4],[0.0],0.0),JuliASM.comp_exx([4],[0.
  0.0
 ```
 """
-function comp_corr(ex::Array{Float64,1},exx::Array{Float64,1})::Array{Float64,1}
+function comp_corr(ex::Vector{Float64},exx::Vector{Float64})::Vector{Float64}
 
     # Initialize vector of 1's
     ov = ones(Float64,length(ex)-1)
@@ -504,7 +504,7 @@ function comp_nme_xcal(z::BitArray{1},n::Vector{Int64},a::Vector{Float64},b::Flo
 
 end # end comp_nme_xcal
 """
-    `comp_uc_xcal(Z1,Z2,N1,N2,eta1,eta2)`
+    `comp_uc_xcal(Z1,Z2,N1,N2,theta1,theta2)`
 
 Function that exactly computes uncertainty coefficient (UC) over the homozygous CpG sites. This is
 done by assuming an Ising model for the allele-specific methylation state vector of size
@@ -515,13 +515,13 @@ is determined by binary vector Z (i.e., via Hadamard product Z*X, where * is the
 ```julia-repl
 julia> n1=[10]; n2=[10]
 julia> z1=trues(sum(n1)); z2=trues(sum(n2))
-julia> eta1=[2.0,0.0]; eta2=[-2.0,0.0]
-julia> JuliASM.comp_uc_xcal(z1,z2,n1,n2,eta1,eta2)
+julia> theta1=[2.0,0.0]; theta2=[-2.0,0.0]
+julia> JuliASM.comp_uc_xcal(z1,z2,n1,n2,theta1,theta2)
 1.0
 ```
 """
 function comp_uc_xcal(z1::BitArray{1},z2::BitArray{1},n1::Vector{Int64},n2::Vector{Int64},
-                      eta1::Vector{Float64},eta2::Vector{Float64})::Float64
+                      theta1::Vector{Float64},theta2::Vector{Float64})::Float64
 
     # Loop over 𝒳h
     num = 0.0
@@ -537,8 +537,8 @@ function comp_uc_xcal(z1::BitArray{1},z2::BitArray{1},n1::Vector{Int64},n2::Vect
         x[z] .= 1
         w1[hom_ind_1] =+ x
         w2[hom_ind_2] =+ x
-        lkhd1 = comp_lkhd(w1,n1,eta1[1:(end-1)],eta1[end])
-        lkhd2 = comp_lkhd(w2,n2,eta2[1:(end-1)],eta2[end])
+        lkhd1 = comp_lkhd(w1,n1,theta1[1:(end-1)],theta1[end])
+        lkhd2 = comp_lkhd(w2,n2,theta2[1:(end-1)],theta2[end])
         lkhd0 = 0.5*(lkhd1+lkhd2)
         den += lkhd0 * log(lkhd0)
         num += lkhd1 * log(lkhd1) + lkhd2 * log(lkhd2)
