@@ -185,8 +185,11 @@ true
 """
 function keep_region(m::Int64,n::Vector{Int64},θhat::Vector{Float64})::Bool
 
+    # Compute FIM
+    fim = get_fim(n,θhat)
+
     # Return true if all CIs are below threshold width
-    return all(4*sqrt.(diag(inv(get_fim(n,θhat)))/m).<=CI_THRESH)
+    return det(fim)!=0 ? all(4*sqrt.(diag(inv(fim))/m).<=CI_THRESH) : false
 
 end
 """
