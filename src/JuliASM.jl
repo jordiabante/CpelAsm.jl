@@ -42,7 +42,7 @@ export comp_Z
 export comp_g
 export comp_lkhd
 export est_alpha
-export est_eta
+export est_theta
 export perm_test
 export mle_mult
 export mle_bin_semi

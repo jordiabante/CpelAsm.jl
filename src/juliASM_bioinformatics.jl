@@ -401,7 +401,7 @@ function gen_gffs(gff::Vector{String},fa::String,vcf::String,win_exp::Int64,blk_
     curr_chr = chr_names[1]
     fa_record = reader_fa[curr_chr]
     close(reader_fa)
-    prev_end=1
+    prev_end = 1
 
     # Chrom sizes
     chr_sizes = reader_fa.index.lengths
@@ -633,6 +633,44 @@ function mean_cov(xobs::Array{Vector{Int64},1})::Float64
 
 end # end mean_cov
 """
+    `get_outpaths(OUTDIR,PREFIX)`
+
+Function that given outdir and prefix returns paths.
+
+# Examples
+```julia-repl
+julia> JuliASM.get_outpaths(outdir,prefix)
+```
+"""
+function get_outpaths(outdir::String,prefix::String)
+
+    # Paths
+    tobs_path = "$(outdir)/$(prefix)" .* ["_mml1","_mml2","_nme1","_nme2","_uc"] .* ".bedGraph"
+    tnull_path = "$(outdir)/$(prefix)" .* ["_dmml_null","_dnme_null","_uc_null"] .* ".bedGraph"
+
+    # Return path for Tobs and Tnull
+    return tobs_path,tnull_path
+
+end # end get_outpaths
+"""
+    `sort_bedgraphs(BEDGRAPH_FILES)`
+
+Function that sorts bedGraph files in vector BEDGRAPH_FILES.
+
+# Examples
+```julia-repl
+julia> JuliASM.sort_bedgraphs(bg_files)
+```
+"""
+function sort_bedgraphs(bg_files::Vector{String})
+
+    # Loop over files
+    for f in bg_files
+        run(`sort -V -k 1,1 -k 2,2n -o $f $f`)
+    end
+
+end # end sort_bedgraphs
+"""
     `comp_tobs(BAM1_PATH,BAM2_PATH,GFF_PATH,FA_PATH,OUT_PATHS)`
 
 Function that computes MML1/2, NME1/2, and UC on a pair of BAM files (allele 1, allele 2) given a
@@ -740,6 +778,9 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
 
     end
 
+    # Sort
+    sort_bedgraphs([mml1_path,mml2_path,nme1_path,nme2_path,uc_path])
+
 end # end comp_tobs
 """
     `comp_tnull(BAM_PATH,GFF_PATH,FA_PATH,OUT_PATH)`
@@ -832,6 +873,9 @@ function comp_tnull(bam::String,gff::String,fa::String,out_paths::Vector{String}
 
     end
 
+    # Sort files
+    sort_bedgraphs([dmml_path,dnme_path,uc_path])
+
 end # end comp_tnull
 """
     `run_analysis(BAM1_PATH,BAM2_PATH,BAMU_PATH,VCF_PATH,FA_PATH,OUT_PATH)`
@@ -863,17 +907,8 @@ function run_analysis(bam1::String,bam2::String,bam0::String,vcf::String,fa::Str
     isdir(outdir) || mkdir(outdir)
 
     # BigWig output files
-    prefix_sample = split(basename(bam1),".")[1]
-    uc_path = "$(outdir)/$(prefix_sample)_uc.bedGraph"
-    mml1_path = "$(outdir)/$(prefix_sample)_mml1.bedGraph"
-    mml2_path = "$(outdir)/$(prefix_sample)_mml2.bedGraph"
-    nme1_path = "$(outdir)/$(prefix_sample)_nme1.bedGraph"
-    nme2_path = "$(outdir)/$(prefix_sample)_nme2.bedGraph"
-    null_uc_path = "$(outdir)/$(prefix_sample)_uc_null.bedGraph"
-    null_dmml_path = "$(outdir)/$(prefix_sample)_dmml_null.bedGraph"
-    null_dnme_path = "$(outdir)/$(prefix_sample)_dnme_null.bedGraph"
-    tobs_path = [mml1_path,mml2_path,nme1_path,nme2_path,uc_path]
-    tnull_path = [null_dmml_path,null_dnme_path,null_uc_path]
+    prefix_sample = String(split(basename(bam1),".")[1])
+    tobs_path,tnull_path = get_outpaths(outdir,prefix_sample)
 
     # Check for existance of at least an output files
     if all(isfile.(vcat(tobs_path,tnull_path)))
@@ -894,19 +929,9 @@ function run_analysis(bam1::String,bam2::String,bam0::String,vcf::String,fa::Str
     println(stderr,"[$(now())]: Computing observed statistics using heterozygous loci...")
     comp_tobs(bam1,bam2,het_gff,fa,tobs_path;pe=pe,blk_size=blk_size,cov_ths=cov_ths)
 
-    # Sort files
-    for f in tobs_path
-        run(`sort -V -k 1,1 -k 2,2n -o $f $f`)
-    end
-
     # Compute null statistics from homozygous loci
     println(stderr,"[$(now())]: Computing null statistics using homozygous loci ...")
     comp_tnull(bam0,hom_gff,fa,tnull_path;pe=pe,blk_size=blk_size,cov_ths=cov_ths)
-
-    # Sort files
-    for f in tnull_path
-        run(`sort -V -k 1,1 -k 2,2n -o $f $f`)
-    end
 
     # Compute p-values for each statistic
     println(stderr,"[$(now())]: Computing p-values ...")
