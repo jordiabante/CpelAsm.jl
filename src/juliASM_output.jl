@@ -93,7 +93,7 @@ julia> JuliASM.comp_mml(JuliASM.comp_ex([4],[0.0],0.0))
 function comp_mml(ex::Vector{Float64})::Float64
 
     # Return
-    return abs(round(0.5/length(ex)*sum(ex)+0.5;digits=4))
+    return abs(round(0.5/length(ex)*sum(ex)+0.5;digits=8))
 
 end # end comp_mml
 """
@@ -202,7 +202,7 @@ function comp_nme(z::BitArray{1},n::Vector{Int64},a::Vector{Float64},b::Float64,
     h -= all(z) ? 0.0 : comp_exlng(z,n,a,b)
 
     # Return nme
-    return abs(round(h/(sum(z)*LOG2);digits=4))
+    return abs(round(h/(sum(z)*LOG2);digits=8))
 
 end # end comp_nme
 """

@@ -755,7 +755,7 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
             z2 = BitArray([p in cpg_pos[1] ? true : false for p in cpg_pos[3]])
             nme1 = comp_nme(z1,n1,theta1[1:(end-1)],theta1[end],ex1,exx1)
             nme2 = comp_nme(z2,n2,theta2[1:(end-1)],theta2[end],ex2,exx2)
-            uc = round(comp_uc(z1,z2,n1,n2,theta1,theta2,nme1,nme2);digits=4)
+            uc = round(comp_uc(z1,z2,n1,n2,theta1,theta2,nme1,nme2);digits=8)
 
             # Add record
             push!(uc_recs,(chr,f_st,f_end,uc,sum(n)))
@@ -852,12 +852,12 @@ function comp_tnull(bam::String,gff::String,fa::String,out_paths::Vector{String}
             exx2 = comp_exx(n,theta2[1:(end-1)],theta2[end])
             nme1 = comp_nme(trues(sum(n)),n,theta1[1:(end-1)],theta1[end],ex1,exx1)
             nme2 = comp_nme(trues(sum(n)),n,theta2[1:(end-1)],theta2[end],ex2,exx2)
-            uc = round(comp_uc(trues(sum(n)),trues(sum(n)),n,n,theta1,theta2,nme1,nme2);digits=4)
+            uc = round(comp_uc(trues(sum(n)),trues(sum(n)),n,n,theta1,theta2,nme1,nme2);digits=8)
 
             # Compute coefficient of uncertainty
             push!(uc_recs,(chr,f_st,f_end,uc,sum(n)))
-            push!(dnme_recs,(chr,f_st,f_end,abs(round(nme1-nme2;digits=4)),sum(n)))
-            push!(dmml_recs,(chr,f_st,f_end,abs(round(comp_mml(ex1)-comp_mml(ex2);digits=4)),
+            push!(dnme_recs,(chr,f_st,f_end,abs(round(nme1-nme2;digits=8)),sum(n)))
+            push!(dmml_recs,(chr,f_st,f_end,abs(round(comp_mml(ex1)-comp_mml(ex2);digits=8)),
             sum(n)))
 
             # Dump in case of necessary
