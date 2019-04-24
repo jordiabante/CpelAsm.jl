@@ -536,7 +536,8 @@ Function that writes records in `BEDGRAPH_RECORDS` into `BEDGRAPH_PATH`.
 julia> write_bG!(BEDGRAPH_RECORDS,BEDGRAPH_PATH)
 ```
 """
-function write_bG!(bG_records::Vector{Tuple{String,Int64,Int64,Float64,Int64}},bG_path::String)
+function write_bG!(bG_records::Vector{Tuple{String,Int64,Int64,Float64,Int64,Int64}},
+                   bG_path::String)
 
     # Open output bedGraph file in append mode (no need to close it)
     open(bG_path, "a") do f
@@ -698,11 +699,11 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
     @sync @distributed for chr in chr_names
 
         # bedGraph records
-        uc_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64}}()
-        mml1_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64}}()
-        mml2_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64}}()
-        nme1_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64}}()
-        nme2_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64}}()
+        uc_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64,Int64}}()
+        mml1_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64,Int64}}()
+        mml2_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64,Int64}}()
+        nme1_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64,Int64}}()
+        nme2_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64,Int64}}()
 
         # Get windows pertaining to current chromosome
         println(stderr,"[$(now())]: Processing 🧬  $(chr) ...")
@@ -745,10 +746,10 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
             nme2 = comp_nme(trues(sum(n2)),n2,theta2[1:(end-1)],theta2[end],ex2,exx2)
 
             # Add records
-            push!(nme1_recs,(chr,f_st,f_end,nme1,sum(n1)))
-            push!(nme2_recs,(chr,f_st,f_end,nme2,sum(n2)))
-            push!(mml1_recs,(chr,f_st,f_end,comp_mml(ex1),sum(n1)))
-            push!(mml2_recs,(chr,f_st,f_end,comp_mml(ex2),sum(n2)))
+            push!(nme1_recs,(chr,f_st,f_end,nme1,sum(n1),length(n1)+1))
+            push!(nme2_recs,(chr,f_st,f_end,nme2,sum(n2),length(n2)+1))
+            push!(mml1_recs,(chr,f_st,f_end,comp_mml(ex1),sum(n1),length(n1)+1))
+            push!(mml2_recs,(chr,f_st,f_end,comp_mml(ex2),sum(n2),length(n2)+1))
 
             # Compute homozygous nme and coefficient of uncertainty
             z1 = BitArray([p in cpg_pos[1] ? true : false for p in cpg_pos[2]])
@@ -758,7 +759,7 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
             uc = round(comp_uc(z1,z2,n1,n2,theta1,theta2,nme1,nme2);digits=8)
 
             # Add record
-            push!(uc_recs,(chr,f_st,f_end,uc,sum(n)))
+            push!(uc_recs,(chr,f_st,f_end,uc,sum(n),length(n)+1))
 
             # Dumpt data if necessary
             sizeof(uc_recs)>BG_BUFFER && write_bG!(uc_recs,uc_path)
@@ -814,9 +815,9 @@ function comp_tnull(bam::String,gff::String,fa::String,out_paths::Vector{String}
         chr_size = chr_sizes[findfirst(x->x==chr,chr_names)]
 
         # bedGraph records
-        uc_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64}}()
-        dnme_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64}}()
-        dmml_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64}}()
+        uc_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64,Int64}}()
+        dnme_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64,Int64}}()
+        dmml_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64,Int64}}()
 
         # Loop over windows in chromosome
         for feat in features_chr
@@ -855,10 +856,10 @@ function comp_tnull(bam::String,gff::String,fa::String,out_paths::Vector{String}
             uc = round(comp_uc(trues(sum(n)),trues(sum(n)),n,n,theta1,theta2,nme1,nme2);digits=8)
 
             # Compute coefficient of uncertainty
-            push!(uc_recs,(chr,f_st,f_end,uc,sum(n)))
-            push!(dnme_recs,(chr,f_st,f_end,abs(round(nme1-nme2;digits=8)),sum(n)))
+            push!(uc_recs,(chr,f_st,f_end,uc,sum(n),length(n)+1))
+            push!(dnme_recs,(chr,f_st,f_end,abs(round(nme1-nme2;digits=8)),sum(n),length(n)+1))
             push!(dmml_recs,(chr,f_st,f_end,abs(round(comp_mml(ex1)-comp_mml(ex2);digits=8)),
-            sum(n)))
+            sum(n),length(n)+1))
 
             # Dump in case of necessary
             sizeof(dnme_recs)>BG_BUFFER && write_bG!(dnme_recs,dnme_path)
