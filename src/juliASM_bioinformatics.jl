@@ -733,9 +733,11 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
 
             # Estimate each single-allele model and check confidence intervals
             theta1 = est_theta(n1,xobs1)
-            keep_region(length(xobs1),n1,theta1) || continue
+            all(theta1 .≈ ETA_MAX_ABS) && continue
+            # keep_region(length(xobs1),n1,theta1) || continue
             theta2 = est_theta(n2,xobs2)
-            keep_region(length(xobs2),n2,theta2) || continue
+            all(theta2 .≈ ETA_MAX_ABS) && continue
+            # keep_region(length(xobs2),n2,theta2) || continue
 
             # Estimate output
             ex1 = comp_ex(n1,theta1[1:(end-1)],theta1[end])
@@ -842,9 +844,11 @@ function comp_tnull(bam::String,gff::String,fa::String,out_paths::Vector{String}
 
             # Estimate each single-allele model, mml and nme
             theta1 = est_theta(n,xobs1)
-            keep_region(length(xobs1),n,theta1) || continue
+            all(theta1 .≈ ETA_MAX_ABS) && continue
+            # keep_region(length(xobs1),n,theta1) || continue
             theta2 = est_theta(n,xobs2)
-            keep_region(length(xobs2),n,theta2) || continue
+            all(theta2 .≈ ETA_MAX_ABS) && continue
+            # keep_region(length(xobs2),n,theta2) || continue
 
             # Estimate output quantities
             ex1 = comp_ex(n,theta1[1:(end-1)],theta1[end])
