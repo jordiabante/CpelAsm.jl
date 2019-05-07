@@ -731,12 +731,12 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
             mean_cov2 = mean_cov(xobs2)
             mean_cov2>=cov_ths || continue
 
-            # Estimate each single-allele model and check confidence intervals
+            # Estimate each single-allele model and check if on boundary of parameter space
             theta1 = est_theta(n1,xobs1)
-            all(theta1 .≈ ETA_MAX_ABS) && continue
+            check_boundary(n1,theta1) && continue
             # keep_region(length(xobs1),n1,theta1) || continue
             theta2 = est_theta(n2,xobs2)
-            all(theta2 .≈ ETA_MAX_ABS) && continue
+            check_boundary(n2,theta2) && continue
             # keep_region(length(xobs2),n2,theta2) || continue
 
             # Estimate output
@@ -842,12 +842,12 @@ function comp_tnull(bam::String,gff::String,fa::String,out_paths::Vector{String}
             xobs1 = xobs[part]
             xobs2 = xobs[setdiff(1:length(xobs),part)]
 
-            # Estimate each single-allele model, mml and nme
+            # Estimate each single-allele model and check if on boundary of parameter space
             theta1 = est_theta(n,xobs1)
-            all(theta1 .≈ ETA_MAX_ABS) && continue
+            check_boundary(n,theta1) && continue
             # keep_region(length(xobs1),n,theta1) || continue
             theta2 = est_theta(n,xobs2)
-            all(theta2 .≈ ETA_MAX_ABS) && continue
+            check_boundary(n,theta2) && continue
             # keep_region(length(xobs2),n,theta2) || continue
 
             # Estimate output quantities

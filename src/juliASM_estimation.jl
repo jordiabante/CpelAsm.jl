@@ -194,6 +194,27 @@ function keep_region(m::Int64,n::Vector{Int64},θhat::Vector{Float64})::Bool
 
 end
 """
+    `check_boundary([N1,...,NK],θhat)`
+
+Function that returns a bool indicating whether model with [N1,...,NK] CpG cites and with parameter
+estimate vector θhat is on the boundary of the parameter space.
+
+# Examples
+```julia-repl
+julia> JuliASM.check_boundary([1,1,1],[1.0,1.0,1.0,1.0])
+false
+```
+"""
+function check_boundary(n::Vector{Int64},θhat::Vector{Float64})::Bool
+
+    # Note: we need to consider the N=1 case separately since βhat=0 in that case.
+
+    # Return true θhat on boundary.
+    return sum(n)==1 ? isapprox.(abs.(θhat[1]),ETA_MAX_ABS;atol=1e-1) :
+        all(isapprox.(abs.(θhat),ETA_MAX_ABS;atol=1e-1))
+
+end
+"""
     `comp_g([R1,...,RK],[α1,...,αK],β,αp1,αp2)`
 
 Compute scaling factor in a model with [R1,...,RK] unobserved CpG cites from each block, with
