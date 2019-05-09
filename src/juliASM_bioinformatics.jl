@@ -374,6 +374,32 @@ function get_records_ps!(reader::VCF.Reader,seq::FASTA.Record,record::VCF.Record
 
 end # end get_records_ps
 """
+    `expand_win(FIRST_SNP,LAST_SNP,WIN_EXP,BLOCK_SIZE,CHR_SIZE)`
+
+Function that returns an expanded window given the position of the first and last SNPs, the
+expansion to be done to the left and right, of the first and last SNP respectively, to include
+nearby CpG sites, and the size of the subregions into which the whole region will be divided into.
+
+# Examples
+```julia-repl
+julia> expand_win(50,80,10,50,2000)
+??
+```
+"""
+function expand_win(l_snp,r_snp,win_exp,blk_size,chr_size)
+
+    # Expand left and right to include nearby CpG sites
+    l_snp -= win_exp
+    r_snp += win_exp
+
+    # Add remaining to be multiple of blk_size
+    rmdr = (r_snp-l_snp)%blk_size==0 ? 0 : div(blk_size-(r_snp-l_snp)%blk_size,2)
+
+    # Cap at 1 and end of chromosome
+    return [max(1,l_snp-rmdr),min(chr_size,r_snp+rmdr)]
+
+end
+"""
     `gen_gffs([HET_GFF_PATH,HOM_GFF_PATH],FA_PATH,VCF_PATH,WIN_EXP,BLOCK_SIZE)`
 
 Function that creates a GFF file containing the genomic regions to be analyzed by `JuliASM`. If a
@@ -441,10 +467,7 @@ function gen_gffs(gff::Vector{String},fa::String,vcf::String,win_exp::Int64,blk_
         end
 
         # Get remainder from block size and distribute it evenly
-        wSt -= win_exp
-        wEnd += win_exp
-        rmdr = div(blk_size-(wEnd-wSt)%blk_size,2)
-        win = [max(1, wSt-rmdr), min(chr_size, wEnd+rmdr)]
+        win = expand_win(wSt,wEnd,win_exp,blk_size,chr_size)
 
         # The following is relevant when f_st creates a CpG site on the left at f_st-1
         win[1] = length(het1)>0 && minimum(het1)<win[1] ? minimum(het1) : win[1]
@@ -672,6 +695,25 @@ function sort_bedgraphs(bg_files::Vector{String})
 
 end # end sort_bedgraphs
 """
+    `print_log(MESSAGE)`
+
+Function that prints MESSAGE to stderr.
+
+# Examples
+```julia-repl
+julia> JuliASM.print_log("Hello")
+Hello
+```
+"""
+function print_log(mess::String)
+
+    # Right format for date
+    date = Dates.format(now(), "yyyy-mm-dd HH:MM:SS")
+    println(stderr,"[$(date)]: "  * mess)
+    flush(stderr)
+
+end # end print_log
+"""
     `comp_tobs(BAM1_PATH,BAM2_PATH,GFF_PATH,FA_PATH,OUT_PATHS)`
 
 Function that computes MML1/2, NME1/2, and UC on a pair of BAM files (allele 1, allele 2) given a
@@ -706,7 +748,7 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
         nme2_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64,Int64}}()
 
         # Get windows pertaining to current chromosome
-        println(stderr,"[$(now())]: Processing 🧬  $(chr) ...")
+        print_log("Processing 🧬  $(chr) ...")
         features_chr = read_gff_chr(gff,chr)
         chr_size = chr_sizes[findfirst(x->x==chr, chr_names)]
 
@@ -815,6 +857,7 @@ function comp_tnull(bam::String,gff::String,fa::String,out_paths::Vector{String}
         prev_st = 1
         features_chr = read_gff_chr(gff,chr)
         chr_size = chr_sizes[findfirst(x->x==chr,chr_names)]
+        print_log("Processing 🧬  $(chr) ...")
 
         # bedGraph records
         uc_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64,Int64}}()
@@ -901,11 +944,11 @@ function run_analysis(bam1::String,bam2::String,bam0::String,vcf::String,fa::Str
                       pe::Bool=true,blk_size::Int64=200,win_exp::Int64=100,cov_ths::Int64=15)
 
     # Print initialization of juliASM
-    println(stderr,"[$(now())]: Starting JuliASM analysis ...")
+    print_log("Starting JuliASM analysis ...")
 
     # Check index files exist
     if !(isfile.(bam1*".bai",bam1*".bai",fa*".fai"))
-        println(stderr,"[$(now())]: Index files for BAM or FASTA missing. Exiting julia ...")
+        print_log("Index files for BAM or FASTA missing. Exiting julia ...")
         exit(1)
     end
 
@@ -918,31 +961,31 @@ function run_analysis(bam1::String,bam2::String,bam0::String,vcf::String,fa::Str
 
     # Check for existance of at least an output files
     if all(isfile.(vcat(tobs_path,tnull_path)))
-        println(stderr,"[$(now())]: At least an output file already exists. Exiting julia ...")
+        print_log("At least an output file already exists. Exiting julia ...")
         exit(1)
     end
 
     # Create gff file with heterozygous loci
-    println(stderr,"[$(now())]: Reading in VCF & FASTA files ...")
+    print_log("Reading in VCF & FASTA files ...")
     het_gff = outdir * split(basename(vcf),".")[1] * "_het.juliasm.gff"
     hom_gff = outdir * split(basename(vcf),".")[1] * "_hom.juliasm.gff"
     if !(isfile(het_gff))
-        println(stderr, "[$(now())]: Generating JuliASM GFF files ...")
+        print_log("Generating JuliASM GFF files ...")
         gen_gffs([het_gff,hom_gff],fa,vcf,win_exp,blk_size)
     end
 
     # Compute observed statistics from heterozygous loci
-    println(stderr,"[$(now())]: Computing observed statistics using heterozygous loci...")
+    print_log("Computing observed statistics using heterozygous loci...")
     comp_tobs(bam1,bam2,het_gff,fa,tobs_path;pe=pe,blk_size=blk_size,cov_ths=cov_ths)
 
     # Compute null statistics from homozygous loci
-    println(stderr,"[$(now())]: Computing null statistics using homozygous loci ...")
+    print_log("Computing null statistics using homozygous loci ...")
     comp_tnull(bam0,hom_gff,fa,tnull_path;pe=pe,blk_size=blk_size,cov_ths=cov_ths)
 
     # Compute p-values for each statistic
-    println(stderr,"[$(now())]: Computing p-values ...")
+    print_log("Computing p-values ...")
 
     # Print number of features interrogated and finished message
-    print(stderr,"[$(now())]: Done. 😄")
+    print_log("Done. 😄")
 
 end # end run_analysis
