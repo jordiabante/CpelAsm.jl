@@ -33,6 +33,10 @@ paired end mode:
   CTOT:      147           99
   CTOB:      163           83
 
+This table was extracted from
+
+    https://github.com/FelixKrueger/Bismark/issues/151
+
 # Examples
 ```julia-repl
 julia> JuliASM.get_align_strand(true,UInt16(99),UInt16(147))
@@ -125,14 +129,11 @@ function clean_records(pe::Bool,records::Vector{BAM.Record})::AllAlignTemps
 
             # There should only be two records with the same template name
             length(temp_recs)==2 && push!(out.templates,order_bams(pe,temp_recs))
-            # If length()==1, then no matching pair in (expanded) window. This
-            # has the problem that we can't determine the strand on which the
-            # methylation call is made. If length()>2, then skip as well since
-            # template names should be unique.
         end
     else
         # Handle SE case
-        out.templates = [AlignTemp(get_align_strand(pe,BAM.flag(x),UInt16(0)),x,BAM.Record()) for x in records]
+        out.templates = [AlignTemp(get_align_strand(pe,BAM.flag(x),UInt16(0)),x,BAM.Record()) for
+            x in records]
     end
 
     # Return struct
@@ -163,22 +164,26 @@ function try_olaps(reader::BAM.Reader,chr::String,win::Vector{Int64})::Vector{BA
 
 end # try_olaps
 """
-    `read_bam(BAM_PATH,CHR,FEAT_ST,FEAT_END,CPG_POS,PE)`
+    `read_bam(BAM_PATH,CHR,FEAT_ST,FEAT_END,CPG_POS,PE,TRIM)`
 
 Function that reads in BAM file in `BAM_PATH` and returns methylation vectors for those records
-that overlap with (1-based) genomic coordinates `chr:chrSt-chrEnd` at `cpg_pos`. The information
-was taken from:
+that overlap with (1-based) genomic coordinates `chr:chrSt-chrEnd` at `cpg_pos`. A trimming given
+by TRIM=(Rf_5p,Rf_3p,Rr_5p,Rr_3p) is applied to the reads. The information was taken from:
 
   XS: meth calls (https://github.com/FelixKrueger/Bismark/tree/master/Docs)
   XS: uniqueness (http://bowtie-bio.sourceforge.net/bowtie2/manual.shtml)
 
+For info on OT, CTOT, OB, CTOB nomenclature see
+
+    http://software.broadinstitute.org/software/igv/book/export/html/37.
+
 # Examples
 ```julia-repl
-julia> read_bam(BAM_PATH,"chr1",30,80,[40,60],false)
+julia> read_bam(BAM_PATH,"chr1",30,80,[40,60],false,(0,0,0,0))
 ```
 """
 function read_bam(bam::String,chr::String,f_st::Int64,f_end::Int64,cpg_pos::Vector{Int64},
-                  chr_size::Int64,pe::Bool)::Array{Vector{Int64},1}
+                  chr_size::Int64,pe::Bool,trim::NTuple{4,Int64})::Array{Vector{Int64},1}
 
     # Number of CpG sites is determined by that in the region
     N = length(cpg_pos)
@@ -187,40 +192,43 @@ function read_bam(bam::String,chr::String,f_st::Int64,f_end::Int64,cpg_pos::Vect
     exp_win = pe ? [max(1,f_st-75),min(chr_size,f_end+75)] : [f_st,f_end]
 
     # Get records overlapping window.
-    reader = open(BAM.Reader, bam, index=bam*".bai")
+    reader = open(BAM.Reader,bam,index=bam*".bai")
     records_olap = try_olaps(reader,chr,exp_win)
     length(records_olap)>0 || return Vector{Int64}[]
+    close(reader)
 
     # Relevant flags in BAM file (both Bismark and Arioc)
     filter!(x-> (BAM.ismapped(x)) && (haskey(x,"XM")) && (!haskey(x,"XS")) && (BAM.flag(x) in
            FLAGS_ALLOWED) && (BAM.mappingquality(x)>THRESH_MAPQ),records_olap)
 
-    # Organize records
+    # Clean records & organize them
     records_org = clean_records(pe,records_olap)
-    close(reader)
 
     # Loop over organized records
     xobs = Vector{Int64}[]
     for record in records_org.templates
         # Get methylation call and offset (depends on strand where call is made)
         if !(records_org.paired)
-            # Obtain methylation call from single end
+            # Obtain methylation call from single end ()
             meth_call = record.R1[:"XM"]
-            record.strand in ["OT","CTOT"] ? OFFSET=1 : OFFSET=2
-            OFFSET -= BAM.position(record.R1)
+            meth_call = SubString(meth_call,(1+trim[1]):(length(meth_call)-trim[2]))
+            OFFSET= record.strand in ["OT","CTOT"] ? 1 : 2
+            OFFSET -= BAM.position(record.R1)+trim[1]
         else
             # Obtain methylation call
             R1_call = record.R1[:"XM"]
             R2_call = record.R2[:"XM"]
-            dist_st = abs(BAM.position(record.R2) - BAM.position(record.R1))
+            R1_call = SubString(R1_call,(1+trim[1]):(length(R1_call)-trim[2]))
+            R2_call = SubString(R2_call,(1+trim[4]):(length(R2_call)-trim[3]))
+            dist_st = abs(BAM.position(record.R2)+trim[4] - BAM.position(record.R1)-trim[1])
             meth_call = R1_call * "."^max(0,dist_st-length(R1_call))
             meth_call *= R2_call[max(1,(length(R1_call)+1-dist_st)):end]
-            record.strand in ["OT","CTOT"] ? OFFSET=1 : OFFSET=2
-            OFFSET -= BAM.position(record.R1)
+            OFFSET= record.strand in ["OT","CTOT"] ? 1 : 2
+            OFFSET -= BAM.position(record.R1)+trim[1]
         end
 
         # Cross positions of CpG sites if template contains CpG sites
-        obs_cpgs = [x.offset for x in eachmatch(r"[zZ]",meth_call)].-OFFSET
+        obs_cpgs = [x.offset for x in eachmatch(r"[zZ]",meth_call)] .- OFFSET
         length(obs_cpgs)>0 || continue
 
         # If overlapping CpG sites then store and add to xobs
@@ -669,7 +677,8 @@ julia> JuliASM.get_outpaths(outdir,prefix)
 function get_outpaths(outdir::String,prefix::String)
 
     # Paths
-    tobs_path = "$(outdir)/$(prefix)" .* ["_mml1","_mml2","_nme1","_nme2","_uc"] .* ".bedGraph"
+    tobs_path = "$(outdir)/$(prefix)" .* ["_mml1","_mml2","_nme1","_nme2","_uc","_rho1","_rho2"] .*
+        ".bedGraph"
     tnull_path = "$(outdir)/$(prefix)" .* ["_dmml_null","_dnme_null","_uc_null"] .* ".bedGraph"
 
     # Return path for Tobs and Tnull
@@ -726,10 +735,11 @@ julia> comp_tobs(BAM1_PATH,BAM2_PATH,GFF_PATH,FA_PATH,OUT_PATHS)
 ```
 """
 function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::Vector{String};
-                   pe::Bool=true,blk_size::Int64=200,cov_ths::Int64=15)
+                   pe::Bool=true,blk_size::Int64=200,cov_ths::Int64=5,trim::NTuple{4,Int64}=
+                   (0,0,0,0))
 
     # BigWig output files
-    mml1_path,mml2_path,nme1_path,nme2_path,uc_path = out_paths
+    mml1_path,mml2_path,nme1_path,nme2_path,uc_path,rho1_path,rho2_path = out_paths
 
     # Find chromosomes
     reader_fa = open(FASTA.Reader,fa,index=fa*".fai")
@@ -746,6 +756,8 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
         mml2_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64,Int64}}()
         nme1_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64,Int64}}()
         nme2_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64,Int64}}()
+        rho1_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64,Int64}}()
+        rho2_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64,Int64}}()
 
         # Get windows pertaining to current chromosome
         print_log("Processing 🧬  $(chr) ...")
@@ -766,10 +778,10 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
             n2 = get_ns(cpg_pos[3],blk_size,f_st)
 
             # Get vectors from BAM1/2 overlapping feature & compute average coverage
-            xobs1 = read_bam(bam1,chr,f_st,f_end,cpg_pos[2],chr_size,pe)
+            xobs1 = read_bam(bam1,chr,f_st,f_end,cpg_pos[2],chr_size,pe,trim)
             mean_cov1 = mean_cov(xobs1)
             mean_cov1>=cov_ths || continue
-            xobs2 = read_bam(bam2,chr,f_st,f_end,cpg_pos[3],chr_size,pe)
+            xobs2 = read_bam(bam2,chr,f_st,f_end,cpg_pos[3],chr_size,pe,trim)
             mean_cov2 = mean_cov(xobs2)
             mean_cov2>=cov_ths || continue
 
@@ -781,11 +793,15 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
             check_boundary(n2,theta2) && continue
             # keep_region(length(xobs2),n2,theta2) || continue
 
-            # Estimate output
+            # Estimate first and second moments
             ex1 = comp_ex(n1,theta1[1:(end-1)],theta1[end])
             ex2 = comp_ex(n2,theta2[1:(end-1)],theta2[end])
             exx1 = comp_exx(n1,theta1[1:(end-1)],theta1[end])
             exx2 = comp_exx(n2,theta2[1:(end-1)],theta2[end])
+
+            # Estimate output quantities
+            rho1 = comp_corr(ex1,exx1)
+            rho2 = comp_corr(ex2,exx2)
             nme1 = comp_nme(trues(sum(n1)),n1,theta1[1:(end-1)],theta1[end],ex1,exx1)
             nme2 = comp_nme(trues(sum(n2)),n2,theta2[1:(end-1)],theta2[end],ex2,exx2)
 
@@ -794,13 +810,17 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
             push!(nme2_recs,(chr,f_st,f_end,nme2,sum(n2),length(n2)+1))
             push!(mml1_recs,(chr,f_st,f_end,comp_mml(ex1),sum(n1),length(n1)+1))
             push!(mml2_recs,(chr,f_st,f_end,comp_mml(ex2),sum(n2),length(n2)+1))
+            sum(n1)>1 && append!(rho1_recs,[(chr,cpg_pos[2][i],cpg_pos[2][i+1],rho1[i],sum(n1),
+                length(n1)+1) for i=1:(sum(n1)-1)])
+            sum(n2)>1 && append!(rho2_recs,[(chr,cpg_pos[3][i],cpg_pos[3][i+1],rho2[i],sum(n2),
+                length(n2)+1) for i=1:(sum(n2)-1)])
 
             # Compute homozygous nme and coefficient of uncertainty
             z1 = BitArray([p in cpg_pos[1] ? true : false for p in cpg_pos[2]])
             z2 = BitArray([p in cpg_pos[1] ? true : false for p in cpg_pos[3]])
             nme1 = comp_nme(z1,n1,theta1[1:(end-1)],theta1[end],ex1,exx1)
             nme2 = comp_nme(z2,n2,theta2[1:(end-1)],theta2[end],ex2,exx2)
-            uc = round(comp_uc(z1,z2,n1,n2,theta1,theta2,nme1,nme2);digits=8)
+            uc = comp_uc(z1,z2,n1,n2,theta1,theta2,nme1,nme2)
 
             # Add record
             push!(uc_recs,(chr,f_st,f_end,uc,sum(n),length(n)+1))
@@ -811,20 +831,24 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
             sizeof(nme1_recs)>BG_BUFFER && write_bG!(nme1_recs,nme1_path)
             sizeof(mml2_recs)>BG_BUFFER && write_bG!(mml2_recs,mml2_path)
             sizeof(nme2_recs)>BG_BUFFER && write_bG!(nme2_recs,nme2_path)
+            sizeof(rho1_recs)>BG_BUFFER && write_bG!(rho1_recs,rho1_path)
+            sizeof(rho2_recs)>BG_BUFFER && write_bG!(rho2_recs,rho2_path)
 
         end
 
         # Add last to respective bedGraph file
-        write_bG!(mml1_recs, mml1_path)
-        write_bG!(mml2_recs, mml2_path)
-        write_bG!(nme1_recs, nme1_path)
-        write_bG!(nme2_recs, nme2_path)
-        write_bG!(uc_recs, uc_path)
+        write_bG!(uc_recs,uc_path)
+        write_bG!(mml1_recs,mml1_path)
+        write_bG!(mml2_recs,mml2_path)
+        write_bG!(nme1_recs,nme1_path)
+        write_bG!(nme2_recs,nme2_path)
+        write_bG!(rho1_recs,rho1_path)
+        write_bG!(rho2_recs,rho2_path)
 
     end
 
     # Sort
-    sort_bedgraphs([mml1_path,mml2_path,nme1_path,nme2_path,uc_path])
+    sort_bedgraphs([mml1_path,mml2_path,nme1_path,nme2_path,uc_path,rho1_path,rho2_path])
 
 end # end comp_tobs
 """
@@ -839,7 +863,7 @@ julia> comp_tnull(BAM_PATH,GFF_PATH,FA_PATH,OUT_PATH)
 ```
 """
 function comp_tnull(bam::String,gff::String,fa::String,out_paths::Vector{String};pe::Bool=true,
-                    blk_size::Int64=200,cov_ths::Int64=15)
+                    blk_size::Int64=200,cov_ths::Int64=15,trim::NTuple{4,Int64}=(0,0,0,0))
 
     # BigWig output files
     dmml_path,dnme_path,uc_path = out_paths
@@ -876,7 +900,7 @@ function comp_tnull(bam::String,gff::String,fa::String,out_paths::Vector{String}
             n = get_ns(cpg_pos,blk_size,f_st)
 
             # Check average coverage
-            xobs = read_bam(bam,chr,f_st,f_end,cpg_pos,chr_size,pe)
+            xobs = read_bam(bam,chr,f_st,f_end,cpg_pos,chr_size,pe,trim)
             part_cov = mean_cov(xobs)
             part_cov >= 2*cov_ths || continue
 
@@ -900,13 +924,13 @@ function comp_tnull(bam::String,gff::String,fa::String,out_paths::Vector{String}
             exx2 = comp_exx(n,theta2[1:(end-1)],theta2[end])
             nme1 = comp_nme(trues(sum(n)),n,theta1[1:(end-1)],theta1[end],ex1,exx1)
             nme2 = comp_nme(trues(sum(n)),n,theta2[1:(end-1)],theta2[end],ex2,exx2)
-            uc = round(comp_uc(trues(sum(n)),trues(sum(n)),n,n,theta1,theta2,nme1,nme2);digits=8)
+            uc = comp_uc(trues(sum(n)),trues(sum(n)),n,n,theta1,theta2,nme1,nme2)
 
             # Compute coefficient of uncertainty
             push!(uc_recs,(chr,f_st,f_end,uc,sum(n),length(n)+1))
             push!(dnme_recs,(chr,f_st,f_end,abs(round(nme1-nme2;digits=8)),sum(n),length(n)+1))
             push!(dmml_recs,(chr,f_st,f_end,abs(round(comp_mml(ex1)-comp_mml(ex2);digits=8)),
-            sum(n),length(n)+1))
+                sum(n),length(n)+1))
 
             # Dump in case of necessary
             sizeof(dnme_recs)>BG_BUFFER && write_bG!(dnme_recs,dnme_path)
@@ -941,7 +965,8 @@ julia> run_analysis(BAM1_PATH,BAM2_PATH,BAMU_PATH,VCF_PATH,FA_PATH,OUT_PATH)
 ```
 """
 function run_analysis(bam1::String,bam2::String,bam0::String,vcf::String,fa::String,outdir::String;
-                      pe::Bool=true,blk_size::Int64=200,win_exp::Int64=100,cov_ths::Int64=15)
+                      pe::Bool=true,blk_size::Int64=200,win_exp::Int64=100,cov_ths::Int64=5,
+                      trim::NTuple{4,Int64}=(0,0,0,0))
 
     # Print initialization of juliASM
     print_log("Starting JuliASM analysis ...")
@@ -976,11 +1001,11 @@ function run_analysis(bam1::String,bam2::String,bam0::String,vcf::String,fa::Str
 
     # Compute observed statistics from heterozygous loci
     print_log("Computing observed statistics using heterozygous loci...")
-    comp_tobs(bam1,bam2,het_gff,fa,tobs_path;pe=pe,blk_size=blk_size,cov_ths=cov_ths)
+    comp_tobs(bam1,bam2,het_gff,fa,tobs_path;pe=pe,blk_size=blk_size,cov_ths=cov_ths,trim=trim)
 
     # Compute null statistics from homozygous loci
     print_log("Computing null statistics using homozygous loci ...")
-    comp_tnull(bam0,hom_gff,fa,tnull_path;pe=pe,blk_size=blk_size,cov_ths=cov_ths)
+    comp_tnull(bam0,hom_gff,fa,tnull_path;pe=pe,blk_size=blk_size,cov_ths=cov_ths,trim=trim)
 
     # Compute p-values for each statistic
     print_log("Computing p-values ...")

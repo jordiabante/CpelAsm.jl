@@ -365,9 +365,34 @@ function comp_uc(z1::BitArray{1},z2::BitArray{1},n1::Vector{Int64},n2::Vector{In
     h = sum(z1)<17 ? comp_nme_mix_exact(z1,z2,n1,n2,t1,t2) : comp_nme_mix_mc(z1,z2,n1,n2,t1,t2)
 
     # Return
-    return min(1.0,max(0.0,1.0-0.5*(h1+h2)/h))
+    return round(min(1.0,max(0.0,1.0-0.5*(h1+h2)/h));digits=8)
 
 end # end comp_uc
+"""
+    `comp_corr(EX,EXX)`
+
+Function that returns the correlation vector between consecutive CpG sites given the vector of
+first order moments E[X] and second order moments E[XX].
+
+# Examples
+```julia-repl
+julia> JuliASM.comp_corr(JuliASM.comp_ex([4],[0.0],0.0),JuliASM.comp_exx([4],[0.0],0.0))
+3-element Array{Float64,1}:
+ 0.0
+ 8.881784197001252e-16
+ 0.0
+```
+"""
+function comp_corr(ex::Vector{Float64},exx::Vector{Float64})::Vector{Float64}
+
+    # Initialize vector of 1's
+    ov = ones(Float64,length(ex)-1)
+
+    # Return ρ
+    return round.((exx.-ex[1:(end-1)].*ex[2:end]) ./ sqrt.((ov.-ex[1:(end-1)].^2) .*
+    (ov.-ex[2:end].^2));digits=8)
+
+end # end comp_corr
 ###################################################################################################
 # UNUSED FUNCTIONS
 ###################################################################################################
@@ -442,30 +467,9 @@ function comp_evec(cov::Array{Float64,2})::Vector{Float64}
     return abs.(eigvecs(cov)[:,size(cov)[1]])
 
 end # end comp_evec
-"""
-    `comp_corr(EX,EXX)`
-
-Function that returns the correlation vector between consecutive CpG sites given the vector of
-first order moments E[X] and second order moments E[XX].
-
-# Examples
-```julia-repl
-julia> JuliASM.comp_corr(JuliASM.comp_ex([4],[0.0],0.0),JuliASM.comp_exx([4],[0.0],0.0))
-3-element Array{Float64,1}:
- 0.0
- 8.881784197001252e-16
- 0.0
-```
-"""
-function comp_corr(ex::Vector{Float64},exx::Vector{Float64})::Vector{Float64}
-
-    # Initialize vector of 1's
-    ov = ones(Float64,length(ex)-1)
-
-    # Return ρ
-    return (exx.-ex[1:(end-1)].*ex[2:end]) ./ sqrt.((ov.-ex[1:(end-1)].^2).*(ov.-ex[2:end].^2))
-
-end # end comp_corr
+###################################################################################################
+# VERIFICATION FUNCTIONS (UNUSED)
+###################################################################################################
 """
     `comp_nme_xcal(Z,[N1,...,NK],[α1,...,αK],β,EX,EXX)`
 
