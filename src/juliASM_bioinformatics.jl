@@ -238,14 +238,7 @@ function read_bam(bam::String,chr::String,f_st::Int64,f_end::Int64,cpg_pos::Vect
         obs_cpgs = obs_cpgs[findall(x-> x in cpg_pos,obs_cpgs)] .+ OFFSET
         x[olap_cpgs] = reduce(replace,["Z"=>1,"z"=>-1],init=split(meth_call[obs_cpgs],""))
         push!(xobs,x)
-        # elseif (maximum(obs_cpgs) >= minimum(cpg_pos)) ⊻
-        #     (maximum(cpg_pos)>=minimum(obs_cpgs))
-        #     # CpG site positions are not intercalated
-        # else
-        #     println(stderr,"[$(now())]: Read/s $(BAM.tempname(record.R1))" *
-        #       " with flag $(BAM.flag(record.R1)) has unused CpG sites.")
-        # end
-        # end
+        
     end # end loop over templates sequenced
 
     # Return
