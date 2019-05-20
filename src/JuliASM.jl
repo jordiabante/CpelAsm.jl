@@ -5,6 +5,7 @@ module JuliASM
 # DEPENDENCIES
 ###################################################################################################
 using Distributed               # For parallelization
+using SharedArrays              # For parallelization
 using Random                    # For random number generation
 using StatsBase                 # For statistics
 using Calculus                  # For Hessian estimation
