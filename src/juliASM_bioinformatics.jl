@@ -415,7 +415,7 @@ julia> find_num_models([50,55,60,65],2,1)
 function find_num_models(cpg_pos::Vector{Int64},n_max::Int64,n_mod::Int64)::Int64
 
     # Check if resulting models are acceptable
-    return div(length(cpg_pos),n_mod)>n_max ? find_num_models(cpg_pos,n_max,n_mod+1) : n_mod
+    return length(cpg_pos)/n_mod>n_max ? find_num_models(cpg_pos,n_max,n_mod+1) : n_mod
 
 end # end find_num_models
 """
@@ -592,46 +592,47 @@ function read_gff_chr(gff::String,chr::String)::Vector{GFF3.Record}
 
 end # end read_gff_chr
 """
-    `write_bG!(BEDGRAPH_RECORDS,BEDGRAPH_PATH)`
+    `write_tobs(RECORDS,CHR,PATH)`
 
-Function that writes records in `BEDGRAPH_RECORDS` into `BEDGRAPH_PATH`.
+Function that writes records in `RECORDS` into `PATH`.
 
 # Examples
 ```julia-repl
-julia> write_bG!(BEDGRAPH_RECORDS,BEDGRAPH_PATH)
+julia> write_tobs(RECORDS,CHR,PATH)
 ```
 """
-function write_bG!(bG_records::Vector{Tuple{String,Int64,Int64,Float64,Int64,Int64}},
-                   bG_path::String)
+function write_tobs(recs::Vector{Tuple{Int64,Int64,Float64,Int64,Int64}},chr::String,path::String)
 
     # Open output bedGraph file in append mode (no need to close it)
-    open(bG_path, "a") do f
-        while length(bG_records)>0
-            write(f,join(string.(collect(popfirst!(bG_records))),"\t"),"\n")
+    open(path, "a") do f
+        for i=1:length(recs)
+            recs[i][1]!=0 || continue
+            write(f,"$(chr)\t"*join(string.(collect(recs[i])),"\t"),"\n")
         end
     end
 
-end # end write_bG
+end # end write_tobs
 """
-    `write_out_null(NULL_RECORDS,NULL_PATH)`
+    `write_tnull(RECORDS,PATH)`
 
-Function that writes records in `NULL_RECORDS` into `NULL_PATH`.
+Function that writes null records in `RECORDS` into `PATH`.
 
 # Examples
 ```julia-repl
-julia> write_out_null(NULL_RECORDS,NULL_PATH)
+julia> write_tnull(RECORDS,PATH)
 ```
 """
-function write_out_null(recs::Vector{Tuple{Int8,Int8,Float64}},out_path::String)
+function write_tnull(recs::Vector{Tuple{Int8,Int8,Float64}},path::String)
 
     # Open output bedGraph file in append mode (no need to close it)
-    open(out_path, "a") do f
+    open(path, "a") do f
         for i=1:length(recs)
+            recs[i][1]!=0 || continue
             write(f,join(string.(collect(recs[i])),"\t"),"\n")
         end
     end
 
-end # end write_out_null
+end # end write_tnull
 """
     `get_cpg_pos(FEAT_ATTS)`
 
@@ -730,8 +731,7 @@ julia> JuliASM.get_outpaths(outdir,prefix)
 function get_outpaths(outdir::String,prefix::String)
 
     # Paths
-    tobs_path = "$(outdir)/$(prefix)" .* ["_mml1","_mml2","_nme1","_nme2","_uc","_rho1","_rho2"] .*
-        ".bedGraph"
+    tobs_path = "$(outdir)/$(prefix)" .* ["_mml1","_mml2","_nme1","_nme2","_uc"] .* ".bedGraph"
     tnull_path = "$(outdir)/$(prefix)" .* ["_dmml_null","_dnme_null","_uc_null"] .* ".bedGraph"
 
     # Return path for Tobs and Tnull
@@ -844,11 +844,11 @@ julia> comp_tobs(BAM1_PATH,BAM2_PATH,GFF_PATH,FA_PATH,OUT_PATHS)
 ```
 """
 function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::Vector{String};
-                   pe::Bool=true,blk_size::Int64=200,cov_ths::Int64=5,trim::NTuple{4,Int64}=
+                   pe::Bool=true,blk_size::Int64=300,cov_ths::Int64=5,trim::NTuple{4,Int64}=
                    (0,0,0,0))
 
     # BigWig output files
-    mml1_path,mml2_path,nme1_path,nme2_path,uc_path,rho1_path,rho2_path = out_paths
+    mml1_path,mml2_path,nme1_path,nme2_path,uc_path = out_paths
 
     # Find chromosomes
     reader_fa = open(FASTA.Reader,fa,index=fa*".fai")
@@ -857,25 +857,21 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
     close(reader_fa)
 
     # Loop over chromosomes
-    @sync @distributed for chr in chr_names
-
-        # bedGraph records
-        uc_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64,Int64}}()
-        mml1_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64,Int64}}()
-        mml2_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64,Int64}}()
-        nme1_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64,Int64}}()
-        nme2_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64,Int64}}()
-        rho1_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64,Int64}}()
-        rho2_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64,Int64}}()
+    for chr in chr_names
 
         # Get windows pertaining to current chromosome
         print_log("Processing 🧬  $(chr) ...")
         features_chr = read_gff_chr(gff,chr)
         chr_size = chr_sizes[findfirst(x->x==chr, chr_names)]
 
+        # bedGraph records
+        out_sa = SharedArray{Tuple{Int64,Int64,Float64,Int64,Int64},2}(length(features_chr),8)
+
         # Loop over windows in chromosome
-        for feat in features_chr
+        @sync @distributed for i=1:length(features_chr)
+
             # Get window of interest
+            feat = features_chr[i]
             f_st = GFF3.seqstart(feat)
             f_end = GFF3.seqend(feat)
 
@@ -905,56 +901,34 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
             exx1 = comp_exx(n1,theta1[1:(end-1)],theta1[end])
             exx2 = comp_exx(n2,theta2[1:(end-1)],theta2[end])
 
-            # Estimate output quantities
-            rho1 = comp_corr(ex1,exx1)
-            rho2 = comp_corr(ex2,exx2)
-            nme1 = comp_nme(trues(sum(n1)),n1,theta1[1:(end-1)],theta1[end],ex1,exx1)
-            nme2 = comp_nme(trues(sum(n2)),n2,theta2[1:(end-1)],theta2[end],ex2,exx2)
+            # Add results to output array
+            out_sa[i,1] = (f_st,f_end,comp_mml(ex1),sum(n1),length(n1))
+            out_sa[i,2] = (f_st,f_end,comp_mml(ex2),sum(n2),length(n2))
+            out_sa[i,3] = (f_st,f_end,comp_nme(trues(sum(n1)),n1,theta1[1:(end-1)],theta1[end],
+                ex1,exx1),sum(n1),length(n1))
+            out_sa[i,4] = (f_st,f_end,comp_nme(trues(sum(n2)),n2,theta2[1:(end-1)],theta2[end],
+                ex2,exx2),sum(n2),length(n2))
 
-            # Add records
-            push!(nme1_recs,(chr,f_st,f_end,nme1,sum(n1),length(n1)))
-            push!(nme2_recs,(chr,f_st,f_end,nme2,sum(n2),length(n2)))
-            push!(mml1_recs,(chr,f_st,f_end,comp_mml(ex1),sum(n1),length(n1)))
-            push!(mml2_recs,(chr,f_st,f_end,comp_mml(ex2),sum(n2),length(n2)))
-            sum(n1)>1 && append!(rho1_recs,[(chr,cpg_pos[2][i],cpg_pos[2][i+1],rho1[i],sum(n1),
-                length(n1)) for i=1:(sum(n1)-1)])
-            sum(n2)>1 && append!(rho2_recs,[(chr,cpg_pos[3][i],cpg_pos[3][i+1],rho2[i],sum(n2),
-                length(n2)) for i=1:(sum(n2)-1)])
-
-            # Compute homozygous nme and coefficient of uncertainty
+            # Add UC to output
             z1 = BitArray([p in cpg_pos[1] ? true : false for p in cpg_pos[2]])
             z2 = BitArray([p in cpg_pos[1] ? true : false for p in cpg_pos[3]])
             nme1 = comp_nme(z1,n1,theta1[1:(end-1)],theta1[end],ex1,exx1)
             nme2 = comp_nme(z2,n2,theta2[1:(end-1)],theta2[end],ex2,exx2)
-            uc = comp_uc(z1,z2,n1,n2,theta1,theta2,nme1,nme2)
-
-            # Add record
-            push!(uc_recs,(chr,f_st,f_end,uc,sum(n),length(n)))
-
-            # Dumpt data if necessary
-            sizeof(uc_recs)>BG_BUFFER && write_bG!(uc_recs,uc_path)
-            sizeof(mml1_recs)>BG_BUFFER && write_bG!(mml1_recs,mml1_path)
-            sizeof(nme1_recs)>BG_BUFFER && write_bG!(nme1_recs,nme1_path)
-            sizeof(mml2_recs)>BG_BUFFER && write_bG!(mml2_recs,mml2_path)
-            sizeof(nme2_recs)>BG_BUFFER && write_bG!(nme2_recs,nme2_path)
-            sizeof(rho1_recs)>BG_BUFFER && write_bG!(rho1_recs,rho1_path)
-            sizeof(rho2_recs)>BG_BUFFER && write_bG!(rho2_recs,rho2_path)
+            out_sa[i,5] = (f_st,f_end,comp_uc(z1,z2,n1,n2,theta1,theta2,nme1,nme2),sum(n),length(n))
 
         end
 
         # Add last to respective bedGraph file
-        write_bG!(uc_recs,uc_path)
-        write_bG!(mml1_recs,mml1_path)
-        write_bG!(mml2_recs,mml2_path)
-        write_bG!(nme1_recs,nme1_path)
-        write_bG!(nme2_recs,nme2_path)
-        write_bG!(rho1_recs,rho1_path)
-        write_bG!(rho2_recs,rho2_path)
+        write_tobs(out_sa[:,1],chr,mml1_path)
+        write_tobs(out_sa[:,2],chr,mml2_path)
+        write_tobs(out_sa[:,3],chr,nme1_path)
+        write_tobs(out_sa[:,4],chr,nme2_path)
+        write_tobs(out_sa[:,5],chr,uc_path)
 
     end
 
     # Sort
-    sort_bedgraphs([mml1_path,mml2_path,nme1_path,nme2_path,uc_path,rho1_path,rho2_path])
+    sort_bedgraphs([mml1_path,mml2_path,nme1_path,nme2_path,uc_path])
 
 end # end comp_tobs
 """
@@ -969,8 +943,8 @@ julia> comp_tnull(BAM_PATH,GFF_PATH,FA_PATH,OUT_PATH)
 ```
 """
 function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_paths::Vector{String}
-                    ;pe::Bool=true,blk_size::Int64=200,cov_ths::Int64=5,trim::NTuple{4,Int64}=
-                    (0,0,0,0),Ncap::Int64=25,mc_null::Int64=5000,n_max::Int64=25)
+                    ;pe::Bool=true,blk_size::Int64=300,cov_ths::Int64=5,trim::NTuple{4,Int64}=
+                    (0,0,0,0),mc_null::Int64=5000,n_max::Int64=20)
 
     # BigWig output files
     dmml_path,dnme_path,uc_path = out_paths
@@ -980,14 +954,10 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
     chr_dic = Dict(zip(reader_fa.index.names,reader_fa.index.lengths))
     close(reader_fa)
 
-    # WARNING 1: K' for N'>N might be smaller than K. That might result in the statistical
-    # variability not monotonically decreasing as N increases. This could be an issue in
-    # case we do the logitSST regression. Should we just not let K decrease?
-
     # Obtain Kstar for every N & maximum N to analyze
     kstar_table = get_kstar_table(het_gff,collect(keys(chr_dic)),blk_size)
 
-    # Cap Nmax with Ncap (99% pc. of N ~ 30)
+    # Cap Nmax (99% pc. of N=28)
     n_max = min(maximum(keys(kstar_table)),n_max)
 
     # Loop over Ns of interes
@@ -1002,16 +972,16 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
         # Get windows pertaining to current Ns
         win_ntot = get_win_n(hom_gff,collect(keys(chr_dic)),ntot)
 
-        # Sample with replacement enough windows. TODO: find required number of samples
+        # Sample with replacement enough windows
         win_inds = sample(1:length(win_ntot),mc_null;replace=true)
 
         # bedGraph records
         out_sa = SharedArray{Tuple{Int8,Int8,Float64},2}(mc_null,3)
 
-        # Produce a set of null statistics for each index. TODO: Need to reach the minimum!
+        # Produce a set of null statistics for each index
         @sync @distributed for i=1:length(win_inds)
 
-            # Get homozygous window.
+            # Get homozygous window
             ind = win_inds[i]
             feat = win_ntot[ind]
             chr = GFF3.seqid(feat)
@@ -1065,9 +1035,9 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
         end
 
         # Add last to respective bedGraph file
-        write_out_null(out_sa[:,1],dmml_path)
-        write_out_null(out_sa[:,2],dnme_path)
-        write_out_null(out_sa[:,3],uc_path)
+        write_tnull(out_sa[:,1],dmml_path)
+        write_tnull(out_sa[:,2],dnme_path)
+        write_tnull(out_sa[:,3],uc_path)
 
     end
 
@@ -1075,6 +1045,32 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
     sort_bedgraphs([dmml_path,dnme_path,uc_path])
 
 end # end comp_tnull
+"""
+    `comp_pvals(TOBS_PATH,TNULL_PATH)`
+
+Function that computes p-values from empirical null distribution.
+
+# Examples
+```julia-repl
+julia> comp_pvals(tobs_path,tnull_path)
+??
+```
+"""
+function comp_pvals(tobs_path::Vector{String},tnull_path::Vector{String},n_max::Int64)
+
+    # Loop over N
+    for n=1:n_max
+
+        # Store empirical in table (value,count)
+
+        # Get p-val for every haplotype with N=n (parallelization)
+
+    end
+
+    # Return
+    return true
+
+end
 """
     `run_analysis(BAM1_PATH,BAM2_PATH,BAMU_PATH,VCF_PATH,FA_PATH,OUT_PATH)`
 
@@ -1089,8 +1085,8 @@ haplotype in the VCF file.
 julia> run_analysis(BAM1_PATH,BAM2_PATH,BAMU_PATH,VCF_PATH,FA_PATH,OUT_PATH)
 ```
 """
-function run_analysis(bam1::String,bam2::String,bam0::String,vcf::String,fa::String,outdir::String;
-                      pe::Bool=true,blk_size::Int64=200,win_exp::Int64=100,cov_ths::Int64=5,
+function run_analysis(bam1::String,bam2::String,bamu::String,vcf::String,fa::String,outdir::String;
+                      pe::Bool=true,blk_size::Int64=300,win_exp::Int64=100,cov_ths::Int64=5,
                       trim::NTuple{4,Int64}=(0,0,0,0),mc_null::Int64=5000,n_max::Int64=25)
 
     # Print initialization of juliASM
@@ -1130,8 +1126,12 @@ function run_analysis(bam1::String,bam2::String,bam0::String,vcf::String,fa::Str
 
     # Compute null statistics from homozygous loci
     print_log("Generating null statistics in homozygous loci ...")
-    comp_tnull(bam0,het_gff,hom_gff,fa,tnull_path;pe=pe,blk_size=blk_size,cov_ths=cov_ths,trim=trim,
-               mc_null=mc_null)
+    comp_tnull(bamu,het_gff,hom_gff,fa,tnull_path;pe=pe,blk_size=blk_size,cov_ths=cov_ths,
+        trim=trim,mc_null=mc_null,n_max=n_max)
+
+    # Compute null statistics from heterozygous loci
+    print_log("Computing p-values in heterozygous loci ...")
+    comp_pvals(tobs_path,tnull_path,n_max)
 
     # Print number of features interrogated and finished message
     print_log("Done.")
