@@ -546,8 +546,8 @@ function gen_gffs(gff::Vector{String},fa::String,vcf::String,win_exp::Int64,blk_
 
         # Store homozygous stretch of CpG sites found
         if length(cpg_pos)>0
-            out_str = "$(curr_chr)\t.\t.\t$(hom_win[1])\t$(hom_win[2])\t.\t.\t.\t"
-            out_str *= "N=$(length(cpg_pos));CpGs=$(cpg_pos)"
+            out_str = "$(curr_chr)\t.\t.\t$(hom_win[1])\t$(hom_win[2])\t$(length(cpg_pos))\t.\t.\t"
+            out_str *= "CpGs=$(cpg_pos)"
             push!(hom_records,GFF3.Record(out_str))
         end
 
@@ -582,10 +582,10 @@ julia> read_gff_chr(GFF_PATH,"chr1")
 function read_gff_chr(gff::String,chr::String)::Vector{GFF3.Record}
 
     # Load genomic features from a GFF3 file
-    features = open(collect, GFF3.Reader, gff)
+    features = open(collect,GFF3.Reader,gff)
 
     # Keep features in chr
-    filter!(x -> GFF3.seqid(x) == chr, features)
+    filter!(x -> GFF3.seqid(x)==chr, features)
 
     # Return
     return features
@@ -612,27 +612,6 @@ function write_tobs(recs::Vector{Tuple{Int64,Int64,Float64,Int64,Int64}},chr::St
     end
 
 end # end write_tobs
-"""
-    `write_tnull(RECORDS,PATH)`
-
-Function that writes null records in `RECORDS` into `PATH`.
-
-# Examples
-```julia-repl
-julia> write_tnull(RECORDS,PATH)
-```
-"""
-function write_tnull(recs::Vector{Tuple{Int8,Int8,Float64}},path::String)
-
-    # Open output bedGraph file in append mode (no need to close it)
-    open(path, "a") do f
-        for i=1:length(recs)
-            recs[i][1]!=0 || continue
-            write(f,join(string.(collect(recs[i])),"\t"),"\n")
-        end
-    end
-
-end # end write_tnull
 """
     `get_cpg_pos(FEAT_ATTS)`
 
@@ -776,62 +755,6 @@ function print_log(mess::String)
 
 end # end print_log
 """
-    `get_kstar(GFF_PATH,CHR_NAMES,BLK_SIZE)`
-
-Function that returns a table with maximum K for each N in GFF_PATH.
-
-# Examples
-```julia-repl
-julia> get_kstar(GFF_PATH,CHR_NAMES,BLK_SIZE)
-```
-"""
-function get_kstar_table(gff::String,chr_names::Vector{String},blk_size::Int64)::Dict{Int64,Int64}
-
-    # Loop over chromosomes
-    table = Dict{Int64,Int64}()
-    for chr in chr_names
-        hom_win = read_gff_chr(gff,chr)
-        # Loop over windows in chromosome
-        for win in hom_win
-            # Get window info
-            win_st = GFF3.seqstart(win)
-            cpg_pos = get_cpg_pos(Dict(GFF3.attributes(win)))
-            n = get_ns(cpg_pos[1],blk_size,win_st)
-            # Update table if necessary
-            haskey(table,sum(n)) || (table[sum(n)]=length(n))
-            length(n)>table[sum(n)] && (table[sum(n)]=length(n))
-        end
-    end
-
-    return table
-
-end
-"""
-    `get_win_n(GFF_PATH,CHR_NAMES,N)`
-
-Function that returns a set of homozygous genomic windows with at least N CpG sites.
-
-# Examples
-```julia-repl
-julia> get_win_n(GFF_PATH,CHR_NAMES,N)
-```
-"""
-function get_win_n(gff::String,chr_names::Vector{String},n::Int64)::Vector{GFF3.Record}
-
-    # Loop over chromosomes to find valid windows
-    wins = Vector{GFF3.Record}()
-    for chr in chr_names
-        hom_win = read_gff_chr(gff,chr)
-        cpg_pos = get_cpg_pos.(Dict.(GFF3.attributes.(hom_win)))
-        hom_win_n_ok = findall(x->length(x[1])>=n,cpg_pos)
-        length(hom_win_n_ok)>0 && append!(wins,hom_win[hom_win_n_ok])
-    end
-
-    # Return
-    return wins
-
-end
-"""
     `comp_tobs(BAM1_PATH,BAM2_PATH,GFF_PATH,FA_PATH,OUT_PATHS)`
 
 Function that computes MML1/2, NME1/2, and UC on a pair of BAM files (allele 1, allele 2) given a
@@ -932,6 +855,133 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
 
 end # end comp_tobs
 """
+    `write_tnull(RECORDS,PATH)`
+
+Function that writes null records in `RECORDS` into `PATH`.
+
+# Examples
+```julia-repl
+julia> write_tnull(RECORDS,PATH)
+```
+"""
+function write_tnull(recs::Vector{Tuple{Int8,Int8,Float64}},path::String)
+
+    # Open output bedGraph file in append mode (no need to close it)
+    open(path, "a") do f
+        for i=1:length(recs)
+            recs[i][1]!=0 || continue
+            write(f,join(string.(collect(recs[i])),"\t"),"\n")
+        end
+    end
+
+end # end write_tnull
+"""
+    `get_kstar_table(GFF_PATH,CHR_NAMES,BLK_SIZE)`
+
+Function that returns a table with maximum K for each N in GFF_PATH.
+
+# Examples
+```julia-repl
+julia> get_kstar_table(GFF_PATH,CHR_NAMES,BLK_SIZE)
+```
+"""
+function get_kstar_table(gff::String,chr_names::Vector{String},blk_size::Int64)::Dict{Int64,Int64}
+
+    # Loop over chromosomes
+    table = Dict{Int64,Int64}()
+    for chr in chr_names
+        hom_win = read_gff_chr(gff,chr)
+        # Loop over windows in chromosome
+        for win in hom_win
+            # Get window info
+            win_st = GFF3.seqstart(win)
+            cpg_pos = get_cpg_pos(Dict(GFF3.attributes(win)))
+            n = get_ns(cpg_pos[1],blk_size,win_st)
+            # Update table if necessary
+            haskey(table,sum(n)) || (table[sum(n)]=length(n))
+            length(n)>table[sum(n)] && (table[sum(n)]=length(n))
+        end
+    end
+
+    return table
+
+end # end get_kstar_table
+"""
+    `sample_win_n(GFF_PATH,CHR_NAMES,NTOT,MC_NULL)`
+
+Function that returns a set of size MC_NULL of homozygous genomic windows with at least NTOT CpG
+sites.
+
+# Examples
+```julia-repl
+julia> sample_win_n(GFF_PATH,CHR_NAMES,NTOT,MC_NULL)
+```
+"""
+function sample_win_ntot(gff::String,chr_names::Vector{String},ntot::Int64,
+                         mc_null::Int64)::Vector{GFF3.Record}
+
+    # Load genomic features from a GFF3 file
+    features = open(collect,GFF3.Reader,gff)
+
+    # Filter based on N and chromosomes
+    filter!(x -> (GFF3.score(x)>=ntot) && (GFF3.seqid(x) in chr_names),features)
+
+    # Return
+    return features[sample(1:length(features),mc_null;replace=true)]
+
+end # end sample_win_n
+"""
+    `sample_ntot_cpgs(NTOT,CPG_POS)`
+
+Function that samples NTOT contiguous CpG sites from CPG_POS.
+
+# Examples
+```julia-repl
+julia> sample_ntot_cpgs(4,[10,15,20,25,30,35,40])
+4-element Array{Int64,1}:
+ 10
+ 15
+ 20
+ 25
+```
+"""
+function sample_ntot_cpgs(ntot::Int64,cpg_pos::Vector{Int64})::Vector{Int64}
+
+    # Get start index
+    st_ind = length(cpg_pos)>ntot ? sample(1:(length(cpg_pos)-(ntot-1))) : 1
+
+    # Return n
+    return cpg_pos[st_ind:(st_ind+ntot-1)]
+
+end # end sample_ntot_cpgs
+"""
+    `get_nvec_kstar(NTOT,KSTAR)`
+
+Function that returns vector n with Ntot CpG sites divided into Kstar subregions.
+
+# Examples
+```julia-repl
+julia> get_nvec_kstar(10,4)
+4-element Array{Int64,1}:
+ 3
+ 2
+ 2
+ 3
+```
+"""
+function get_nvec_kstar(ntot::Int64,kstar::Int64)::Vector{Int64}
+
+    # Partition CpG sites into Kstar subregions
+    n = div(ntot,kstar) * ones(Int64,kstar)
+    if sum(n)<ntot
+        cpg_ids = rand(Categorical(1.0/kstar*ones(kstar)),ntot-sum(n))
+        n += [length(findall(x->x==i,cpg_ids)) for i=1:kstar]
+    end
+
+    # Return n
+    return n
+end # end get_nvec_kstar
+"""
     `comp_tnull(BAM_PATH,GFF_PATH,FA_PATH,OUT_PATH)`
 
 Function that computes null dMMLs, dNME, and UC from a BAM files at locations given by GFF that
@@ -955,9 +1005,10 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
     close(reader_fa)
 
     # Obtain Kstar for every N & maximum N to analyze
+    print_log("Generating Kstar table ...")
     kstar_table = get_kstar_table(het_gff,collect(keys(chr_dic)),blk_size)
 
-    # Cap Nmax (99% pc. of N=28)
+    # Cap Nmax
     n_max = min(maximum(keys(kstar_table)),n_max)
 
     # Loop over Ns of interes
@@ -969,42 +1020,34 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
         # Get kstar
         kstar = kstar_table[ntot]
 
-        # Get windows pertaining to current Ns
-        win_ntot = get_win_n(hom_gff,collect(keys(chr_dic)),ntot)
-
-        # Sample with replacement enough windows
-        win_inds = sample(1:length(win_ntot),mc_null;replace=true)
+        # Sample windows with N=ntot
+        print_log("Sampling $(mc_null) windows ...")
+        win_ntot = sample_win_ntot(hom_gff,collect(keys(chr_dic)),ntot,mc_null)
 
         # bedGraph records
+        print_log("Initializing output array ...")
         out_sa = SharedArray{Tuple{Int8,Int8,Float64},2}(mc_null,3)
 
         # Produce a set of null statistics for each index
-        @sync @distributed for i=1:length(win_inds)
+        print_log("Computing null statistis ...")
+        @sync @distributed for i=1:length(win_ntot)
 
             # Get homozygous window
-            ind = win_inds[i]
-            feat = win_ntot[ind]
+            feat = win_ntot[i]
             chr = GFF3.seqid(feat)
             chr_size = chr_dic[chr]
 
-            # Sample ntot contiguous CpG sites in window
+            # Sample ntot contiguous CpG sites and partition into Kstar
             cpg_pos = get_cpg_pos(Dict(GFF3.attributes(feat)))[1]
-            st_ind = length(cpg_pos)>ntot ? sample(1:(length(cpg_pos)-(ntot-1))) : 1
-            end_ind = st_ind + ntot - 1
-            f_st = cpg_pos[st_ind]
-            f_end = cpg_pos[end_ind]
-
-            # Partition CpG sites into Kstar subregions
-            n = ones(Int64,kstar)
-            ntot>kstar && (cpg_ids=rand(Categorical(1.0/kstar*ones(kstar)),ntot-kstar))
-            ntot>kstar && (n+=[length(findall(x->x==i,cpg_ids)) for i=1:kstar])
+            cpg_pos = sample_ntot_cpgs(ntot,cpg_pos)
+            n = get_nvec_kstar(ntot,kstar)
 
             # Check average coverage
-            xobs = read_bam(bam,chr,f_st,f_end,cpg_pos[st_ind:end_ind],chr_size,pe,trim)
+            xobs = read_bam(bam,chr,cpg_pos[1],cpg_pos[end],cpg_pos,chr_size,pe,trim)
             mean_cov(xobs)>=2*cov_ths || continue
 
-            # Randomly partition observations
-            part = sample(1:length(xobs),div(length(xobs),2),replace=false)
+            # Randomly partition observations (sample minimum coverage)
+            part = sample(1:(2*cov_ths),cov_ths,replace=false)
             xobs1 = xobs[part]
             xobs2 = xobs[setdiff(1:length(xobs),part)]
 
@@ -1068,9 +1111,9 @@ function comp_pvals(tobs_path::Vector{String},tnull_path::Vector{String},n_max::
     end
 
     # Return
-    return true
+    return nothing
 
-end
+end # end comp_pvals
 """
     `run_analysis(BAM1_PATH,BAM2_PATH,BAMU_PATH,VCF_PATH,FA_PATH,OUT_PATH)`
 
