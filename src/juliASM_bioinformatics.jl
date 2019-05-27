@@ -265,6 +265,9 @@ function write_gff!(gff::String,gff_records::Vector{GFF3.Record})
     end
     close(writer)
 
+    # Return
+    return nothing
+
 end # end write_gff
 """
     `next_record(READER,CHR_NAMES,RECORD)`
@@ -335,6 +338,9 @@ function is_het_cpg!(var::VCF.Record,seq::FASTA.Record,h1::Vector{Int64},h2::Vec
         end
     end
 
+    # Return
+    return nothing
+
 end # end is_het_cpg!
 """
     `get_records_ps!(VCF_READER,SEQ,RECORD,CURR_PS,WIN_END,H1,H2)`
@@ -364,7 +370,7 @@ function get_records_ps!(reader::VCF.Reader,seq::FASTA.Record,record::VCF.Record
     if !eof(reader)
         read!(reader, record)
         if "PS" in VCF.format(record)
-            record,wEnd=get_records_ps!(reader,seq,record,curr_ps,wEnd,h1,h2)
+            record,wEnd = get_records_ps!(reader,seq,record,curr_ps,wEnd,h1,h2)
         else
             return record,wEnd
         end
@@ -498,35 +504,37 @@ function gen_gffs(gff::Vector{String},fa::String,vcf::String,win_exp::Int64,blk_
         # Store heterozygous haplotype & corresponding CpG sites if homozygous CpG site/s
         if length(cpg_pos)>0
 
+            # All CpG sites
+            all_cpg_pos = sort(vcat(cpg_pos,het1,het2))
+            het1_ind = [in(x,het1) for x in all_cpg_pos]
+            het2_ind = [in(x,het2) for x in all_cpg_pos]
+            hom_ind = [in(x,cpg_pos) for x in all_cpg_pos]
+
             # Obtain required number of models
-            n_mod = find_num_models(cpg_pos,n_max,1)
-            mod_size = div(length(cpg_pos),n_mod)
-            mod_rem = length(cpg_pos)-n_mod*mod_size
+            n_mod = find_num_models(all_cpg_pos,n_max,1)
+            mod_size = div(length(all_cpg_pos),n_mod)
+            mod_rem = length(all_cpg_pos)-n_mod*mod_size
 
             # Print each set separately
             for i=1:n_mod
-                # Get the mod_size homozygous CpG sites
-                cpg_pos_mod = cpg_pos[(mod_size*(i-1)+1):min((mod_size*i),length(cpg_pos))]
-                i==n_mod && mod_rem>0 && append!(cpg_pos_mod,cpg_pos[(end-mod_rem+1):end])
-                win_mod = [cpg_pos_mod[1],cpg_pos_mod[end]]
-                # Add heterozygous part
-                het1_mod = [in(het1[i],cpg_pos_mod[1]:cpg_pos_mod[end]) for i=1:length(het1)]
-                het2_mod = [in(het2[i],cpg_pos_mod[1]:cpg_pos_mod[end]) for i=1:length(het2)]
-                length(het1_mod)>0 && i==1 && minimum(het1)<cpg_pos[1] && (het1_mod[1]=true)
-                length(het2_mod)>0 && i==1 && minimum(het2)<cpg_pos[1] && (het2_mod[1]=true)
-                length(het1_mod)>0 && i==n_mod && maximum(het1)>cpg_pos[end] && (het1_mod[end]=true)
-                length(het2_mod)>0 && i==n_mod && minimum(het2)>cpg_pos[end] && (het2_mod[end]=true)
-                i==1 && length(het1)>0 && minimum(het1)<cpg_pos[1] && (win_mod[1]=minimum(het1))
-                i==1 && length(het2)>0 && minimum(het2)<cpg_pos[1] && (win_mod[1]=minimum(het2))
-                i==n_mod && length(het1)>0 && maximum(het1)>cpg_pos[end] &&
-                    (win_mod[end]=maximum(het1))
-                i==n_mod && length(het2)>0 && maximum(het2)>cpg_pos[end] &&
-                    (win_mod[end]=maximum(het2))
-                # Construct output string
-                out_str = "$(curr_chr)\t.\t$(curr_ps)\t$(win_mod[1])\t$(win_mod[2])\t.\t.\t.\t"
-                out_str *= "N=$(length(cpg_pos_mod));CpGs=$(cpg_pos_mod)"
-                length(het1_mod)>0 && sum(het1_mod)>0 && (out_str*=";hetCpGg1=$(het1[het1_mod])")
-                length(het2_mod)>0 && sum(het2_mod)>0 && (out_str*=";hetCpGg2=$(het2[het2_mod])")
+                # Index of subset of CpG sites in all_cpg_pos
+                all_ind = (mod_size*(i-1)+1):min((mod_size*i),length(all_cpg_pos))
+                i==n_mod && mod_rem>0 && (all_ind=extrema(all_ind)[1]:length(all_cpg_pos))
+                # Binary vector corresponding to model
+                bin_mod = falses(length(all_cpg_pos))
+                bin_mod[all_ind] .= true
+                # Get subset of CpG sites for each
+                hom_mod = all_cpg_pos[bin_mod .& hom_ind]
+                het1_mod = all_cpg_pos[bin_mod .& het1_ind]
+                het2_mod = all_cpg_pos[bin_mod .& het2_ind]
+                # Get f_st & f_end
+                f_st = i==1 ? win[1] : minimum(vcat(hom_mod,het1_mod,het2_mod))
+                f_end = i==n_mod ? win[2] : maximum(vcat(hom_mod,het1_mod,het2_mod))
+                # Push output string
+                out_str = "$(curr_chr)\t.\t$(curr_ps)\t$(f_st)\t$(f_end)\t.\t.\t.\t"
+                out_str *= "N=$(length(hom_mod));CpGs=$(hom_mod)"
+                length(het1_mod)>0 && (out_str*=";hetCpGg1=$(het1_mod)")
+                length(het2_mod)>0 && (out_str*=";hetCpGg2=$(het2_mod)")
                 # Push GFF record
                 push!(het_records,GFF3.Record(out_str))
             end
@@ -565,6 +573,9 @@ function gen_gffs(gff::Vector{String},fa::String,vcf::String,win_exp::Int64,blk_
     # Dump remaining records
     write_gff!(gff[1],het_records)
     write_gff!(gff[2],hom_records)
+
+    # Return
+    return nothing
 
 end # end gen_gffs
 """
@@ -610,6 +621,9 @@ function write_tobs(recs::Vector{Tuple{Int64,Int64,Float64,Int64,Int64}},chr::St
             write(f,"$(chr)\t"*join(string.(collect(recs[i])),"\t"),"\n")
         end
     end
+
+    # Return
+    return nothing
 
 end # end write_tobs
 """
@@ -712,9 +726,10 @@ function get_outpaths(outdir::String,prefix::String)
     # Paths
     tobs_path = "$(outdir)/$(prefix)" .* ["_mml1","_mml2","_nme1","_nme2","_uc"] .* ".bedGraph"
     tnull_path = "$(outdir)/$(prefix)" .* ["_dmml_null","_dnme_null","_uc_null"] .* ".bedGraph"
+    p_path = "$(outdir)/$(prefix)" .* ["_dmml_pvals","_dnme_pvals","_uc_pvals"] .* ".bedGraph"
 
     # Return path for Tobs and Tnull
-    return tobs_path,tnull_path
+    return tobs_path,tnull_path,p_path
 
 end # end get_outpaths
 """
@@ -734,6 +749,9 @@ function sort_bedgraphs(bg_files::Vector{String})
         run(`sort -V -k 1,1 -k 2,2n -o $f $f`)
     end
 
+    # Return
+    return nothing
+
 end # end sort_bedgraphs
 """
     `print_log(MESSAGE)`
@@ -752,6 +770,9 @@ function print_log(mess::String)
     date = Dates.format(now(), "yyyy-mm-dd HH:MM:SS")
     println(stderr,"[$(date)]: "  * mess)
     flush(stderr)
+
+    # Return
+    return nothing
 
 end # end print_log
 """
@@ -853,6 +874,9 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
     # Sort
     sort_bedgraphs([mml1_path,mml2_path,nme1_path,nme2_path,uc_path])
 
+    # Return
+    return nothing
+
 end # end comp_tobs
 """
     `write_tnull(RECORDS,PATH)`
@@ -873,6 +897,9 @@ function write_tnull(recs::Vector{Tuple{Int8,Int8,Float64}},path::String)
             write(f,join(string.(collect(recs[i])),"\t"),"\n")
         end
     end
+
+    # Return
+    return nothing
 
 end # end write_tnull
 """
@@ -903,6 +930,7 @@ function get_kstar_table(gff::String,chr_names::Vector{String},blk_size::Int64):
         end
     end
 
+    # Return
     return table
 
 end # end get_kstar_table
@@ -980,6 +1008,7 @@ function get_nvec_kstar(ntot::Int64,kstar::Int64)::Vector{Int64}
 
     # Return n
     return n
+
 end # end get_nvec_kstar
 """
     `comp_tnull(BAM_PATH,GFF_PATH,FA_PATH,OUT_PATH)`
@@ -1087,28 +1116,77 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
     # Sort files
     sort_bedgraphs([dmml_path,dnme_path,uc_path])
 
+    # Return nothing
+    return nothing
+
 end # end comp_tnull
 """
-    `comp_pvals(TOBS_PATH,TNULL_PATH)`
+    `comp_pvals_stat(TOBS_PATH,TNULL_PATH,N_MAX)`
+
+Function that returns the counts for each value of null statistis observed given N=n in file PATH.
+
+# Examples
+```julia-repl
+julia> comp_pvals_stat(tobs_path,tnull_path)
+```
+"""
+function comp_pvals_stat(tobs_path::Vector{String},tnull_path::String,p_path::String,n_max::Int64)
+
+    # Get null stats
+    tnull = readdlm(tnull_path,'\t')
+
+    # TODO: Should we report mml and nme based on homozygous n?
+    # TODO: Should we just not do hypothesis testing on dMML or dNME?
+
+    # Consider case dMML/dNME VS UC
+    if length(tobs_path)>1
+        # dMML/dNME
+        tobs = readdlm(tobs_path[1],'\t')
+        tobs[:,4] = abs.(tobs[:,4]-readdlm(tobs_path[2],'\t')[:,4])
+    else
+        # UC
+        tobs = readdlm(tobs_path[1],'\t')
+    end
+
+    # Initialize p-value matrix
+    pvals = tobs[:,1:4]
+    pvals[:,4] .= "NO DATA"
+
+    # Compute p-values
+    for i=1:size(tobs)[1]
+        # Check we can compute p-value
+        tobs[i,5]<=n_max || continue
+        # Compute empirical p-value
+        pvals[i,4] = sum(tnull[tnull[:,1].==tobs[i,5],3].>=tobs[i,4]) /
+            sum(tnull[:,1].==tobs[i,5])
+    end
+
+    # Write to output. TODO: get right path
+    open(p_path,"w") do io
+        writedlm(io,pvals,'\t')
+    end
+
+    # Return
+    return nothing
+
+end # end comp_pvals_stat
+"""
+    `comp_pvals(TOBS_PATH,TNULL_PATH,PVALS_PATH,N_MAX)`
 
 Function that computes p-values from empirical null distribution.
 
 # Examples
 ```julia-repl
-julia> comp_pvals(tobs_path,tnull_path)
-??
+julia> comp_pvals(tobs_path,tnull_path,p_path,n_max)
 ```
 """
-function comp_pvals(tobs_path::Vector{String},tnull_path::Vector{String},n_max::Int64)
+function comp_pvals(tobs_path::Vector{String},tnull_path::Vector{String},p_path::Vector{String},
+                    n_max::Int64)
 
-    # Loop over N
-    for n=1:n_max
-
-        # Store empirical in table (value,count)
-
-        # Get p-val for every haplotype with N=n (parallelization)
-
-    end
+    # Compute three sets of pvalues
+    comp_pvals_stat(tobs_path[1:2],tnull_path[1],p_path[1],n_max)
+    comp_pvals_stat(tobs_path[3:4],tnull_path[2],p_path[2],n_max)
+    comp_pvals_stat([tobs_path[5]],tnull_path[3],p_path[3],n_max)
 
     # Return
     return nothing
@@ -1146,7 +1224,7 @@ function run_analysis(bam1::String,bam2::String,bamu::String,vcf::String,fa::Str
 
     # BigWig output files
     prefix_sample = String(split(basename(bam1),".")[1])
-    tobs_path,tnull_path = get_outpaths(outdir,prefix_sample)
+    tobs_path,tnull_path,p_path = get_outpaths(outdir,prefix_sample)
 
     # Check for existance of at least an output files
     if all(isfile.(vcat(tobs_path,tnull_path)))
@@ -1174,9 +1252,12 @@ function run_analysis(bam1::String,bam2::String,bamu::String,vcf::String,fa::Str
 
     # Compute null statistics from heterozygous loci
     print_log("Computing p-values in heterozygous loci ...")
-    comp_pvals(tobs_path,tnull_path,n_max)
+    comp_pvals(tobs_path,tnull_path,p_path,n_max)
 
     # Print number of features interrogated and finished message
     print_log("Done.")
+
+    # Return
+    return nothing
 
 end # end run_analysis

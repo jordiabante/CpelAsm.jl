@@ -6,6 +6,7 @@ module JuliASM
 ###################################################################################################
 using Distributed               # For parallelization
 using SharedArrays              # For parallelization
+using DelimitedFiles            # For delimited files
 using Random                    # For random number generation
 using StatsBase                 # For statistics
 using Calculus                  # For Hessian estimation
@@ -66,6 +67,7 @@ export comp_corr
 export comp_evec
 export comp_tobs
 export comp_tnull
+export comp_pvals
 export run_analysis
 
 end # module
