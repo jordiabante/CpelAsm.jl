@@ -824,7 +824,8 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
             n = get_ns(cpg_pos[1],blk_size,f_st)
             n1 = get_ns(cpg_pos[2],blk_size,f_st)
             n2 = get_ns(cpg_pos[3],blk_size,f_st)
-
+            length(n)>0 || continue
+            
             # Get vectors from BAM1/2 overlapping feature & compute average coverage
             xobs1 = read_bam(bam1,chr,f_st,f_end,cpg_pos[2],chr_size,pe,trim)
             mean_cov1 = mean_cov(xobs1)
