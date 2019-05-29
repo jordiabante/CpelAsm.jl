@@ -825,7 +825,7 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
             n1 = get_ns(cpg_pos[2],blk_size,f_st)
             n2 = get_ns(cpg_pos[3],blk_size,f_st)
             length(n)>0 || continue
-            
+
             # Get vectors from BAM1/2 overlapping feature & compute average coverage
             xobs1 = read_bam(bam1,chr,f_st,f_end,cpg_pos[2],chr_size,pe,trim)
             mean_cov1 = mean_cov(xobs1)
@@ -1012,7 +1012,87 @@ function get_nvec_kstar(ntot::Int64,kstar::Int64)::Vector{Int64}
 
 end # end get_nvec_kstar
 """
-    `comp_tnull(BAM_PATH,GFF_PATH,FA_PATH,OUT_PATH)`
+    `cov_obs_part(XOBS,COV_THS,COV_A,COV_B)`
+
+Function that partitions observations into two sets of observations that satisfy a minimum
+coverage within [COV_THS-COV_A,COV_THS+COV_B]. If not partition is found that satisfies it,
+then two empty vectors are returned.
+
+# Examples
+```julia-repl
+julia> cov_obs_part(xobs,cov_ths,cov_a,cov_b)
+```
+"""
+function cov_obs_part(xobs::Vector{Vector{Int64}},cov_ths::Int64,cov_a::Float64,
+                      cov_b::Float64)::Tuple{Vector{Vector{Int64}},Vector{Vector{Int64}}}
+
+    ## Part that takes care of minimum coverage. After this step an allele can have
+    ## more than cov_ths+b. Here we just guarantee mean_cov(xobsi)≧cov_ths.
+
+    # Divide into two sets of equal size while checking bot have at least cov_ths
+    ct = 1
+    fail = false
+    xobs1 = Vector{Int64}()
+    xobs2 = Vector{Int64}()
+    while true
+        # Partition
+        ind = sample(1:length(xobs),div(length(xobs),2),replace=false)
+        xobs1 = xobs[ind]
+        xobs2 = xobs[setdiff(1:length(xobs),ind)]
+        # If coverage okay break loop
+        (mean_cov(xobs1)>=cov_ths) && (mean_cov(xobs2)>=cov_ths) && break
+        # Check we haven't exceeded the maximum number of permutations
+        if ct>20
+            # We failed and break
+            fail=true
+            break
+        else
+            # Increase counter
+            ct += 1
+        end
+    end
+
+    # Return empty arrays if fail=true
+    fail==false || return [],[]
+        # println("First OK: $(mean_cov(xobs1)) & $(mean_cov(xobs2))")
+
+    ## Part extra to limit number of observations used. The goal is to reduce the size of
+    ## xobs1 & xobs2 until both coverages are within [cov_ths-cov_a,cov_ths+cov_b].
+
+    # Check for [cov_ths-cov_a,cov_ths+cov_b] for xobs1
+    less_ok = false
+    while true
+        # Check if we can keep decreasing number
+        less_ok = mean_cov(xobs1[2:end])>=(cov_ths-cov_a) && mean_cov(xobs1)>=(cov_ths+cov_b)
+        xobs1 = less_ok ? xobs1=xobs1[2:end] : xobs1
+        less_ok || break
+    end
+
+    # Check if resulting observations meet b-bound as well
+    fail = mean_cov(xobs1)<=(cov_ths+cov_b) ? false : true
+    fail==false || return [],[]
+        # println("Second OK: $(mean_cov(xobs1))")
+
+    # Check for [cov_ths-cov_a,cov_ths+cov_b] for xobs2
+    less_ok = false
+    while true
+        # Check if we can keep decreasing number
+        less_ok = mean_cov(xobs2[2:end])>=(cov_ths-cov_a) && mean_cov(xobs2)>=(cov_ths+cov_b)
+        xobs2 = less_ok ? xobs2=xobs2[2:end] : xobs2
+        less_ok || break
+    end
+
+    # Check if resulting observations meet b-bound as well
+    fail = mean_cov(xobs2)<=(cov_ths+cov_b) ? false : true
+    fail==false || return [],[]
+        # println("Third OK: $(mean_cov(xobs2))")
+
+    # Return partition
+    return xobs1,xobs2
+
+end # end cov_obs_part
+"""
+    `cov_ths_part(BAM_PATH,GFF_PATH,FA_PATH,OUT_PATH)`
 
 Function that computes null dMMLs, dNME, and UC from a BAM files at locations given by GFF that
 contains the windows with not genetic variants and a FASTA file that contains the reference genome.
@@ -1023,8 +1103,9 @@ julia> comp_tnull(BAM_PATH,GFF_PATH,FA_PATH,OUT_PATH)
 ```
 """
 function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_paths::Vector{String}
-                    ;pe::Bool=true,blk_size::Int64=300,cov_ths::Int64=5,trim::NTuple{4,Int64}=
-                    (0,0,0,0),mc_null::Int64=5000,n_max::Int64=20)
+                    ;pe::Bool=true,blk_size::Int64=300,cov_ths::Int64=5,cov_a::Float64=0.0,
+                    cov_b::Float64=1.0,trim::NTuple{4,Int64}=(0,0,0,0),mc_null::Int64=5000,
+                    n_max::Int64=20)
 
     # BigWig output files
     dmml_path,dnme_path,uc_path = out_paths
@@ -1077,9 +1158,8 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
             mean_cov(xobs)>=2*cov_ths || continue
 
             # Randomly partition observations (sample minimum coverage)
-            part = sample(1:(2*cov_ths),cov_ths,replace=false)
-            xobs1 = xobs[part]
-            xobs2 = xobs[setdiff(1:length(xobs),part)]
+            xobs1,xobs2 = cov_obs_part(xobs,cov_ths,cov_a,cov_b)
+            (length(xobs1)>0) && (length(xobs2)>0) || continue
 
             # Estimate each single-allele model and check if on boundary of parameter space
             theta1 = est_theta(n,xobs1)
@@ -1136,8 +1216,8 @@ function comp_pvals_stat(tobs_path::Vector{String},tnull_path::String,p_path::St
     # Get null stats
     tnull = readdlm(tnull_path,'\t')
 
-    # TODO: Should we report mml and nme based on homozygous n?
     # TODO: Should we just not do hypothesis testing on dMML or dNME?
+    # TODO: Should we report mml and nme based on homozygous n?
 
     # Consider case dMML/dNME VS UC
     if length(tobs_path)>1
@@ -1209,7 +1289,8 @@ julia> run_analysis(BAM1_PATH,BAM2_PATH,BAMU_PATH,VCF_PATH,FA_PATH,OUT_PATH)
 """
 function run_analysis(bam1::String,bam2::String,bamu::String,vcf::String,fa::String,outdir::String;
                       pe::Bool=true,blk_size::Int64=300,win_exp::Int64=100,cov_ths::Int64=5,
-                      trim::NTuple{4,Int64}=(0,0,0,0),mc_null::Int64=5000,n_max::Int64=25)
+                      cov_a::Float64=0.0,cov_b::Float64=1.0,trim::NTuple{4,Int64}=(0,0,0,0),
+                      mc_null::Int64=5000,n_max::Int64=25)
 
     # Print initialization of juliASM
     print_log("Starting JuliASM analysis ...")
@@ -1249,7 +1330,7 @@ function run_analysis(bam1::String,bam2::String,bamu::String,vcf::String,fa::Str
     # Compute null statistics from homozygous loci
     print_log("Generating null statistics in homozygous loci ...")
     comp_tnull(bamu,het_gff,hom_gff,fa,tnull_path;pe=pe,blk_size=blk_size,cov_ths=cov_ths,
-        trim=trim,mc_null=mc_null,n_max=n_max)
+               cov_a=cov_a,cov_b=cov_b,trim=trim,mc_null=mc_null,n_max=n_max)
 
     # Compute null statistics from heterozygous loci
     print_log("Computing p-values in heterozygous loci ...")
