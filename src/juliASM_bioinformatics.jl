@@ -1168,21 +1168,17 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
             check_boundary(theta2) && continue
 
             # Estimate moments
-            ex1 = comp_ex(n,theta1[1:(end-1)],theta1[end])
-            ex2 = comp_ex(n,theta2[1:(end-1)],theta2[end])
-            exx1 = comp_exx(n,theta1[1:(end-1)],theta1[end])
-            exx2 = comp_exx(n,theta2[1:(end-1)],theta2[end])
+            grad1 = get_grad_logZ(n1,theta1)
+            grad2 = get_grad_logZ(n2,theta2)
 
             # Estimate output quantities
-            mml1 = comp_mml(ex1)
-            mml2 = comp_mml(ex2)
-            nme1 = comp_nme(trues(ntot),n,theta1[1:(end-1)],theta1[end],ex1,exx1)
-            nme2 = comp_nme(trues(ntot),n,theta2[1:(end-1)],theta2[end],ex2,exx2)
+            nme1 = comp_nme(n1,theta1,grad1)
+            nme2 = comp_nme(n2,theta2,grad2)
             uc = comp_uc(trues(ntot),trues(ntot),n,n,theta1,theta2,nme1,nme2)
 
             # Store output
-            out_sa[i,1] = (ntot,kstar,abs(round(mml1-mml2;digits=8)))
-            out_sa[i,2] = (ntot,kstar,abs(round(nme1-nme2;digits=8)))
+            out_sa[i,1] = (ntot,kstar,round(abs(comp_mml(n1,grad1)-comp_mml(n2,grad2));digits=8))
+            out_sa[i,2] = (ntot,kstar,round(abs(nme1-nme2);digits=8))
             out_sa[i,3] = (ntot,kstar,uc)
 
         end
@@ -1241,6 +1237,8 @@ function comp_pvals_stat(tobs_path::Vector{String},tnull_path::String,p_path::St
         pvals[i,4] = sum(tnull[tnull[:,1].==tobs[i,5],3].>=tobs[i,4]) /
             sum(tnull[:,1].==tobs[i,5])
     end
+
+    # TODO: Multiple hypothesis testing correction.
 
     # Write to output. TODO: get right path
     open(p_path,"w") do io

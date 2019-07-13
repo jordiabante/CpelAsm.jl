@@ -42,6 +42,8 @@ export gen_mult_full_data
 export gen_mult_part_data
 export comp_Z
 export comp_g
+export get_grad_logZ
+export get_fim
 export comp_lkhd
 export est_alpha
 export est_theta
@@ -58,7 +60,10 @@ export comp_ex
 export comp_exx
 export comp_cov
 export comp_mml
+export comp_mml_sub_β
+export comp_mml_hap_β
 export comp_nme
+export comp_nme_β
 export comp_nme_mix_mc
 export comp_nme_mix_exact
 export comp_nmi

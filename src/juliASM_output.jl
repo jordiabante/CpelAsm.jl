@@ -368,6 +368,66 @@ function comp_uc(z1::BitArray{1},z2::BitArray{1},n1::Vector{Int64},n2::Vector{In
     return round(min(1.0,max(0.0,1.0-0.5*(h1+h2)/h));digits=8)
 
 end # end comp_uc
+###################################################################################################
+# DEV FUNCTIONS
+###################################################################################################
+"""
+    `comp_mml_sub_β([N1,...,NK],∇logZ)`
+
+Function that computes mean methylation level (MML) for each subregion (Vector{Float64}).
+Reporting output for subregion might be more informative than just reporting an overall mean.
+This function takes advantage of the fact that E[S(X)]=Adot(θ). Much faster than computing first
+moment and correlations as currently done.
+
+# Examples
+```julia-repl
+julia>
+```
+"""
+function comp_mml_sub_β(n::Vector{Int64},grad::Vector{Float64})::Vector{Float64}
+
+    # Return
+    return abs.(round.(0.5.*(1.0./n.*grad[1:length(n)].+1.0);digits=8))
+
+end # end comp_mml_sub_β
+"""
+    `comp_mml_hap_β([N1,...,NK],∇logZ)`
+
+Function that computes mean methylation level (MML) over the entire haplotype (Float64). This
+function takes advantage of the fact that E[S(X)]=Adot(θ). Much faster than computing first
+moment and correlations as currently done.
+
+# Examples
+```julia-repl
+julia>
+```
+"""
+function comp_mml_hap_β(n::Vector{Int64},grad::Vector{Float64})::Float64
+
+    # Return
+    return abs.(round.(0.5*(1.0+1.0/sum(n)*sum(grad[1:length(n)]));digits=8))
+
+end # end comp_mml_hap_β
+"""
+    `comp_nme_β([N1,...,NK],θ,∇logZ)`
+
+Function that computes normalized methylation entropy (NME) over the entire haplotype.
+
+# Examples
+```julia-repl
+julia>
+```
+"""
+function comp_nme_β(n::Vector{Int64},θ::Vector{Float64},grad::Vector{Float64})::Float64
+
+    # Return
+    return abs.(round.(1.0/(sum(n)*LOG2)*(log(comp_Z(n,θ[1:(end-1)],θ[end]))
+        -sum(grad.*θ));digits=8))
+
+end # end comp_nme_β
+###################################################################################################
+# UNUSED FUNCTIONS
+###################################################################################################
 """
     `comp_corr(EX,EXX)`
 
@@ -393,9 +453,6 @@ function comp_corr(ex::Vector{Float64},exx::Vector{Float64})::Vector{Float64}
     (ov.-ex[2:end].^2));digits=8)
 
 end # end comp_corr
-###################################################################################################
-# UNUSED FUNCTIONS
-###################################################################################################
 """
     `comp_cov([N1,...,NK],[α1,...,αK],β,EX,EXX)`
 
@@ -554,3 +611,43 @@ function comp_uc_xcal(z1::BitArray{1},z2::BitArray{1},n1::Vector{Int64},n2::Vect
     return 1-0.5*num/den
 
 end # end comp_uc_xcal
+###################################################################################################
+# COMPETING MODELS
+###################################################################################################
+"""
+    `comp_lkhd_bin(XOBS,θ)`
+
+Function that returns likelihood vector of XOBS, assuming full data, given parameter vector θ for
+the non-parametric independent model (binomial).
+
+# Examples
+```julia-repl
+julia>
+```
+"""
+function comp_lkhd_bin(xobs::Array{Vector{Int64},1},θ::Vector{Float64})::Vector{Float64}
+
+    # Return evec
+    return [prod(θ.^(x.==1) .* (ones(length(xobs[1]))-θ).^(x.==-1)) for x in xobs]
+
+end # end comp_lkhd_bin
+"""
+    `comp_lkhd_mult(XOBS,θ)`
+
+Function that returns likelihood vector of XOBS, assuming full data, given parameter vector θ for
+the non-parametric dependent model (multinomial).
+
+# Examples
+```julia-repl
+julia>
+```
+"""
+function comp_lkhd_mult(xobs::Array{Vector{Int64},1},θ::Vector{Float64})::Vector{Float64}
+
+    # Generate 𝒳
+    xcal = generate_xcal(length(xobs[1]))
+
+    # Return evec
+    return θ[[findfirst(y->y==x,xcal) for x in xobs]]
+
+end # end comp_lkhd_mult
