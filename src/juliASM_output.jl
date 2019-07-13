@@ -617,7 +617,7 @@ end # end comp_uc_xcal
 """
     `comp_lkhd_bin(XOBS,θ)`
 
-Function that returns likelihood vector of XOBS, assuming full data, given parameter vector θ for
+Function that returns likelihood vector of XOBS, potentially partial, given parameter vector θ for
 the non-parametric independent model (binomial).
 
 # Examples

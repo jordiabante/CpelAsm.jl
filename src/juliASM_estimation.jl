@@ -502,26 +502,25 @@ end # end mle_mult
 """
     `mle_bin_semi(XOBS)`
 
-Estimate parameter vector `p=[p_1,...,p_{N}]` based on a binomial model that assumes a different
-probability of methylation at each CpG site, as well as fully observed vectors. This results in a
-semi-parametric model that grows in size proportionally to the number of CpG sites.
+Estimate parameter vector `p=[p_1,...,p_{N}]`, based on a binomial model that assumes a different
+probability of methylation at each CpG site, from potentially partial observations. This results
+in a semi-parametric model that grows in size proportionally to the number of CpG sites.
 
 # Examples
 ```julia-repl
 julia> Random.seed!(1234);
 julia> xobs=JuliASM.gen_mult_full_data(100);
 julia> JuliASM.mle_bin_semi(xobs)
-
 ```
 """
 function mle_bin_semi(xobs::Array{Vector{Int64},1})::Vector{Float64}
 
     # Get xcal
     N = size(xobs[1])[1]
-    M = length(xobs)
 
     # Get empirical estimate
-    θ = [length(findall(x->x[i]==1,xobs)) / M for i in 1:N]
+    θ = [length(findall(x->x[i]==1,xobs)) / (length(findall(x->x[i]==1,xobs))+
+         length(findall(x->x[i]==-1,xobs))) for i in 1:N]
 
     # Return phat
     return θ
