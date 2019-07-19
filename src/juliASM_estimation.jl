@@ -313,6 +313,7 @@ function comp_lkhd(x::Vector{Int64},n::Vector{Int64},a::Vector{Float64},b::Float
 
         # Call scaling factor function
         sf *= comp_g(n_miss,a[unique(b_id)],b,ap1,ap2)
+        
     end
 
     # Return energy function properly scaled.

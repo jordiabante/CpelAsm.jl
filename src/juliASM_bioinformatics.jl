@@ -828,38 +828,51 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
 
             # Get vectors from BAM1/2 overlapping feature & compute average coverage
             xobs1 = read_bam(bam1,chr,f_st,f_end,cpg_pos[2],chr_size,pe,trim)
-            mean_cov1 = mean_cov(xobs1)
-            mean_cov1>=cov_ths || continue
+            cov_ths <= mean_cov(xobs1) <= 200 || continue
             xobs2 = read_bam(bam2,chr,f_st,f_end,cpg_pos[3],chr_size,pe,trim)
-            mean_cov2 = mean_cov(xobs2)
-            mean_cov2>=cov_ths || continue
+            cov_ths <= mean_cov(xobs2) <= 200 || continue
 
             # Estimate each single-allele model and check if on boundary of parameter space
-            theta1 = est_theta(n1,xobs1)
-            check_boundary(theta1) && continue
-            theta2 = est_theta(n2,xobs2)
-            check_boundary(theta2) && continue
+            θ1 = est_theta(n1,xobs1)
+            check_boundary(θ1) && continue
+            θ2 = est_theta(n2,xobs2)
+            check_boundary(θ2) && continue
 
-            # Estimate first and second moments
-            ex1 = comp_ex(n1,theta1[1:(end-1)],theta1[end])
-            ex2 = comp_ex(n2,theta2[1:(end-1)],theta2[end])
-            exx1 = comp_exx(n1,theta1[1:(end-1)],theta1[end])
-            exx2 = comp_exx(n2,theta2[1:(end-1)],theta2[end])
-
-            # Add results to output array
-            out_sa[i,1] = (f_st,f_end,comp_mml(ex1),sum(n1),length(n1))
-            out_sa[i,2] = (f_st,f_end,comp_mml(ex2),sum(n2),length(n2))
-            out_sa[i,3] = (f_st,f_end,comp_nme(trues(sum(n1)),n1,theta1[1:(end-1)],theta1[end],
-                ex1,exx1),sum(n1),length(n1))
-            out_sa[i,4] = (f_st,f_end,comp_nme(trues(sum(n2)),n2,theta2[1:(end-1)],theta2[end],
-                ex2,exx2),sum(n2),length(n2))
-
-            # Add UC to output
+            # Get binary vector with homozygous CpG sites
             z1 = BitArray([p in cpg_pos[1] ? true : false for p in cpg_pos[2]])
             z2 = BitArray([p in cpg_pos[1] ? true : false for p in cpg_pos[3]])
-            nme1 = comp_nme(z1,n1,theta1[1:(end-1)],theta1[end],ex1,exx1)
-            nme2 = comp_nme(z2,n2,theta2[1:(end-1)],theta2[end],ex2,exx2)
-            out_sa[i,5] = (f_st,f_end,comp_uc(z1,z2,n1,n2,theta1,theta2,nme1,nme2),sum(n),length(n))
+
+            # Estimate intermediate quantities
+            if all(z1)
+                # In case all are homozygous CpG sites
+                ∇1 = get_grad_logZ(n1,θ1)
+            else
+                # In case NOT all are homozygous CpG sites
+                ex1 = comp_ex(n1,θ1[1:(end-1)],θ1[end])
+                exx1 = comp_exx(n1,θ1[1:(end-1)],θ1[end])
+            end
+            if all(z2)
+                # In case all are homozygous CpG sites
+                ∇2 = get_grad_logZ(n2,θ2)
+            else
+                # In case NOT all are homozygous CpG sites
+                ex2 = comp_ex(n2,θ2[1:(end-1)],θ2[end])
+                exx2 = comp_exx(n2,θ2[1:(end-1)],θ2[end])
+            end
+
+            # Compute output
+            mml1 = all(z1) ? comp_mml_∇(n1,∇1) : comp_mml(z1,ex1)
+            mml2 = all(z2) ? comp_mml_∇(n2,∇2) : comp_mml(z2,ex2)
+            nme1 = all(z1) ? comp_nme_∇(n1,θ1,∇1) : comp_nme(z1,n1,θ1[1:(end-1)],θ1[end],ex1,exx1)
+            nme2 = all(z2) ? comp_nme_∇(n2,θ2,∇2) : comp_nme(z2,n2,θ2[1:(end-1)],θ2[end],ex2,exx2)
+            uc = comp_uc(z1,z2,n1,n2,θ1,θ2,nme1,nme2)
+
+            # Add statistics to output array
+            out_sa[i,1] = (f_st,f_end,mml1,sum(n),length(n1))
+            out_sa[i,2] = (f_st,f_end,mml2,sum(n),length(n2))
+            out_sa[i,3] = (f_st,f_end,nme1,sum(n),length(n1))
+            out_sa[i,4] = (f_st,f_end,nme2,sum(n),length(n2))
+            out_sa[i,5] = (f_st,f_end,uc,sum(n),length(n))
 
         end
 
@@ -1123,7 +1136,7 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
     n_max = min(maximum(keys(kstar_table)),n_max)
 
     # Loop over Ns of interes
-    for ntot=1:n_max
+    for ntot in keys(kstar_table)
 
         # Print current N
         print_log("Generating null statistics for N=$(ntot) ...")
@@ -1153,31 +1166,31 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
             cpg_pos = sample_ntot_cpgs(ntot,cpg_pos)
             n = get_nvec_kstar(ntot,kstar)
 
-            # Check average coverage
+            # Check average coverage is within normal limits (watch for repetitive regions)
             xobs = read_bam(bam,chr,cpg_pos[1],cpg_pos[end],cpg_pos,chr_size,pe,trim)
-            mean_cov(xobs)>=2*cov_ths || continue
+            2*cov_ths <= mean_cov(xobs) <= 400 || continue
 
             # Randomly partition observations (sample minimum coverage)
             xobs1,xobs2 = cov_obs_part(xobs,cov_ths,cov_a,cov_b)
             (length(xobs1)>0) && (length(xobs2)>0) || continue
 
             # Estimate each single-allele model and check if on boundary of parameter space
-            theta1 = est_theta(n,xobs1)
-            check_boundary(theta1) && continue
-            theta2 = est_theta(n,xobs2)
-            check_boundary(theta2) && continue
+            θ1 = est_theta(n,xobs1)
+            check_boundary(θ1) && continue
+            θ2 = est_theta(n,xobs2)
+            check_boundary(θ2) && continue
 
             # Estimate moments
-            grad1 = get_grad_logZ(n1,theta1)
-            grad2 = get_grad_logZ(n2,theta2)
+            ∇1 = get_grad_logZ(n,θ1)
+            ∇2 = get_grad_logZ(n,θ2)
 
             # Estimate output quantities
-            nme1 = comp_nme(n1,theta1,grad1)
-            nme2 = comp_nme(n2,theta2,grad2)
-            uc = comp_uc(trues(ntot),trues(ntot),n,n,theta1,theta2,nme1,nme2)
+            nme1 = comp_nme_∇(n,θ1,∇1)
+            nme2 = comp_nme_∇(n,θ2,∇2)
+            uc = comp_uc(trues(ntot),trues(ntot),n,n,θ1,θ2,nme1,nme2)
 
             # Store output
-            out_sa[i,1] = (ntot,kstar,round(abs(comp_mml(n1,grad1)-comp_mml(n2,grad2));digits=8))
+            out_sa[i,1] = (ntot,kstar,round(abs(comp_mml_∇(n,∇1)-comp_mml_∇(n,∇2));digits=8))
             out_sa[i,2] = (ntot,kstar,round(abs(nme1-nme2);digits=8))
             out_sa[i,3] = (ntot,kstar,uc)
 
@@ -1200,7 +1213,8 @@ end # end comp_tnull
 """
     `comp_pvals_stat(TOBS_PATH,TNULL_PATH,N_MAX)`
 
-Function that returns the counts for each value of null statistis observed given N=n in file PATH.
+Function that computes adjusted p-values for each haplotype in TOBS_PATH from the empirical
+distribution of the pertaining statistic in TNULL_PATH.
 
 # Examples
 ```julia-repl
@@ -1211,9 +1225,6 @@ function comp_pvals_stat(tobs_path::Vector{String},tnull_path::String,p_path::St
 
     # Get null stats
     tnull = readdlm(tnull_path,'\t')
-
-    # TODO: Should we just not do hypothesis testing on dMML or dNME?
-    # TODO: Should we report mml and nme based on homozygous n?
 
     # Consider case dMML/dNME VS UC
     if length(tobs_path)>1
@@ -1234,11 +1245,11 @@ function comp_pvals_stat(tobs_path::Vector{String},tnull_path::String,p_path::St
         # Check we can compute p-value
         tobs[i,5]<=n_max || continue
         # Compute empirical p-value
-        pvals[i,4] = sum(tnull[tnull[:,1].==tobs[i,5],3].>=tobs[i,4]) /
-            sum(tnull[:,1].==tobs[i,5])
+        pvals[i,4] = sum(tnull[tnull[:,1].==tobs[i,5],3].>=tobs[i,4]) / sum(tnull[:,1].==tobs[i,5])
     end
 
-    # TODO: Multiple hypothesis testing correction.
+    # Multiple hypothesis testing correction
+    pvals[:,4] = MultipleTesting.adjust(convert(Vector{Float64},pvals[:,4]),BenjaminiHochberg())
 
     # Write to output. TODO: get right path
     open(p_path,"w") do io
