@@ -145,6 +145,33 @@ function comp_Z(n::Vector{Int64},a::Vector{Float64},b::Float64)::Float64
 
 end
 """
+    `get_grad_logZ([N1,...,NK],θhat)`
+
+Computes expected value of sufficient statistis (SS) of a model with [N1,...,NK] CpG cites and
+estimated parameter vector θhat, and normalizes it so as to be ∈[0,1]. In other words, vector of
+MML where each component is the MML in the respective subregion.
+
+# Examples
+```julia-repl
+julia> JuliASM.get_grad_logZ([1,1,1],[1.0,-1.0,1.0,0.0])
+3-element Array{Float64,1}:
+ 0.8807970779851251
+ 0.11920292201487487
+ 0.8807970779667909
+```
+"""
+function get_grad_logZ(n::Vector{Int64},θhat::Vector{Float64})::Vector{Float64}
+
+    # Define function
+    function f(θ::Vector{Float64})
+        log(comp_Z(n,θ[1:(end-1)],θ[end]))
+    end
+
+    # Return 0.5/N_k(E_k[S(X)]+1) vector
+    return Calculus.gradient(f,θhat)
+
+end
+"""
     `get_fim([N1,...,NK],θhat)`
 
 Estimate Fisher information matrix of a model with [N1,...,NK] CpG cites and evaluated at estimated
@@ -164,11 +191,11 @@ function get_fim(n::Vector{Int64},θhat::Vector{Float64})::Array{Float64,2}
 
     # Define function
     function f(θ::Vector{Float64})
-        comp_Z(n,θ[1:(end-1)],θ[end])
+        log(comp_Z(n,θ[1:(end-1)],θ[end]))
     end
 
     # Return I(θ)
-    return hessian(f,θhat)
+    return Calculus.hessian(f,θhat)
 
 end
 """
@@ -194,24 +221,21 @@ function keep_region(m::Int64,n::Vector{Int64},θhat::Vector{Float64})::Bool
 
 end
 """
-    `check_boundary([N1,...,NK],θhat)`
+    `check_boundary(θhat)`
 
-Function that returns a bool indicating whether model with [N1,...,NK] CpG cites and with parameter
-estimate vector θhat is on the boundary of the parameter space.
+Function that returns a bool indicating whether model with parameter estimate vector θhat is on the
+boundary of the parameter space in any of its components.
 
 # Examples
 ```julia-repl
-julia> JuliASM.check_boundary([1,1,1],[1.0,1.0,1.0,1.0])
+julia> JuliASM.check_boundary([1.0,1.0,1.0,1.0])
 false
 ```
 """
-function check_boundary(n::Vector{Int64},θhat::Vector{Float64})::Bool
-
-    # Note: we need to consider the N=1 case separately since βhat=0 in that case.
+function check_boundary(θhat::Vector{Float64})::Bool
 
     # Return true θhat on boundary.
-    return sum(n)==1 ? isapprox.(abs.(θhat[1]),ETA_MAX_ABS;atol=1e-1) :
-        all(isapprox.(abs.(θhat),ETA_MAX_ABS;atol=1e-1))
+    return isapprox(abs.(θhat[1]),ETA_MAX_ABS;atol=5e-2)
 
 end
 """
@@ -289,6 +313,7 @@ function comp_lkhd(x::Vector{Int64},n::Vector{Int64},a::Vector{Float64},b::Float
 
         # Call scaling factor function
         sf *= comp_g(n_miss,a[unique(b_id)],b,ap1,ap2)
+        
     end
 
     # Return energy function properly scaled.
@@ -426,11 +451,13 @@ function est_theta(n::Vector{Int64},xobs::Array{Vector{Int64},1})::Vector{Float6
     return optim.minimizer
 
 end # end est_theta
+###################################################################################################
+# COMPETING MODELS
+###################################################################################################
 """
     `mle_mult(XOBS)`
 
-Estimate parameter vector p=[p_1,...,p_{2^N}] based on a multinomial model
-and full observations.
+Estimate parameter vector p=[p_1,...,p_{2^N}] based on a multinomial model and full observations.
 
 # Examples
 ```julia-repl
@@ -476,57 +503,28 @@ end # end mle_mult
 """
     `mle_bin_semi(XOBS)`
 
-Estimate parameter vector `p=[p_1,...,p_{2^N}]` based on a binomial model that
-assumes a different probability of methylation at each CpG site, as well as
-fully observed vectors. This results in a semi-parametric model that grows
-in size proportionally to the number of CpG sites.
+Estimate parameter vector `p=[p_1,...,p_{N}]`, based on a binomial model that assumes a different
+probability of methylation at each CpG site, from potentially partial observations. This results
+in a semi-parametric model that grows in size proportionally to the number of CpG sites.
 
 # Examples
 ```julia-repl
 julia> Random.seed!(1234);
 julia> xobs=JuliASM.gen_mult_full_data(100);
 julia> JuliASM.mle_bin_semi(xobs)
-16-element Vector{Float64}:
- 0.06662343999999999
- 0.07512856000000001
- 0.04824455999999999
- 0.05440344
- 0.07512856000000001
- 0.08471944000000002
- 0.054403440000000004
- 0.06134856
- 0.061498559999999994
- 0.06934944000000001
- 0.044533439999999994
- 0.050218559999999995
- 0.06934944000000001
- 0.07820256000000002
- 0.05021856
- 0.056629439999999996
 ```
 """
 function mle_bin_semi(xobs::Array{Vector{Int64},1})::Vector{Float64}
 
     # Get xcal
     N = size(xobs[1])[1]
-    M = length(xobs)
-    xcal = generate_xcal(N)
 
     # Get empirical estimate
-    θ = zeros(Float64,N)
-    [θ[i] = length(findall(x->x[i]==1,xobs)) / M for i in 1:N]
-
-    # Compute probabilities of each pattern
-    i = 1
-    phat = zeros(Float64,2^N)
-    for x in xcal
-        phat[i] =prod([θ[j]^isequal(x[j],1) * (1-θ[j])^(1-isequal(x[j],1))
-            for j in 1:N])
-        i += 1
-    end
+    θ = [length(findall(x->x[i]==1,xobs)) / (length(findall(x->x[i]==1,xobs))+
+         length(findall(x->x[i]==-1,xobs))) for i in 1:N]
 
     # Return phat
-    return phat #/ sum(phat)
+    return θ
 
 end # end mle_bin_semi
 """

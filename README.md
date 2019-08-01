@@ -1,12 +1,12 @@
 # JuliASM
 
-A `julia` package for allele-specific methylation analysis.
+A `julia` package for allele-specific methylation (ASM) analysis.
 
 ## Description
 
-`JuliASM` is based on the method in XXX, and it draws ideas from statistical
-physics and information theory to identify significant differences between
-the methylation patterns of each haplotype.
+`JuliASM` is based on the method in [CITE], and it draws ideas from
+statistical physics and information theory to identify allele-specific
+methylation events at the haplotype level.
 
 ## Getting Started
 
@@ -26,27 +26,29 @@ julia -e 'using Pkg; Pkg.clone("git@github.com:jordiabante/JuliASM.jl.git")'
 
 In a `julia` session run
 ```julia
-pkg> test JuliASM
+(v1.0) pkg> test JuliASM
 ```
 
 ## Toy Example
 
-The package includes a small toy example for illustrative purposes. The
-example consists of two alleles `a1` and `a2`. The former has a
-mean-methylation level of 0.9, while the later has 0.1. The mutual
-information is almost equal to 1 in all variants, and the permutation test
-returns p-values≈0. The output bedGraph files can be found in `out_path`.
-To run the toy example run the following commands in a `julia` session:
+The package includes a small toy example for illustrative purposes.
+The example consists of two alleles `a1` and `a2`. The former has a
+mean-methylation level (MML) of 0.4, while that of the later is 0.6.
+Nevertheless, given the symmetry of the problem, both alleles have
+the same Shannon entropy. Thus differential  analysis only identifies
+differences in terms of MML. The output bedGraph files can be found
+in `out_path`. To run the toy example run the following commands in
+a `julia` session:
 
 ```julia
 using JuliASM
 dir = "/path/to/JuliASM.jl/test/"
-bam1_path="$(dir)/bam/example.a1.bam"
-bam2_path="$(dir)/bam/example.a2.bam"
-fasta_path = "$(dir)/fasta/example.fa"
-vcf_path = "$(dir)/vcf/example.vcf"
-out_path="$(dir)/out/"
-run_asm_analysis(bam1_path,bam2_path,vcf_path,fasta_path,out_path)
+b1 = "$(dir)/bam/example.a1.bam"
+b2 = "$(dir)/bam/example.a2.bam"
+fa = "$(dir)/fasta/example.fa"
+vcf = "$(dir)/vcf/example.vcf"
+out = "$(dir)/out/"
+run_analysis(b1,b2,b1,vcf,fa,out;blk_size=20,cov_ths=3,cov_b=20.0,win_exp=10,mc_null=1000,n_max=5)
 ```
 
 ## Authors
@@ -58,6 +60,5 @@ run_asm_analysis(bam1_path,bam2_path,vcf_path,fasta_path,out_path)
 This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md)
 file for details.
 
-## Acknowledgments
-
-* Inspiration
+## References
+[CITE]

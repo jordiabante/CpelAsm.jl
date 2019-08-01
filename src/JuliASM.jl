@@ -5,6 +5,8 @@ module JuliASM
 # DEPENDENCIES
 ###################################################################################################
 using Distributed               # For parallelization
+using SharedArrays              # For parallelization
+using DelimitedFiles            # For delimited files
 using Random                    # For random number generation
 using StatsBase                 # For statistics
 using Calculus                  # For Hessian estimation
@@ -21,6 +23,7 @@ using GeneticVariation          # For VCF file
 using BioSequences              # For FASTA file
 using Combinatorics             # For permutation test
 using ProgressMeter             # For tracking progress
+using MultipleTesting           # For multiple hypothesis testing
 ###################################################################################################
 # INCLUDES
 ###################################################################################################
@@ -32,39 +35,33 @@ include("juliASM_output.jl")
 ###################################################################################################
 # EXPORTS
 ###################################################################################################
-export generate_xcal
-export gen_x_mc
-export gen_ising_full_data
-export gen_ising_part_data
-export gen_mult_full_data
-export gen_mult_part_data
-export comp_Z
-export comp_g
-export comp_lkhd
-export est_alpha
-export est_theta
-export perm_test
-export mle_mult
-export mle_bin_semi
-export mle_bin_param
-export mle_asymptotics
-export comp_estimates
-export read_bam
-export gen_gffs
-export read_gff_chr
-export comp_ex
-export comp_exx
-export comp_cov
-export comp_mml
-export comp_nme
-export comp_nme_mix_mc
-export comp_nme_mix_exact
-export comp_nmi
-export comp_uc
-export comp_corr
-export comp_evec
-export comp_tobs
-export comp_tnull
-export run_analysis
+
+# Data generating functions
+export gen_x_mc                     # Generate a methylation vector using MC approach
+export gen_ising_full_data          # Generate a set of full observations using slow approach
+export gen_ising_part_data          # Generate a set of partial observations using slow approach
+
+# Different computations
+export comp_Z                       # Partition function
+export est_alpha                    # Estimate α for N=1 case
+export est_theta                    # Estimate θ in general case
+export comp_lkhd                    # Compute likelihood
+export comp_ex                      # Compute E[X] vector
+export comp_exx                     # Compute E[XX] vector
+export comp_cov                     # Compute Σ matrix
+export comp_mml                     # Compute MML in `comp_tobs`
+export comp_mml_∇                   # Compute MML in `comp_tnull (uses ∇logZ)
+export comp_nme                     # Compute NME in `comp_tobs`
+export comp_nme_∇                   # Compute NME in `comp_tnull` (uses ∇logZ)
+export comp_nme_mix_mc              # Compute NME in mixture model using MC technique
+export comp_nme_mix_exact           # Compute NME in mixture model recursively (N<17)
+export comp_uc                      # Compute UC
+
+# General functions
+export gen_gffs                     # Function to generate GFF files
+export comp_tobs                    # Compute statistis in haplotypes
+export comp_tnull                   # Generate null statistis
+export comp_pvals                   # Compute p-values
+export run_analysis                 # Run it all
 
 end # module

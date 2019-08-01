@@ -238,7 +238,7 @@ function read_bam(bam::String,chr::String,f_st::Int64,f_end::Int64,cpg_pos::Vect
         obs_cpgs = obs_cpgs[findall(x-> x in cpg_pos,obs_cpgs)] .+ OFFSET
         x[olap_cpgs] = reduce(replace,["Z"=>1,"z"=>-1],init=split(meth_call[obs_cpgs],""))
         push!(xobs,x)
-        
+
     end # end loop over templates sequenced
 
     # Return
@@ -264,6 +264,9 @@ function write_gff!(gff::String,gff_records::Vector{GFF3.Record})
         write(writer,popfirst!(gff_records))
     end
     close(writer)
+
+    # Return
+    return nothing
 
 end # end write_gff
 """
@@ -335,6 +338,9 @@ function is_het_cpg!(var::VCF.Record,seq::FASTA.Record,h1::Vector{Int64},h2::Vec
         end
     end
 
+    # Return
+    return nothing
+
 end # end is_het_cpg!
 """
     `get_records_ps!(VCF_READER,SEQ,RECORD,CURR_PS,WIN_END,H1,H2)`
@@ -364,7 +370,7 @@ function get_records_ps!(reader::VCF.Reader,seq::FASTA.Record,record::VCF.Record
     if !eof(reader)
         read!(reader, record)
         if "PS" in VCF.format(record)
-            record,wEnd=get_records_ps!(reader,seq,record,curr_ps,wEnd,h1,h2)
+            record,wEnd = get_records_ps!(reader,seq,record,curr_ps,wEnd,h1,h2)
         else
             return record,wEnd
         end
@@ -387,7 +393,8 @@ julia> expand_win(50,80,10,50,2000)
 ??
 ```
 """
-function expand_win(l_snp,r_snp,win_exp,blk_size,chr_size)
+function expand_win(l_snp::Int64,r_snp::Int64,win_exp::Int64,blk_size::Int64,
+                    chr_size::Int64)::Vector{Int64}
 
     # Expand left and right to include nearby CpG sites
     l_snp -= win_exp
@@ -399,36 +406,56 @@ function expand_win(l_snp,r_snp,win_exp,blk_size,chr_size)
     # Cap at 1 and end of chromosome
     return [max(1,l_snp-rmdr),min(chr_size,r_snp+rmdr)]
 
-end
+end # end expand_win
 """
-    `gen_gffs([HET_GFF_PATH,HOM_GFF_PATH],FA_PATH,VCF_PATH,WIN_EXP,BLOCK_SIZE)`
+    `find_num_models(CPG_POS,NMAX,NMOD)`
+
+Function that returns the number of models required so as to avoid joint model with N>NMAX.
+
+# Examples
+```julia-repl
+julia> find_num_models([50,55,60,65],2,1)
+2
+```
+"""
+function find_num_models(cpg_pos::Vector{Int64},n_max::Int64,n_mod::Int64)::Int64
+
+    # Check if resulting models are acceptable
+    return length(cpg_pos)/n_mod>n_max ? find_num_models(cpg_pos,n_max,n_mod+1) : n_mod
+
+end # end find_num_models
+"""
+    `gen_gffs([HET_GFF_PATH,HOM_GFF_PATH],FA_PATH,VCF_PATH,WIN_EXP,BLOCK_SIZE,NMAX)`
 
 Function that creates a GFF file containing the genomic regions to be analyzed by `JuliASM`. If a
 set of SNPs is phased, this function will create a single window for all. In case, the set of SNPs
 is not phased, then an individual window will be created for each SNP. The phasing of the VCF
-records should be specified by means of the standard `PS` tag.
+records should be specified by means of the standard `PS` tag. In addition, a GFF file containing
+the homozygous portion of the DNA is also generated together with the position of the CpG sites
+in it.
 
 # Examples
 ```julia-repl
-julia> gen_gffs([HET_GFF_PATH,HOM_GFF_PATH],FA_PATH,VCF_PATH,WIN_EXP,BLOCK_SIZE)
+julia> gen_gffs([HET_GFF_PATH,HOM_GFF_PATH],FA_PATH,VCF_PATH,WIN_EXP,BLOCK_SIZE,NMAX)
 ```
 """
-function gen_gffs(gff::Vector{String},fa::String,vcf::String,win_exp::Int64,blk_size::Int64)
+function gen_gffs(gff::Vector{String},fa::String,vcf::String,win_exp::Int64,blk_size::Int64,
+                  n_max::Int64)
 
     # Initialize VCF variables
     het_records = Vector{GFF3.Record}()
     hom_records = Vector{GFF3.Record}()
-    reader_vcf = open(VCF.Reader, vcf)
+    reader_vcf = open(VCF.Reader,vcf)
     record = VCF.Record()
     read!(reader_vcf,record)
 
     # Initialize FASTA variables
+    prev_end = 0
     reader_fa = open(FASTA.Reader, fa, index=fa*".fai")
     chr_names = reader_fa.index.names
     curr_chr = chr_names[1]
     fa_record = reader_fa[curr_chr]
     close(reader_fa)
-    prev_end = 1
 
     # Chrom sizes
     chr_sizes = reader_fa.index.lengths
@@ -447,7 +474,7 @@ function gen_gffs(gff::Vector{String},fa::String,vcf::String,win_exp::Int64,blk_
             fa_record = reader_fa[curr_chr]
             chr_size = chr_sizes[findfirst(x->x==curr_chr, chr_names)]
             close(reader_fa)
-            prev_end=1
+            prev_end=0
         end
 
         # Get entire (contiguous) haplotype using the PS field
@@ -470,44 +497,66 @@ function gen_gffs(gff::Vector{String},fa::String,vcf::String,win_exp::Int64,blk_
         # Get remainder from block size and distribute it evenly
         win = expand_win(wSt,wEnd,win_exp,blk_size,chr_size)
 
-        # The following is relevant when f_st creates a CpG site on the left at f_st-1
-        win[1] = length(het1)>0 && minimum(het1)<win[1] ? minimum(het1) : win[1]
-        win[1] = length(het2)>0 && minimum(het2)<win[1] ? minimum(het2) : win[1]
-
         # Obtain DNA sequence from reference and homozygous CpG loci from it
         wSeq = convert(String,FASTA.sequence(fa_record,win[1]:win[2]))
         cpg_pos = map(x->getfield(x,:offset),eachmatch(r"CG",wSeq)).+win[1].-1
 
         # Store heterozygous haplotype & corresponding CpG sites if homozygous CpG site/s
         if length(cpg_pos)>0
-            out_str = "$(curr_chr)\t.\t$(curr_ps)\t$(win[1])\t$(win[2])\t.\t.\t.\t"
-            out_str *= "N=$(length(cpg_pos));CpGs=$(cpg_pos)"
-            length(het1)>0 && (out_str*=";hetCpGg1=$(het1)")
-            length(het2)>0 && (out_str*=";hetCpGg2=$(het2)")
-            push!(het_records,GFF3.Record(out_str))
+
+            # All CpG sites
+            all_cpg_pos = sort(vcat(cpg_pos,het1,het2))
+            het1_ind = [in(x,het1) for x in all_cpg_pos]
+            het2_ind = [in(x,het2) for x in all_cpg_pos]
+            hom_ind = [in(x,cpg_pos) for x in all_cpg_pos]
+
+            # Obtain required number of models
+            n_mod = find_num_models(all_cpg_pos,n_max,1)
+            mod_size = div(length(all_cpg_pos),n_mod)
+            mod_rem = length(all_cpg_pos)-n_mod*mod_size
+
+            # Print each set separately
+            for i=1:n_mod
+                # Index of subset of CpG sites in all_cpg_pos
+                all_ind = (mod_size*(i-1)+1):min((mod_size*i),length(all_cpg_pos))
+                i==n_mod && mod_rem>0 && (all_ind=extrema(all_ind)[1]:length(all_cpg_pos))
+                # Binary vector corresponding to model
+                bin_mod = falses(length(all_cpg_pos))
+                bin_mod[all_ind] .= true
+                # Get subset of CpG sites for each
+                hom_mod = all_cpg_pos[bin_mod .& hom_ind]
+                het1_mod = all_cpg_pos[bin_mod .& het1_ind]
+                het2_mod = all_cpg_pos[bin_mod .& het2_ind]
+                # Get f_st & f_end
+                f_st = i==1 ? win[1] : minimum(vcat(hom_mod,het1_mod,het2_mod))
+                f_end = i==n_mod ? win[2] : maximum(vcat(hom_mod,het1_mod,het2_mod))
+                # Push output string
+                out_str = "$(curr_chr)\t.\t$(curr_ps)\t$(f_st)\t$(f_end)\t.\t.\t.\t"
+                out_str *= "N=$(length(hom_mod));CpGs=$(hom_mod)"
+                length(het1_mod)>0 && (out_str*=";hetCpGg1=$(het1_mod)")
+                length(het2_mod)>0 && (out_str*=";hetCpGg2=$(het2_mod)")
+                # Push GFF record
+                push!(het_records,GFF3.Record(out_str))
+            end
+
         end
 
         # Check if het_records object is too big and empty it if so
         sizeof(het_records)>GFF_BUFFER && write_gff!(gff[1],het_records)
 
-        # Obtain homozygous window
-        hom_win = div(win[2]-win[1],2).*[-1,1].+(prev_end+div(win[1]-prev_end,2))
+        # Obtain homozygous portion
+        hom_win = [prev_end+1,win[1]-1]
         hom_win = [max(1,hom_win[1]),min(chr_size,hom_win[2])]
 
-        # if no overlap with heterozygous
-        if length(intersect(hom_win[1]:hom_win[2],win[1]:win[2]))==0
+        # Obtain DNA sequence from reference and homozygous CpG loci from it
+        wSeq = convert(String,FASTA.sequence(fa_record,hom_win[1]:hom_win[2]))
+        cpg_pos = map(x->getfield(x,:offset),eachmatch(r"CG",wSeq)).+hom_win[1].-1
 
-            # Obtain DNA sequence from reference and homozygous CpG loci from it
-            wSeq = convert(String,FASTA.sequence(fa_record,hom_win[1]:hom_win[2]))
-            cpg_pos = map(x->getfield(x,:offset),eachmatch(r"CG",wSeq)).+hom_win[1].-1
-
-            # Store homozygous stretch CpG sites found
-            if length(cpg_pos)>0
-                out_str = "$(curr_chr)\t.\t.\t$(hom_win[1])\t$(hom_win[2])\t.\t.\t.\t"
-                out_str *= "N=$(length(cpg_pos));CpGs=$(cpg_pos)"
-                push!(hom_records,GFF3.Record(out_str))
-            end
-
+        # Store homozygous stretch of CpG sites found
+        if length(cpg_pos)>0
+            out_str = "$(curr_chr)\t.\t.\t$(hom_win[1])\t$(hom_win[2])\t$(length(cpg_pos))\t.\t.\t"
+            out_str *= "CpGs=$(cpg_pos)"
+            push!(hom_records,GFF3.Record(out_str))
         end
 
         # Update previous end
@@ -525,6 +574,9 @@ function gen_gffs(gff::Vector{String},fa::String,vcf::String,win_exp::Int64,blk_
     write_gff!(gff[1],het_records)
     write_gff!(gff[2],hom_records)
 
+    # Return
+    return nothing
+
 end # end gen_gffs
 """
     `read_gff_chr(GFF_PATH,CHR)`
@@ -541,36 +593,39 @@ julia> read_gff_chr(GFF_PATH,"chr1")
 function read_gff_chr(gff::String,chr::String)::Vector{GFF3.Record}
 
     # Load genomic features from a GFF3 file
-    features = open(collect, GFF3.Reader, gff)
+    features = open(collect,GFF3.Reader,gff)
 
     # Keep features in chr
-    filter!(x -> GFF3.seqid(x) == chr, features)
+    filter!(x -> GFF3.seqid(x)==chr, features)
 
     # Return
     return features
 
 end # end read_gff_chr
 """
-    `write_bG!(BEDGRAPH_RECORDS,BEDGRAPH_PATH)`
+    `write_tobs(RECORDS,CHR,PATH)`
 
-Function that writes records in `BEDGRAPH_RECORDS` into `BEDGRAPH_PATH`.
+Function that writes records in `RECORDS` into `PATH`.
 
 # Examples
 ```julia-repl
-julia> write_bG!(BEDGRAPH_RECORDS,BEDGRAPH_PATH)
+julia> write_tobs(RECORDS,CHR,PATH)
 ```
 """
-function write_bG!(bG_records::Vector{Tuple{String,Int64,Int64,Float64,Int64,Int64}},
-                   bG_path::String)
+function write_tobs(recs::Vector{Tuple{Int64,Int64,Float64,Int64,Int64}},chr::String,path::String)
 
     # Open output bedGraph file in append mode (no need to close it)
-    open(bG_path, "a") do f
-        while length(bG_records)>0
-            write(f,join(string.(collect(popfirst!(bG_records))),"\t"),"\n")
+    open(path, "a") do f
+        for i=1:length(recs)
+            recs[i][1]!=0 || continue
+            write(f,"$(chr)\t"*join(string.(collect(recs[i])),"\t"),"\n")
         end
     end
 
-end # end write_bG
+    # Return
+    return nothing
+
+end # end write_tobs
 """
     `get_cpg_pos(FEAT_ATTS)`
 
@@ -653,8 +708,7 @@ julia> mean_cov(xobs)
 function mean_cov(xobs::Array{Vector{Int64},1})::Float64
 
     # Return 0 if no observations
-    length(xobs)>0 || return 0.0
-    return norm(hcat(xobs...),1)/length(xobs[1])
+    return length(xobs)>0 ? norm(hcat(xobs...),1)/length(xobs[1]) : 0.0
 
 end # end mean_cov
 """
@@ -670,12 +724,12 @@ julia> JuliASM.get_outpaths(outdir,prefix)
 function get_outpaths(outdir::String,prefix::String)
 
     # Paths
-    tobs_path = "$(outdir)/$(prefix)" .* ["_mml1","_mml2","_nme1","_nme2","_uc","_rho1","_rho2"] .*
-        ".bedGraph"
+    tobs_path = "$(outdir)/$(prefix)" .* ["_mml1","_mml2","_nme1","_nme2","_uc"] .* ".bedGraph"
     tnull_path = "$(outdir)/$(prefix)" .* ["_dmml_null","_dnme_null","_uc_null"] .* ".bedGraph"
+    p_path = "$(outdir)/$(prefix)" .* ["_dmml_pvals","_dnme_pvals","_uc_pvals"] .* ".bedGraph"
 
     # Return path for Tobs and Tnull
-    return tobs_path,tnull_path
+    return tobs_path,tnull_path,p_path
 
 end # end get_outpaths
 """
@@ -694,6 +748,9 @@ function sort_bedgraphs(bg_files::Vector{String})
     for f in bg_files
         run(`sort -V -k 1,1 -k 2,2n -o $f $f`)
     end
+
+    # Return
+    return nothing
 
 end # end sort_bedgraphs
 """
@@ -714,6 +771,9 @@ function print_log(mess::String)
     println(stderr,"[$(date)]: "  * mess)
     flush(stderr)
 
+    # Return
+    return nothing
+
 end # end print_log
 """
     `comp_tobs(BAM1_PATH,BAM2_PATH,GFF_PATH,FA_PATH,OUT_PATHS)`
@@ -728,11 +788,11 @@ julia> comp_tobs(BAM1_PATH,BAM2_PATH,GFF_PATH,FA_PATH,OUT_PATHS)
 ```
 """
 function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::Vector{String};
-                   pe::Bool=true,blk_size::Int64=200,cov_ths::Int64=5,trim::NTuple{4,Int64}=
+                   pe::Bool=true,blk_size::Int64=300,cov_ths::Int64=5,trim::NTuple{4,Int64}=
                    (0,0,0,0))
 
     # BigWig output files
-    mml1_path,mml2_path,nme1_path,nme2_path,uc_path,rho1_path,rho2_path = out_paths
+    mml1_path,mml2_path,nme1_path,nme2_path,uc_path = out_paths
 
     # Find chromosomes
     reader_fa = open(FASTA.Reader,fa,index=fa*".fai")
@@ -741,113 +801,313 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
     close(reader_fa)
 
     # Loop over chromosomes
-    @sync @distributed for chr in chr_names
-
-        # bedGraph records
-        uc_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64,Int64}}()
-        mml1_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64,Int64}}()
-        mml2_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64,Int64}}()
-        nme1_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64,Int64}}()
-        nme2_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64,Int64}}()
-        rho1_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64,Int64}}()
-        rho2_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64,Int64}}()
+    for chr in chr_names
 
         # Get windows pertaining to current chromosome
         print_log("Processing 🧬  $(chr) ...")
         features_chr = read_gff_chr(gff,chr)
         chr_size = chr_sizes[findfirst(x->x==chr, chr_names)]
 
+        # bedGraph records
+        out_sa = SharedArray{Tuple{Int64,Int64,Float64,Int64,Int64},2}(length(features_chr),8)
+
         # Loop over windows in chromosome
-        for feat in features_chr
+        @sync @distributed for i=1:length(features_chr)
+
             # Get window of interest
+            feat = features_chr[i]
             f_st = GFF3.seqstart(feat)
             f_end = GFF3.seqend(feat)
-            f_atts = Dict(GFF3.attributes(feat))
 
             # Get homozygous & heterozygous CpG sites (1:hom, 2:hap1, 3: hap2)
-            cpg_pos = get_cpg_pos(f_atts)
+            cpg_pos = get_cpg_pos(Dict(GFF3.attributes(feat)))
             n = get_ns(cpg_pos[1],blk_size,f_st)
             n1 = get_ns(cpg_pos[2],blk_size,f_st)
             n2 = get_ns(cpg_pos[3],blk_size,f_st)
+            length(n)>0 || continue
 
             # Get vectors from BAM1/2 overlapping feature & compute average coverage
             xobs1 = read_bam(bam1,chr,f_st,f_end,cpg_pos[2],chr_size,pe,trim)
-            mean_cov1 = mean_cov(xobs1)
-            mean_cov1>=cov_ths || continue
+            cov_ths <= mean_cov(xobs1) <= 200 || continue
             xobs2 = read_bam(bam2,chr,f_st,f_end,cpg_pos[3],chr_size,pe,trim)
-            mean_cov2 = mean_cov(xobs2)
-            mean_cov2>=cov_ths || continue
+            cov_ths <= mean_cov(xobs2) <= 200 || continue
 
             # Estimate each single-allele model and check if on boundary of parameter space
-            theta1 = est_theta(n1,xobs1)
-            check_boundary(n1,theta1) && continue
-            # keep_region(length(xobs1),n1,theta1) || continue
-            theta2 = est_theta(n2,xobs2)
-            check_boundary(n2,theta2) && continue
-            # keep_region(length(xobs2),n2,theta2) || continue
+            θ1 = est_theta(n1,xobs1)
+            check_boundary(θ1) && continue
+            θ2 = est_theta(n2,xobs2)
+            check_boundary(θ2) && continue
 
-            # Estimate first and second moments
-            ex1 = comp_ex(n1,theta1[1:(end-1)],theta1[end])
-            ex2 = comp_ex(n2,theta2[1:(end-1)],theta2[end])
-            exx1 = comp_exx(n1,theta1[1:(end-1)],theta1[end])
-            exx2 = comp_exx(n2,theta2[1:(end-1)],theta2[end])
-
-            # Estimate output quantities
-            rho1 = comp_corr(ex1,exx1)
-            rho2 = comp_corr(ex2,exx2)
-            nme1 = comp_nme(trues(sum(n1)),n1,theta1[1:(end-1)],theta1[end],ex1,exx1)
-            nme2 = comp_nme(trues(sum(n2)),n2,theta2[1:(end-1)],theta2[end],ex2,exx2)
-
-            # Add records
-            push!(nme1_recs,(chr,f_st,f_end,nme1,sum(n1),length(n1)+1))
-            push!(nme2_recs,(chr,f_st,f_end,nme2,sum(n2),length(n2)+1))
-            push!(mml1_recs,(chr,f_st,f_end,comp_mml(ex1),sum(n1),length(n1)+1))
-            push!(mml2_recs,(chr,f_st,f_end,comp_mml(ex2),sum(n2),length(n2)+1))
-            sum(n1)>1 && append!(rho1_recs,[(chr,cpg_pos[2][i],cpg_pos[2][i+1],rho1[i],sum(n1),
-                length(n1)+1) for i=1:(sum(n1)-1)])
-            sum(n2)>1 && append!(rho2_recs,[(chr,cpg_pos[3][i],cpg_pos[3][i+1],rho2[i],sum(n2),
-                length(n2)+1) for i=1:(sum(n2)-1)])
-
-            # Compute homozygous nme and coefficient of uncertainty
+            # Get binary vector with homozygous CpG sites
             z1 = BitArray([p in cpg_pos[1] ? true : false for p in cpg_pos[2]])
             z2 = BitArray([p in cpg_pos[1] ? true : false for p in cpg_pos[3]])
-            nme1 = comp_nme(z1,n1,theta1[1:(end-1)],theta1[end],ex1,exx1)
-            nme2 = comp_nme(z2,n2,theta2[1:(end-1)],theta2[end],ex2,exx2)
-            uc = comp_uc(z1,z2,n1,n2,theta1,theta2,nme1,nme2)
 
-            # Add record
-            push!(uc_recs,(chr,f_st,f_end,uc,sum(n),length(n)+1))
+            # Estimate intermediate quantities
+            if all(z1)
+                # In case all are homozygous CpG sites
+                ∇1 = get_grad_logZ(n1,θ1)
+            else
+                # In case NOT all are homozygous CpG sites
+                ex1 = comp_ex(n1,θ1[1:(end-1)],θ1[end])
+                exx1 = comp_exx(n1,θ1[1:(end-1)],θ1[end])
+            end
+            if all(z2)
+                # In case all are homozygous CpG sites
+                ∇2 = get_grad_logZ(n2,θ2)
+            else
+                # In case NOT all are homozygous CpG sites
+                ex2 = comp_ex(n2,θ2[1:(end-1)],θ2[end])
+                exx2 = comp_exx(n2,θ2[1:(end-1)],θ2[end])
+            end
 
-            # Dumpt data if necessary
-            sizeof(uc_recs)>BG_BUFFER && write_bG!(uc_recs,uc_path)
-            sizeof(mml1_recs)>BG_BUFFER && write_bG!(mml1_recs,mml1_path)
-            sizeof(nme1_recs)>BG_BUFFER && write_bG!(nme1_recs,nme1_path)
-            sizeof(mml2_recs)>BG_BUFFER && write_bG!(mml2_recs,mml2_path)
-            sizeof(nme2_recs)>BG_BUFFER && write_bG!(nme2_recs,nme2_path)
-            sizeof(rho1_recs)>BG_BUFFER && write_bG!(rho1_recs,rho1_path)
-            sizeof(rho2_recs)>BG_BUFFER && write_bG!(rho2_recs,rho2_path)
+            # Compute output
+            mml1 = all(z1) ? comp_mml_∇(n1,∇1) : comp_mml(z1,ex1)
+            mml2 = all(z2) ? comp_mml_∇(n2,∇2) : comp_mml(z2,ex2)
+            nme1 = all(z1) ? comp_nme_∇(n1,θ1,∇1) : comp_nme(z1,n1,θ1[1:(end-1)],θ1[end],ex1,exx1)
+            nme2 = all(z2) ? comp_nme_∇(n2,θ2,∇2) : comp_nme(z2,n2,θ2[1:(end-1)],θ2[end],ex2,exx2)
+            uc = comp_uc(z1,z2,n1,n2,θ1,θ2,nme1,nme2)
+
+            # Add statistics to output array
+            out_sa[i,1] = (f_st,f_end,mml1,sum(n),length(n1))
+            out_sa[i,2] = (f_st,f_end,mml2,sum(n),length(n2))
+            out_sa[i,3] = (f_st,f_end,nme1,sum(n),length(n1))
+            out_sa[i,4] = (f_st,f_end,nme2,sum(n),length(n2))
+            out_sa[i,5] = (f_st,f_end,uc,sum(n),length(n))
 
         end
 
         # Add last to respective bedGraph file
-        write_bG!(uc_recs,uc_path)
-        write_bG!(mml1_recs,mml1_path)
-        write_bG!(mml2_recs,mml2_path)
-        write_bG!(nme1_recs,nme1_path)
-        write_bG!(nme2_recs,nme2_path)
-        write_bG!(rho1_recs,rho1_path)
-        write_bG!(rho2_recs,rho2_path)
+        write_tobs(out_sa[:,1],chr,mml1_path)
+        write_tobs(out_sa[:,2],chr,mml2_path)
+        write_tobs(out_sa[:,3],chr,nme1_path)
+        write_tobs(out_sa[:,4],chr,nme2_path)
+        write_tobs(out_sa[:,5],chr,uc_path)
 
     end
 
     # Sort
-    sort_bedgraphs([mml1_path,mml2_path,nme1_path,nme2_path,uc_path,rho1_path,rho2_path])
+    sort_bedgraphs([mml1_path,mml2_path,nme1_path,nme2_path,uc_path])
+
+    # Return
+    return nothing
 
 end # end comp_tobs
 """
-    `comp_tnull(BAM_PATH,GFF_PATH,FA_PATH,OUT_PATH)`
+    `write_tnull(RECORDS,PATH)`
 
-Function that computes null dMMLs, dNME, and dNMI from a BAM files at locations given by GFF that
+Function that writes null records in `RECORDS` into `PATH`.
+
+# Examples
+```julia-repl
+julia> write_tnull(RECORDS,PATH)
+```
+"""
+function write_tnull(recs::Vector{Tuple{Int8,Int8,Float64}},path::String)
+
+    # Open output bedGraph file in append mode (no need to close it)
+    open(path, "a") do f
+        for i=1:length(recs)
+            recs[i][1]!=0 || continue
+            write(f,join(string.(collect(recs[i])),"\t"),"\n")
+        end
+    end
+
+    # Return
+    return nothing
+
+end # end write_tnull
+"""
+    `get_kstar_table(GFF_PATH,CHR_NAMES,BLK_SIZE)`
+
+Function that returns a table with maximum K for each N in GFF_PATH.
+
+# Examples
+```julia-repl
+julia> get_kstar_table(GFF_PATH,CHR_NAMES,BLK_SIZE)
+```
+"""
+function get_kstar_table(gff::String,chr_names::Vector{String},blk_size::Int64)::Dict{Int64,Int64}
+
+    # Loop over chromosomes
+    table = Dict{Int64,Int64}()
+    for chr in chr_names
+        hom_win = read_gff_chr(gff,chr)
+        # Loop over windows in chromosome
+        for win in hom_win
+            # Get window info
+            win_st = GFF3.seqstart(win)
+            cpg_pos = get_cpg_pos(Dict(GFF3.attributes(win)))
+            n = get_ns(cpg_pos[1],blk_size,win_st)
+            # Update table if necessary
+            haskey(table,sum(n)) || (table[sum(n)]=length(n))
+            length(n)>table[sum(n)] && (table[sum(n)]=length(n))
+        end
+    end
+
+    # Return
+    return table
+
+end # end get_kstar_table
+"""
+    `sample_win_n(GFF_PATH,CHR_NAMES,NTOT,MC_NULL)`
+
+Function that returns a set of size MC_NULL of homozygous genomic windows with at least NTOT CpG
+sites.
+
+# Examples
+```julia-repl
+julia> sample_win_n(GFF_PATH,CHR_NAMES,NTOT,MC_NULL)
+```
+"""
+function sample_win_ntot(gff::String,chr_names::Vector{String},ntot::Int64,
+                         mc_null::Int64)::Vector{GFF3.Record}
+
+    # Load genomic features from a GFF3 file
+    features = open(collect,GFF3.Reader,gff)
+
+    # Filter based on N and chromosomes
+    filter!(x -> (GFF3.score(x)>=ntot) && (GFF3.seqid(x) in chr_names),features)
+
+    # Return
+    return features[sample(1:length(features),mc_null;replace=true)]
+
+end # end sample_win_n
+"""
+    `sample_ntot_cpgs(NTOT,CPG_POS)`
+
+Function that samples NTOT contiguous CpG sites from CPG_POS.
+
+# Examples
+```julia-repl
+julia> sample_ntot_cpgs(4,[10,15,20,25,30,35,40])
+4-element Array{Int64,1}:
+ 10
+ 15
+ 20
+ 25
+```
+"""
+function sample_ntot_cpgs(ntot::Int64,cpg_pos::Vector{Int64})::Vector{Int64}
+
+    # Get start index
+    st_ind = length(cpg_pos)>ntot ? sample(1:(length(cpg_pos)-(ntot-1))) : 1
+
+    # Return n
+    return cpg_pos[st_ind:(st_ind+ntot-1)]
+
+end # end sample_ntot_cpgs
+"""
+    `get_nvec_kstar(NTOT,KSTAR)`
+
+Function that returns vector n with Ntot CpG sites divided into Kstar subregions.
+
+# Examples
+```julia-repl
+julia> get_nvec_kstar(10,4)
+4-element Array{Int64,1}:
+ 3
+ 2
+ 2
+ 3
+```
+"""
+function get_nvec_kstar(ntot::Int64,kstar::Int64)::Vector{Int64}
+
+    # Partition CpG sites into Kstar subregions
+    n = div(ntot,kstar) * ones(Int64,kstar)
+    if sum(n)<ntot
+        cpg_ids = rand(Categorical(1.0/kstar*ones(kstar)),ntot-sum(n))
+        n += [length(findall(x->x==i,cpg_ids)) for i=1:kstar]
+    end
+
+    # Return n
+    return n
+
+end # end get_nvec_kstar
+"""
+    `cov_obs_part(XOBS,COV_THS,COV_A,COV_B)`
+
+Function that partitions observations into two sets of observations that satisfy a minimum
+coverage within [COV_THS-COV_A,COV_THS+COV_B]. If not partition is found that satisfies it,
+then two empty vectors are returned.
+
+# Examples
+```julia-repl
+julia> cov_obs_part(xobs,cov_ths,cov_a,cov_b)
+```
+"""
+function cov_obs_part(xobs::Vector{Vector{Int64}},cov_ths::Int64,cov_a::Float64,
+                      cov_b::Float64)::Tuple{Vector{Vector{Int64}},Vector{Vector{Int64}}}
+
+    ## Part that takes care of minimum coverage. After this step an allele can have
+    ## more than cov_ths+b. Here we just guarantee mean_cov(xobsi)≧cov_ths.
+
+    # Divide into two sets of equal size while checking bot have at least cov_ths
+    ct = 1
+    fail = false
+    xobs1 = Vector{Int64}()
+    xobs2 = Vector{Int64}()
+    while true
+        # Partition
+        ind = sample(1:length(xobs),div(length(xobs),2),replace=false)
+        xobs1 = xobs[ind]
+        xobs2 = xobs[setdiff(1:length(xobs),ind)]
+        # If coverage okay break loop
+        (mean_cov(xobs1)>=cov_ths) && (mean_cov(xobs2)>=cov_ths) && break
+        # Check we haven't exceeded the maximum number of permutations
+        if ct>20
+            # We failed and break
+            fail=true
+            break
+        else
+            # Increase counter
+            ct += 1
+        end
+    end
+
+    # Return empty arrays if fail=true
+    fail==false || return [],[]
+        # println("First OK: $(mean_cov(xobs1)) & $(mean_cov(xobs2))")
+
+    ## Part extra to limit number of observations used. The goal is to reduce the size of
+    ## xobs1 & xobs2 until both coverages are within [cov_ths-cov_a,cov_ths+cov_b].
+
+    # Check for [cov_ths-cov_a,cov_ths+cov_b] for xobs1
+    less_ok = false
+    while true
+        # Check if we can keep decreasing number
+        less_ok = mean_cov(xobs1[2:end])>=(cov_ths-cov_a) && mean_cov(xobs1)>=(cov_ths+cov_b)
+        xobs1 = less_ok ? xobs1=xobs1[2:end] : xobs1
+        less_ok || break
+    end
+
+    # Check if resulting observations meet b-bound as well
+    fail = mean_cov(xobs1)<=(cov_ths+cov_b) ? false : true
+    fail==false || return [],[]
+        # println("Second OK: $(mean_cov(xobs1))")
+
+    # Check for [cov_ths-cov_a,cov_ths+cov_b] for xobs2
+    less_ok = false
+    while true
+        # Check if we can keep decreasing number
+        less_ok = mean_cov(xobs2[2:end])>=(cov_ths-cov_a) && mean_cov(xobs2)>=(cov_ths+cov_b)
+        xobs2 = less_ok ? xobs2=xobs2[2:end] : xobs2
+        less_ok || break
+    end
+
+    # Check if resulting observations meet b-bound as well
+    fail = mean_cov(xobs2)<=(cov_ths+cov_b) ? false : true
+    fail==false || return [],[]
+        # println("Third OK: $(mean_cov(xobs2))")
+
+    # Return partition
+    return xobs1,xobs2
+
+end # end cov_obs_part
+"""
+    `cov_ths_part(BAM_PATH,GFF_PATH,FA_PATH,OUT_PATH)`
+
+Function that computes null dMMLs, dNME, and UC from a BAM files at locations given by GFF that
 contains the windows with not genetic variants and a FASTA file that contains the reference genome.
 
 # Examples
@@ -855,94 +1115,178 @@ contains the windows with not genetic variants and a FASTA file that contains th
 julia> comp_tnull(BAM_PATH,GFF_PATH,FA_PATH,OUT_PATH)
 ```
 """
-function comp_tnull(bam::String,gff::String,fa::String,out_paths::Vector{String};pe::Bool=true,
-                    blk_size::Int64=200,cov_ths::Int64=15,trim::NTuple{4,Int64}=(0,0,0,0))
+function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_paths::Vector{String}
+                    ;pe::Bool=true,blk_size::Int64=300,cov_ths::Int64=5,cov_a::Float64=0.0,
+                    cov_b::Float64=1.0,trim::NTuple{4,Int64}=(0,0,0,0),mc_null::Int64=5000,
+                    n_max::Int64=20)
 
     # BigWig output files
     dmml_path,dnme_path,uc_path = out_paths
 
-    # Find chromosomes
+    # Find relevant chromosomes and sizes
     reader_fa = open(FASTA.Reader,fa,index=fa*".fai")
-    chr_sizes = reader_fa.index.lengths
-    chr_names = reader_fa.index.names
+    chr_dic = Dict(zip(reader_fa.index.names,reader_fa.index.lengths))
     close(reader_fa)
 
-    # Loop over chromosomes
-    @sync @distributed for chr in chr_names
+    # Obtain Kstar for every N & maximum N to analyze
+    print_log("Generating Kstar table ...")
+    kstar_table = get_kstar_table(het_gff,collect(keys(chr_dic)),blk_size)
 
-        # Get windows pertaining to current chromosome
-        prev_st = 1
-        features_chr = read_gff_chr(gff,chr)
-        chr_size = chr_sizes[findfirst(x->x==chr,chr_names)]
-        print_log("Processing 🧬  $(chr) ...")
+    # Cap Nmax
+    n_max = min(maximum(keys(kstar_table)),n_max)
+
+    # Loop over Ns of interes
+    for ntot in keys(kstar_table)
+
+        # Get kstar
+        kstar = kstar_table[ntot]
+
+        # Print current N
+        print_log("Generating null statistics for N=$(ntot) with K*=$(kstar) ...")
+
+        # Sample windows with N=ntot
+        print_log("Sampling $(mc_null) windows ...")
+        win_ntot = sample_win_ntot(hom_gff,collect(keys(chr_dic)),ntot,5*mc_null)
 
         # bedGraph records
-        uc_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64,Int64}}()
-        dnme_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64,Int64}}()
-        dmml_recs = Vector{Tuple{String,Int64,Int64,Float64,Int64,Int64}}()
+        print_log("Initializing output array ...")
+        out_sa = SharedArray{Tuple{Int8,Int8,Float64},2}(5*mc_null,3)
+        filled = SharedArray{Bool,1}(5*mc_null)
 
-        # Loop over windows in chromosome
-        for feat in features_chr
+        # Produce a set of null statistics for each index
+        print_log("Computing null statistis ...")
+        @sync @distributed for i=1:length(win_ntot)
+
+            # Check if enough Tnull have been generated and continue if so
+            sum(filled)>=mc_null && continue
+
             # Get homozygous window
-            f_st = GFF3.seqstart(feat)
-            f_end = GFF3.seqend(feat)
-            f_atts = Dict(GFF3.attributes(feat))
+            feat = win_ntot[i]
+            chr = GFF3.seqid(feat)
+            chr_size = chr_dic[chr]
 
-            # Get CpG sites
-            cpg_pos = get_cpg_pos(f_atts)[1]
-            n = get_ns(cpg_pos,blk_size,f_st)
+            # Sample ntot contiguous CpG sites and partition into Kstar
+            cpg_pos = get_cpg_pos(Dict(GFF3.attributes(feat)))[1]
+            cpg_pos = sample_ntot_cpgs(ntot,cpg_pos)
+            n = get_nvec_kstar(ntot,kstar)
 
-            # Check average coverage
-            xobs = read_bam(bam,chr,f_st,f_end,cpg_pos,chr_size,pe,trim)
-            part_cov = mean_cov(xobs)
-            part_cov >= 2*cov_ths || continue
+            # Check average coverage is within normal limits (watch for repetitive regions)
+            xobs = read_bam(bam,chr,cpg_pos[1],cpg_pos[end],cpg_pos,chr_size,pe,trim)
+            2*cov_ths <= mean_cov(xobs) <= 400 || continue
 
-            # Randomly partition observations
-            part = sample(1:length(xobs),div(length(xobs),2),replace=false)
-            xobs1 = xobs[part]
-            xobs2 = xobs[setdiff(1:length(xobs),part)]
+            # Randomly partition observations (sample minimum coverage)
+            xobs1,xobs2 = cov_obs_part(xobs,cov_ths,cov_a,cov_b)
+            (length(xobs1)>0) && (length(xobs2)>0) || continue
 
             # Estimate each single-allele model and check if on boundary of parameter space
-            theta1 = est_theta(n,xobs1)
-            check_boundary(n,theta1) && continue
-            # keep_region(length(xobs1),n,theta1) || continue
-            theta2 = est_theta(n,xobs2)
-            check_boundary(n,theta2) && continue
-            # keep_region(length(xobs2),n,theta2) || continue
+            θ1 = est_theta(n,xobs1)
+            check_boundary(θ1) && continue
+            θ2 = est_theta(n,xobs2)
+            check_boundary(θ2) && continue
+
+            # Estimate moments
+            ∇1 = get_grad_logZ(n,θ1)
+            ∇2 = get_grad_logZ(n,θ2)
 
             # Estimate output quantities
-            ex1 = comp_ex(n,theta1[1:(end-1)],theta1[end])
-            ex2 = comp_ex(n,theta2[1:(end-1)],theta2[end])
-            exx1 = comp_exx(n,theta1[1:(end-1)],theta1[end])
-            exx2 = comp_exx(n,theta2[1:(end-1)],theta2[end])
-            nme1 = comp_nme(trues(sum(n)),n,theta1[1:(end-1)],theta1[end],ex1,exx1)
-            nme2 = comp_nme(trues(sum(n)),n,theta2[1:(end-1)],theta2[end],ex2,exx2)
-            uc = comp_uc(trues(sum(n)),trues(sum(n)),n,n,theta1,theta2,nme1,nme2)
+            nme1 = comp_nme_∇(n,θ1,∇1)
+            nme2 = comp_nme_∇(n,θ2,∇2)
+            uc = comp_uc(trues(ntot),trues(ntot),n,n,θ1,θ2,nme1,nme2)
 
-            # Compute coefficient of uncertainty
-            push!(uc_recs,(chr,f_st,f_end,uc,sum(n),length(n)+1))
-            push!(dnme_recs,(chr,f_st,f_end,abs(round(nme1-nme2;digits=8)),sum(n),length(n)+1))
-            push!(dmml_recs,(chr,f_st,f_end,abs(round(comp_mml(ex1)-comp_mml(ex2);digits=8)),
-                sum(n),length(n)+1))
-
-            # Dump in case of necessary
-            sizeof(dnme_recs)>BG_BUFFER && write_bG!(dnme_recs,dnme_path)
-            sizeof(dmml_recs)>BG_BUFFER && write_bG!(dmml_recs,dmml_path)
-            sizeof(uc_recs)>BG_BUFFER && write_bG!(uc_recs,uc_path)
+            # Store output
+            out_sa[i,1] = (ntot,kstar,round(abs(comp_mml_∇(n,∇1)-comp_mml_∇(n,∇2));digits=8))
+            out_sa[i,2] = (ntot,kstar,round(abs(nme1-nme2);digits=8))
+            out_sa[i,3] = (ntot,kstar,uc)
+            filled[i] = true
 
         end
 
         # Add last to respective bedGraph file
-        write_bG!(dmml_recs,dmml_path)
-        write_bG!(dnme_recs,dnme_path)
-        write_bG!(uc_recs,uc_path)
+        write_tnull(out_sa[:,1],dmml_path)
+        write_tnull(out_sa[:,2],dnme_path)
+        write_tnull(out_sa[:,3],uc_path)
 
     end
 
     # Sort files
     sort_bedgraphs([dmml_path,dnme_path,uc_path])
 
+    # Return nothing
+    return nothing
+
 end # end comp_tnull
+"""
+    `comp_pvals_stat(TOBS_PATH,TNULL_PATH,N_MAX)`
+
+Function that computes adjusted p-values for each haplotype in TOBS_PATH from the empirical
+distribution of the pertaining statistic in TNULL_PATH.
+
+# Examples
+```julia-repl
+julia> comp_pvals_stat(tobs_path,tnull_path)
+```
+"""
+function comp_pvals_stat(tobs_path::Vector{String},tnull_path::String,p_path::String,n_max::Int64)
+
+    # Get null stats
+    tnull = readdlm(tnull_path,'\t')
+
+    # Consider case dMML/dNME VS UC
+    if length(tobs_path)>1
+        # dMML/dNME
+        tobs = readdlm(tobs_path[1],'\t')
+        tobs[:,4] = abs.(tobs[:,4]-readdlm(tobs_path[2],'\t')[:,4])
+    else
+        # UC
+        tobs = readdlm(tobs_path[1],'\t')
+    end
+
+    # Initialize p-value matrix
+    pvals = tobs[:,1:4]
+    pvals[:,4] .= "NO DATA"
+
+    # Compute p-values
+    for i=1:size(tobs)[1]
+        # Check we can compute p-value
+        tobs[i,5]<=n_max || continue
+        # Compute empirical p-value
+        pvals[i,4] = sum(tnull[tnull[:,1].==tobs[i,5],3].>=tobs[i,4]) / sum(tnull[:,1].==tobs[i,5])
+    end
+
+    # Multiple hypothesis testing correction
+    pvals[:,4] = MultipleTesting.adjust(convert(Vector{Float64},pvals[:,4]),BenjaminiHochberg())
+
+    # Write to output. TODO: get right path
+    open(p_path,"w") do io
+        writedlm(io,pvals,'\t')
+    end
+
+    # Return
+    return nothing
+
+end # end comp_pvals_stat
+"""
+    `comp_pvals(TOBS_PATH,TNULL_PATH,PVALS_PATH,N_MAX)`
+
+Function that computes p-values from empirical null distribution.
+
+# Examples
+```julia-repl
+julia> comp_pvals(tobs_path,tnull_path,p_path,n_max)
+```
+"""
+function comp_pvals(tobs_path::Vector{String},tnull_path::Vector{String},p_path::Vector{String},
+                    n_max::Int64)
+
+    # Compute three sets of pvalues
+    comp_pvals_stat(tobs_path[1:2],tnull_path[1],p_path[1],n_max)
+    comp_pvals_stat(tobs_path[3:4],tnull_path[2],p_path[2],n_max)
+    comp_pvals_stat([tobs_path[5]],tnull_path[3],p_path[3],n_max)
+
+    # Return
+    return nothing
+
+end # end comp_pvals
 """
     `run_analysis(BAM1_PATH,BAM2_PATH,BAMU_PATH,VCF_PATH,FA_PATH,OUT_PATH)`
 
@@ -957,9 +1301,10 @@ haplotype in the VCF file.
 julia> run_analysis(BAM1_PATH,BAM2_PATH,BAMU_PATH,VCF_PATH,FA_PATH,OUT_PATH)
 ```
 """
-function run_analysis(bam1::String,bam2::String,bam0::String,vcf::String,fa::String,outdir::String;
-                      pe::Bool=true,blk_size::Int64=200,win_exp::Int64=100,cov_ths::Int64=5,
-                      trim::NTuple{4,Int64}=(0,0,0,0))
+function run_analysis(bam1::String,bam2::String,bamu::String,vcf::String,fa::String,outdir::String;
+                      pe::Bool=true,blk_size::Int64=300,win_exp::Int64=100,cov_ths::Int64=5,
+                      cov_a::Float64=0.0,cov_b::Float64=1.0,trim::NTuple{4,Int64}=(0,0,0,0),
+                      mc_null::Int64=5000,n_max::Int64=25)
 
     # Print initialization of juliASM
     print_log("Starting JuliASM analysis ...")
@@ -975,7 +1320,7 @@ function run_analysis(bam1::String,bam2::String,bam0::String,vcf::String,fa::Str
 
     # BigWig output files
     prefix_sample = String(split(basename(bam1),".")[1])
-    tobs_path,tnull_path = get_outpaths(outdir,prefix_sample)
+    tobs_path,tnull_path,p_path = get_outpaths(outdir,prefix_sample)
 
     # Check for existance of at least an output files
     if all(isfile.(vcat(tobs_path,tnull_path)))
@@ -989,21 +1334,26 @@ function run_analysis(bam1::String,bam2::String,bam0::String,vcf::String,fa::Str
     hom_gff = outdir * split(basename(vcf),".")[1] * "_hom.juliasm.gff"
     if !(isfile(het_gff))
         print_log("Generating JuliASM GFF files ...")
-        gen_gffs([het_gff,hom_gff],fa,vcf,win_exp,blk_size)
+        gen_gffs([het_gff,hom_gff],fa,vcf,win_exp,blk_size,n_max)
     end
 
     # Compute observed statistics from heterozygous loci
-    print_log("Computing observed statistics using heterozygous loci...")
+    print_log("Computing observed statistics in heterozygous loci...")
     comp_tobs(bam1,bam2,het_gff,fa,tobs_path;pe=pe,blk_size=blk_size,cov_ths=cov_ths,trim=trim)
 
     # Compute null statistics from homozygous loci
-    print_log("Computing null statistics using homozygous loci ...")
-    comp_tnull(bam0,hom_gff,fa,tnull_path;pe=pe,blk_size=blk_size,cov_ths=cov_ths,trim=trim)
+    print_log("Generating null statistics in homozygous loci ...")
+    comp_tnull(bamu,het_gff,hom_gff,fa,tnull_path;pe=pe,blk_size=blk_size,cov_ths=cov_ths,
+               cov_a=cov_a,cov_b=cov_b,trim=trim,mc_null=mc_null,n_max=n_max)
 
-    # Compute p-values for each statistic
-    print_log("Computing p-values ...")
+    # Compute null statistics from heterozygous loci
+    print_log("Computing p-values in heterozygous loci ...")
+    comp_pvals(tobs_path,tnull_path,p_path,n_max)
 
     # Print number of features interrogated and finished message
-    print_log("Done. 😄")
+    print_log("Done.")
+
+    # Return
+    return nothing
 
 end # end run_analysis

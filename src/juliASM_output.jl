@@ -80,22 +80,45 @@ function comp_exx(n::Vector{Int64},a::Vector{Float64},b::Float64;r::Int64=1)::Ve
 
 end # end comp_exx
 """
-    `comp_mml(EX)`
+    `comp_mml(Z,EX)`
 
-Function that computes mean methylation level (MML) given the first order moment E[X].
+Function that computes mean methylation level (MML) given at the CpG sites marked by binary vector
+Z and given first order moment E[X] vector. This function is only used when not all CpG sites are
+homozygous since it can compute MML over a subset of CpG sites.
 
 # Examples
 ```julia-repl
-julia> JuliASM.comp_mml(JuliASM.comp_ex([4],[0.0],0.0))
+julia> ex=JuliASM.comp_ex([4],[0.0],0.0); JuliASM.comp_mml(trues(4),ex)
 0.5
 ```
 """
-function comp_mml(ex::Vector{Float64})::Float64
+function comp_mml(z::BitArray{1},ex::Vector{Float64})::Float64
 
     # Return
-    return abs(round(0.5/length(ex)*sum(ex)+0.5;digits=8))
+    return abs(round(0.5/length(ex[z])*sum(ex[z])+0.5;digits=8))
 
 end # end comp_mml
+"""
+    `comp_mml_∇([N1,...,NK],∇logZ)`
+
+Function that computes mean methylation level (MML) over the entire haplotype. This function takes
+advantage of the fact that E[S(X)]=Adot(θ), and it's much faster than `comp_mml`. This function is
+only used when all CpG sites are homozygous.
+
+# Examples
+```julia-repl
+julia> n=[1,1,1]; θ=[1.0,-1.0,1.0,0.0];
+julia> ∇logZ = JuliASM.get_grad_logZ(n,θ);
+julia> JuliASM.comp_mml_∇(n,∇logZ)
+0.66584246
+```
+"""
+function comp_mml_∇(n::Vector{Int64},∇logZ::Vector{Float64})::Float64
+
+    # Return
+    return abs(round(0.5*(1.0+1.0/sum(n)*sum(∇logZ[1:length(n)]));digits=8))
+
+end # end comp_mml_∇
 """
     `comp_exlng(Z,[N1,...,NK],[α1,...,αK],β)`
 
@@ -171,20 +194,18 @@ end # end comp_exlng
 
 Function that computes normalized methylation entropy (NME) over the CpG sites determined by binary
 vector Z. This is done by assuming an Ising model for the allele-specific methylation state vector
-of size `[N1,...,NK]`, parameters `[α1,...,αK]` and `β`.
+of size `[N1,...,NK]`, parameters `[α1,...,αK]` and `β`. This function is used when not all CpG
+sites are homozygous since it can compute NME over a subset of CpG sites.
 
 # Examples
 ```julia-repl
-julia> n=[10]
-julia> z=trues(10);z[5]=false;
-julia> a=[0.0]
-julia> b=0.0
+julia> n=[10];z=trues(sum(n));z[5]=false;a=[0.0];b=0.0;θ=vcat([a,b]...);
 julia> JuliASM.comp_nme(z,n,a,b,JuliASM.comp_ex(n,a,b),JuliASM.comp_exx(n,a,b))
 1.0
 ```
 """
-function comp_nme(z::BitArray{1},n::Vector{Int64},a::Vector{Float64},b::Float64,
-                  ex::Vector{Float64},exx::Vector{Float64})::Float64
+function comp_nme(z::BitArray{1},n::Vector{Int64},a::Vector{Float64},b::Float64,ex::Vector{Float64},
+                  exx::Vector{Float64})::Float64
 
     # Define output quantity
     h = 0.0
@@ -205,6 +226,26 @@ function comp_nme(z::BitArray{1},n::Vector{Int64},a::Vector{Float64},b::Float64,
     return abs(round(h/(sum(z)*LOG2);digits=8))
 
 end # end comp_nme
+"""
+    `comp_nme_∇([N1,...,NK],θ,∇logZ)`
+
+Function that computes normalized methylation entropy (NME) using the ∇logZ information. This
+function can only be used in `comp_tnull` since it does not allow computation on a subset of CpG
+sites. This function is only used when all CpG sites are homozygous.
+
+# Examples
+```julia-repl
+julia> n=[4]; a=[0.0]; b=0.0; θ=vcat([a,b]...); ∇logZ=JuliASM.get_grad_logZ(n,θ);
+julia> JuliASM.comp_nme_∇(n,θ,∇logZ)
+1.0
+```
+"""
+function comp_nme_∇(n::Vector{Int64},θ::Vector{Float64},∇logZ::Vector{Float64})::Float64
+
+    # Return
+    return abs(round(1.0/(sum(n)*LOG2)*(log(comp_Z(n,θ[1:(end-1)],θ[end]))-θ'*∇logZ);digits=8))
+
+end # end comp_nme_∇
 """
     `gen_x_mc(N,α,β)`
 
@@ -368,6 +409,34 @@ function comp_uc(z1::BitArray{1},z2::BitArray{1},n1::Vector{Int64},n2::Vector{In
     return round(min(1.0,max(0.0,1.0-0.5*(h1+h2)/h));digits=8)
 
 end # end comp_uc
+###################################################################################################
+# DEV FUNCTIONS
+###################################################################################################
+"""
+    `comp_mmlv([N1,...,NK],∇logZ)`
+
+Function that computes the mean methylation level vector (MMLV) for each subregion. Reporting
+output for subregion might be more informative than just an overall mean. This function takes
+advantage of the fact that E[S(X)]=Adot(θ), which is much faster than computing first moment
+and correlations as currently done.
+
+# Examples
+```julia-repl
+julia> n=[1,1,1]; θ=[1.0,-1.0,1.0,0.0];
+julia> ∇logZ = JuliASM.get_grad_logZ(n,θ);
+julia> JuliASM.comp_mmlv(n,∇logZ)
+3-element Array{Float64,1}:
+ 0.88079708
+ 0.11920292
+ 0.88079708
+```
+"""
+function comp_mmlv(n::Vector{Int64},∇logZ::Vector{Float64})::Vector{Float64}
+
+    # Return
+    return abs.(round.(0.5.*(1.0./n.*∇logZ[1:length(n)].+1.0);digits=8))
+
+end # end comp_mmlv
 """
     `comp_corr(EX,EXX)`
 
@@ -393,9 +462,6 @@ function comp_corr(ex::Vector{Float64},exx::Vector{Float64})::Vector{Float64}
     (ov.-ex[2:end].^2));digits=8)
 
 end # end comp_corr
-###################################################################################################
-# UNUSED FUNCTIONS
-###################################################################################################
 """
     `comp_cov([N1,...,NK],[α1,...,αK],β,EX,EXX)`
 
@@ -470,6 +536,31 @@ end # end comp_evec
 ###################################################################################################
 # VERIFICATION FUNCTIONS (UNUSED)
 ###################################################################################################
+# """
+#     `comp_Z_xcal([N1,...,NK],[α1,...,αK],β)`
+#
+# Function that computes the partition function computed recursively over 𝒳.
+#
+# # Examples
+# ```julia-repl
+# julia> n=[4]; a=[0.0]; b=0.0;
+# julia> JuliASM.comp_Z_xcal(n,a,b)
+# 16.0
+# ```
+# """
+# function comp_Z_xcal(n::Vector{Int64},a::Vector{Float64},b::Float64)::Float64
+#
+#     # Loop over 𝒳h
+#     Z = 0.0
+#     xcal = generate_xcal(sum(n))
+#     @inbounds for x in xcal
+#         Z += exp(-)
+#     end
+#
+#     # Return
+#     return Z
+#
+# end # end comp_Z_xcal
 """
     `comp_nme_xcal(Z,[N1,...,NK],[α1,...,αK],β,EX,EXX)`
 
@@ -480,16 +571,12 @@ is determined by binary vector Z (i.e., via Hadamard product Z*X, where * is the
 
 # Examples
 ```julia-repl
-julia> n=[10]
-julia> z=trues(sum(n))
-julia> a=[0.0]
-julia> b=0.0
-julia> JuliASM.comp_nme_xcal(z,n,a,b,JuliASM.comp_ex(n,a,b),JuliASM.comp_exx(n,a,b))
+julia> n=[10]; z=trues(sum(n)); a=[0.0]; b=0.0;
+julia> JuliASM.comp_nme_xcal(z,n,a,b)
 1.0
 ```
 """
-function comp_nme_xcal(z::BitArray{1},n::Vector{Int64},a::Vector{Float64},b::Float64,
-                       ex::Vector{Float64},exx::Vector{Float64})::Float64
+function comp_nme_xcal(z::BitArray{1},n::Vector{Int64},a::Vector{Float64},b::Float64)::Float64
 
     # Loop over 𝒳h
     h = 0.0
@@ -504,7 +591,7 @@ function comp_nme_xcal(z::BitArray{1},n::Vector{Int64},a::Vector{Float64},b::Flo
     end
 
     # Return
-    return -h/(sum(z)*LOG2)
+    return round(-h/(sum(z)*LOG2);digits=8)
 
 end # end comp_nme_xcal
 """
@@ -554,3 +641,43 @@ function comp_uc_xcal(z1::BitArray{1},z2::BitArray{1},n1::Vector{Int64},n2::Vect
     return 1-0.5*num/den
 
 end # end comp_uc_xcal
+###################################################################################################
+# COMPETING MODELS
+###################################################################################################
+"""
+    `comp_lkhd_bin(XOBS,θ)`
+
+Function that returns likelihood vector of XOBS, potentially partial, given parameter vector θ for
+the non-parametric independent model (binomial).
+
+# Examples
+```julia-repl
+julia>
+```
+"""
+function comp_lkhd_bin(xobs::Array{Vector{Int64},1},θ::Vector{Float64})::Vector{Float64}
+
+    # Return evec
+    return [prod(θ.^(x.==1) .* (ones(length(xobs[1]))-θ).^(x.==-1)) for x in xobs]
+
+end # end comp_lkhd_bin
+"""
+    `comp_lkhd_mult(XOBS,θ)`
+
+Function that returns likelihood vector of XOBS, assuming full data, given parameter vector θ for
+the non-parametric dependent model (multinomial).
+
+# Examples
+```julia-repl
+julia>
+```
+"""
+function comp_lkhd_mult(xobs::Array{Vector{Int64},1},θ::Vector{Float64})::Vector{Float64}
+
+    # Generate 𝒳
+    xcal = generate_xcal(length(xobs[1]))
+
+    # Return evec
+    return θ[[findfirst(y->y==x,xcal) for x in xobs]]
+
+end # end comp_lkhd_mult
