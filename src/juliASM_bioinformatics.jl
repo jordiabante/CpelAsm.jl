@@ -1138,6 +1138,9 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
     # Loop over Ns of interes
     for ntot in keys(kstar_table)
 
+        # Skip if greater than n_max
+        ntot>n_max && continue
+
         # Get kstar
         kstar = kstar_table[ntot]
 
