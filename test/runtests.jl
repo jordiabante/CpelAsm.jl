@@ -1,5 +1,6 @@
 # Import all package functions
 using Test
+using Random
 using JuliASM
 
 # Get test path
@@ -9,28 +10,40 @@ test_path = JuliASM_path * "/test/"
 
 # Test set for estimation related functions
 @testset "Estimation" begin
+    # Initialize all variables
+    n=[2,2]; a=[-1.0,1.0]; b=1.0; θ=vcat([a,b]...); ∇logZ=JuliASM.get_grad_logZ(n,θ);
+    ex=JuliASM.comp_ex(n,a,b); exx=JuliASM.comp_exx(n,a,b);
+    Random.seed!(1234); xobs=[JuliASM.gen_x_mc(n,a,b) for i=1:50]
     # Check proper computation partition function
-    @test comp_Z([4],[1.0],1.0)≈1149.716 atol=1e-3
+    @test JuliASM.comp_Z(n,a,b)≈235.912 atol=1e-3
     # Check proper computation scaling factor
-    @test comp_g([1],[1.0],1.0,1.0,1.0)≈3.086 atol=1e-3
+    @test JuliASM.comp_g(n,a,b,1.0,1.0)≈143.330 atol=1e-3
     # Check proper likelihood
-    @test comp_lkhd([0,1,1,1,0],[5],[1.0],1.0)≈0.986 atol=1e-3
-end
-
-# Test set for simulations related functions
-@testset "Simulations" begin
-    # Check proper xcal
-    @test generate_xcal(1)==[[-1],[1]]
+    @test JuliASM.comp_lkhd([1,1,0,1,1],n,a,b)≈0.232 atol=1e-3
+    # Check proper estimation of θ
+    @test sum((JuliASM.est_theta(n,xobs)-θ).^2)<0.5
 end
 
 # Test set for information theory related functions
 @testset "Output" begin
+    # Initialize all variables
+    n=[2,2]; a=[-1.0,1.0]; b=1.0; θ=vcat([a,b]...); ∇logZ=JuliASM.get_grad_logZ(n,θ);
+    ex=JuliASM.comp_ex(n,a,b); exx=JuliASM.comp_exx(n,a,b);
     # Check proper E[X] computation
-    @test sum(comp_ex([4],[0.0],0.0))≈0.0 atol=1e-3
+    @test sum(ex)≈0.0 atol=1e-3
     # Check proper E[XX] computation
-    @test sum(comp_exx([4],[0.0],1.0))≈2.285 atol=1e-3
+    @test sum(exx)≈1.285 atol=1e-3
     # Check proper MML computation
-    @test comp_mml(comp_ex([4],[0.0],0.0))≈0.5 atol=1e-3
+    @test JuliASM.comp_mml(trues(4),ex)≈0.5 atol=1e-3
+    # Check proper MML computation (2)
+    @test JuliASM.comp_mml_∇(n,∇logZ)≈0.5 atol=1e-3
     # Check proper NME computation
-    @test comp_nme(trues(4),[4],[0.0],0.0,zeros(4),zeros(3))≈1.0 atol=1e-3
+    @test JuliASM.comp_nme(trues(4),n,a,b,ex,exx)≈0.462 atol=1e-3
+    # Check proper NME computation (2)
+    h = JuliASM.comp_nme_∇(n,θ,∇logZ)
+    @test h≈0.463 atol=1e-3
+    # Check proper NME computation (3)
+    @test JuliASM.comp_nme_mix_exact(trues(4),trues(4),n,n,θ,θ)≈0.463 atol=1e-3
+    # Check proper computation of UC
+    @test JuliASM.comp_uc(trues(4),trues(4),n,n,θ,θ,h,h)≈0.0 atol=1e-3
 end
