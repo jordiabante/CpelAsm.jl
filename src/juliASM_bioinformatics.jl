@@ -1138,23 +1138,27 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
     # Loop over Ns of interes
     for ntot in keys(kstar_table)
 
-        # Print current N
-        print_log("Generating null statistics for N=$(ntot) ...")
-
         # Get kstar
         kstar = kstar_table[ntot]
 
+        # Print current N
+        print_log("Generating null statistics for N=$(ntot) with K*=$(kstar) ...")
+
         # Sample windows with N=ntot
         print_log("Sampling $(mc_null) windows ...")
-        win_ntot = sample_win_ntot(hom_gff,collect(keys(chr_dic)),ntot,mc_null)
+        win_ntot = sample_win_ntot(hom_gff,collect(keys(chr_dic)),ntot,5*mc_null)
 
         # bedGraph records
         print_log("Initializing output array ...")
-        out_sa = SharedArray{Tuple{Int8,Int8,Float64},2}(mc_null,3)
+        out_sa = SharedArray{Tuple{Int8,Int8,Float64},2}(5*mc_null,3)
+        filled = SharedArray{Bool,1}(5*mc_null)
 
         # Produce a set of null statistics for each index
         print_log("Computing null statistis ...")
         @sync @distributed for i=1:length(win_ntot)
+
+            # Check if enough Tnull have been generated and continue if so
+            sum(filled)>=mc_null && continue
 
             # Get homozygous window
             feat = win_ntot[i]
@@ -1193,6 +1197,7 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
             out_sa[i,1] = (ntot,kstar,round(abs(comp_mml_∇(n,∇1)-comp_mml_∇(n,∇2));digits=8))
             out_sa[i,2] = (ntot,kstar,round(abs(nme1-nme2);digits=8))
             out_sa[i,3] = (ntot,kstar,uc)
+            filled[i] = true
 
         end
 
