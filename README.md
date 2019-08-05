@@ -19,7 +19,7 @@ methylation events at the haplotype level.
 
 `JuliASM` and dependencies can be installed via the following command:
 ```julia
-julia -e 'using Pkg; Pkg.clone("git@github.com:jordiabante/JuliASM.jl.git")'
+julia -e 'using Pkg; Pkg.add(PackageSpec(url="https://github.com/jordiabante/JuliASM.jl.git"))'
 ```
 
 ## Running the tests
