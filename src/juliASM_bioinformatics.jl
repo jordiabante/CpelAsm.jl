@@ -804,7 +804,7 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
     for chr in chr_names
 
         # Get windows pertaining to current chromosome
-        print_log("Processing 🧬  $(chr) ...")
+        print_log("Processing chr $(chr) ...")
         features_chr = read_gff_chr(gff,chr)
         chr_size = chr_sizes[findfirst(x->x==chr, chr_names)]
 
@@ -833,9 +833,9 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
             cov_ths <= mean_cov(xobs2) <= 200 || continue
 
             # Estimate each single-allele model and check if on boundary of parameter space
-            θ1 = est_theta(n1,xobs1)
+            θ1 = est_theta_em(n1,xobs1)
             check_boundary(θ1) && continue
-            θ2 = est_theta(n2,xobs2)
+            θ2 = est_theta_em(n2,xobs2)
             check_boundary(θ2) && continue
 
             # Get binary vector with homozygous CpG sites
@@ -1182,9 +1182,9 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
             (length(xobs1)>0) && (length(xobs2)>0) || continue
 
             # Estimate each single-allele model and check if on boundary of parameter space
-            θ1 = est_theta(n,xobs1)
+            θ1 = est_theta_em(n,xobs1)
             check_boundary(θ1) && continue
-            θ2 = est_theta(n,xobs2)
+            θ2 = est_theta_em(n,xobs2)
             check_boundary(θ2) && continue
 
             # Estimate moments

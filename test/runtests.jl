@@ -21,7 +21,7 @@ test_path = JuliASM_path * "/test/"
     # Check proper likelihood
     @test JuliASM.comp_lkhd([1,1,0,1,1],n,a,b)≈0.232 atol=1e-3
     # Check proper estimation of θ
-    @test sum((JuliASM.est_theta(n,xobs)-θ).^2)<0.5
+    @test sum((JuliASM.est_theta_em(n,xobs)-θ).^2)<0.25
 end
 
 # Test set for information theory related functions
@@ -34,7 +34,7 @@ end
     # Check proper E[XX] computation
     @test sum(exx)≈1.285 atol=1e-3
     # Check proper MML computation
-    @test JuliASM.comp_mml(trues(4),ex)≈0.5 atol=1e-3
+    @test comp_mml(trues(4),ex)≈0.5 atol=1e-3
     # Check proper MML computation (2)
     @test JuliASM.comp_mml_∇(n,∇logZ)≈0.5 atol=1e-3
     # Check proper NME computation

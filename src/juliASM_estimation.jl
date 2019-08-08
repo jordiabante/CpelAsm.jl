@@ -235,7 +235,8 @@ false
 function check_boundary(θhat::Vector{Float64})::Bool
 
     # Return true θhat on boundary.
-    return isapprox(abs.(θhat[1]),ETA_MAX_ABS;atol=5e-2)
+    # return isapprox(abs.(θhat[1]),ETA_MAX_ABS;atol=5e-2)
+    return any(isapprox.(abs.(θhat),ETA_MAX_ABS;atol=5e-2)) || any(abs.(θhat).>ETA_MAX_ABS)
 
 end
 """
@@ -313,7 +314,7 @@ function comp_lkhd(x::Vector{Int64},n::Vector{Int64},a::Vector{Float64},b::Float
 
         # Call scaling factor function
         sf *= comp_g(n_miss,a[unique(b_id)],b,ap1,ap2)
-        
+
     end
 
     # Return energy function properly scaled.
@@ -416,23 +417,23 @@ function est_alpha(xobs::Array{Vector{Int64},1})::Vector{Float64}
 
 end # end est_alpha
 """
-    `est_theta([N1,...,NK],XOBS)`
+    `est_theta_sa([N1,...,NK],XOBS)`
 
-Estimate parameter vector η=[α, β] based on full or partial observations.
+Estimate parameter vector η=[α, β] based on full or partial observations using simulated annealing.
 
 # Examples
 ```julia-repl
 julia> Random.seed!(1234);
 julia> n=[4]
 julia> xobs=JuliASM.gen_ising_full_data(100,n);
-julia> JuliASM.est_theta(n,xobs)
+julia> JuliASM.est_theta_sa(n,xobs)
 3-element Vector{Float64}:
  -0.05232269932606823
   0.009316690953631898
  -0.047507839311720854
 ```
 """
-function est_theta(n::Vector{Int64},xobs::Array{Vector{Int64},1})::Vector{Float64}
+function est_theta_sa(n::Vector{Int64},xobs::Array{Vector{Int64},1})::Vector{Float64}
 
     # If N=1, then estimate α
     sum(n)==1 && return est_alpha(xobs)
@@ -450,7 +451,155 @@ function est_theta(n::Vector{Int64},xobs::Array{Vector{Int64},1})::Vector{Float6
     # Return estimate
     return optim.minimizer
 
-end # end est_theta
+end # end est_theta_sa
+"""
+    `comp_ES(X,[N1,...,N_K],θ)`
+
+Function that computes expected value of the complete vector of statistics S(W), where W is the
+complete methylation state and X is the observed portion of it.
+"""
+function comp_ES(x::Vector{Int64},n::Vector{Int64},θ::Vector{Float64})::Vector{Float64}
+
+    # Compute marginal of X=x
+    p_x = comp_lkhd(x,n,θ[1:(end-1)],θ[end])
+
+    # Compute E[W_n|X;θ]
+    w = zeros(Int64,length(x))
+    E_W_X = zeros(Float64,length(x))
+    @inbounds for i=1:length(x)
+        w[i] = 1
+        E_W_X[i] = x[i]==0 ? (2.0*comp_lkhd(x+w,n,θ[1:(end-1)],θ[end])/p_x)-1.0 : x[i]
+        w[i] = 0
+    end
+
+    # Compute E[W_{n}W_{n+1}|X;θ]
+    w1 = zeros(Int64,length(x))
+    w2 = zeros(Int64,length(x))
+    E_WW_X = zeros(Float64,length(x)-1)
+    @inbounds for i=1:(length(x)-1)
+        if (x[i]!=0)&(x[i+1]!=0)
+            E_WW_X[i] += x[i]*x[i+1]
+            continue
+        end
+        if (x[i]!=0)&(x[i+1]==0)
+            E_WW_X[i] += x[i]*E_W_X[i+1]
+            continue
+        end
+        if (x[i]==0)&(x[i+1]!=0)
+            E_WW_X[i] += E_W_X[i]*x[i+1]
+            continue
+        end
+        if (x[i]==0)&(x[i+1]==0)
+            w1[i] = -1
+            w2[i+1] = -1
+            E_WW_X[i] += comp_lkhd(x+w1+w2,n,θ[1:(end-1)],θ[end])
+            w1[i] = 1
+            w2[i+1] = 1
+            E_WW_X[i] += comp_lkhd(x+w1+w2,n,θ[1:(end-1)],θ[end])
+            w1[i] = -1
+            E_WW_X[i] += -comp_lkhd(x+w1+w2,n,θ[1:(end-1)],θ[end])
+            w1[i] = 0
+            w2[i+1] = 0
+            E_WW_X[i] *= 2.0/p_x
+            E_WW_X[i] += -1.0
+        end
+    end
+
+    # Get subregion ID for each CpG site
+    subid = vcat([i*ones(Int64,n[i]) for i in 1:length(n)]...)
+
+    # Initialize with observed part for k=1,...,K
+    Sout = [sum(E_W_X[subid.==id]) for id in unique(subid)]
+
+    # Append K+1 component
+    push!(Sout,sum(E_WW_X))
+
+    # Return vector E[S(W)|X;θ]
+    return Sout
+
+end # end comp_ES
+"""
+    `comp_ET(XOBS,[N1,...,N_K],θ)`
+
+Function that computes expected value of the complete vector of statistics T({W1,...,Wm}), where Wi
+is the complete methylation state of the i-th observation and Xi is the observed portion of it.
+"""
+function comp_ET(xobs::Array{Vector{Int64},1},n::Vector{Int64},θ::Vector{Float64})::Vector{Float64}
+
+    # Return vector E[T({W1,...,Wm})|{X1,...,Xm};θ]
+    return sum(map(x -> comp_ES(x,n,θ),xobs))
+
+end # end comp_ET
+"""
+    `em_alg([N1,...,N_K],XOBS)`
+
+Function that performs EM algorithm given partial observations in XOBS.
+
+"""
+function em_alg(n::Vector{Int64},xobs::Array{Vector{Int64},1})::Vector{Float64}
+
+    # Check if we have complete data
+    complete = findfirst(x->any(x.==0),xobs)==nothing ? true : false
+
+    # Initialize θhat
+    θhat = rand(Uniform(-1.5,1.5),length(n)+1)
+
+    # Iterate until ||θ-θhat||<ϵ
+    ET = comp_ET(xobs,n,θhat)
+    ϵ = 1e-2
+    @inbounds for i=1:75
+        # Set up system
+        function f!(U,θ)
+            ∇logZ = get_grad_logZ(n,θ)
+            @inbounds for j=1:(length(n)+1)
+                U[j] =  ∇logZ[j] - ET[j] / length(xobs)
+            end
+        end
+        #  Solve and obtain zero
+        sol = nlsolve(f!,θhat)
+        θ = converged(sol) ? sol.zero : θhat
+        # Check Euclidean distance
+        sqrt(sum((θ-θhat).^2)/sum(θhat.^2))<=ϵ && break
+        # Update θhat
+        θhat = θ
+        # Leave loop if complete
+        complete && break
+    end
+
+    # Return θhat
+    return θhat
+
+end # end em_alg
+"""
+    `est_theta_em([N1,...,N_K],XOBS)`
+
+Function that performs EM algorithm given partial observations in XOBS.
+
+"""
+function est_theta_em(n::Vector{Int64},xobs::Array{Vector{Int64},1})::Vector{Float64}
+
+    # Check if we have complete data
+    complete = findfirst(x->any(x.==0),xobs)==nothing ? true : false
+
+    # If N=1, then estimate α
+    sum(n)==1 && return est_alpha(xobs)
+
+    # Initialize
+    min_LogLike = Inf
+    LogLike = create_Llkhd(n,xobs)
+    θhat = zeros(Float64,length(n)+1)
+    # Run EM with a number of different initializations
+    @inbounds for i=1:15
+        θ = em_alg(n,xobs)
+        θhat = LogLike(θ)<min_LogLike ? θ : θhat
+        min_LogLike = LogLike(θ)<min_LogLike ? LogLike(θ) : min_LogLike
+        complete && break
+    end
+
+    # Return θhat
+    return θhat
+
+end # end est_theta_em
 ###################################################################################################
 # COMPETING MODELS
 ###################################################################################################

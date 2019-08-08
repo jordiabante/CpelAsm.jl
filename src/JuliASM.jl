@@ -16,13 +16,13 @@ using Distributions             # For sampling RVs
 using Plots                     # For plots
 using LaTeXStrings              # For labels in plots
 using ForwardDiff               # For auto-differentiation
-using Optim                     # For local minimizer
+using Optim                     # For Simulated annealing
+using NLsolve                   # For EM algorithm
 using BioAlignments             # For reading-in BAM/SAM files
 using GenomicFeatures           # For BED, GFF3, and bigWig files
 using GeneticVariation          # For VCF file
 using BioSequences              # For FASTA file
 using Combinatorics             # For permutation test
-using ProgressMeter             # For tracking progress
 using MultipleTesting           # For multiple hypothesis testing
 ###################################################################################################
 # INCLUDES
@@ -44,7 +44,8 @@ export gen_ising_part_data          # Generate a set of partial observations usi
 # Different computations
 export comp_Z                       # Partition function
 export est_alpha                    # Estimate α for N=1 case
-export est_theta                    # Estimate θ in general case
+export est_theta_sa                 # Estimate θ in general case using Simulated Annealing
+export est_theta_em                 # Estimate θ in general case using EM algorithm
 export comp_lkhd                    # Compute likelihood
 export comp_ex                      # Compute E[X] vector
 export comp_exx                     # Compute E[XX] vector
