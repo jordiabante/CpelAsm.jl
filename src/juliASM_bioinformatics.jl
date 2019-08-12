@@ -1232,16 +1232,16 @@ julia> comp_pvals_stat(tobs_path,tnull_path)
 function comp_pvals_stat(tobs_path::Vector{String},tnull_path::String,p_path::String,n_max::Int64)
 
     # Get null stats
-    tnull = readdlm(tnull_path,'\t')
+    tnull = readdlm(tnull_path,'\t',Any)
 
     # Consider case dMML/dNME VS UC
     if length(tobs_path)>1
         # dMML/dNME
-        tobs = readdlm(tobs_path[1],'\t')
-        tobs[:,4] = abs.(tobs[:,4]-readdlm(tobs_path[2],'\t')[:,4])
+        tobs = readdlm(tobs_path[1],'\t',Any)
+        tobs[:,4] = abs.(tobs[:,4]-readdlm(tobs_path[2],'\t',Any)[:,4])
     else
         # UC
-        tobs = readdlm(tobs_path[1],'\t')
+        tobs = readdlm(tobs_path[1],'\t',Any)
     end
 
     # Initialize p-value matrix
