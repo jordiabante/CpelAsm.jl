@@ -1282,9 +1282,13 @@ function comp_pvals(tobs_path::Vector{String},tnull_path::Vector{String},p_path:
                     n_max::Int64)
 
     # Compute three sets of pvalues
+    print_log("Computing p-values dMML...")
     comp_pvals_stat(tobs_path[1:2],tnull_path[1],p_path[1],n_max)
+    print_log("Computing p-values dNME...")
     comp_pvals_stat(tobs_path[3:4],tnull_path[2],p_path[2],n_max)
+    print_log("Computing p-values UC...")
     comp_pvals_stat([tobs_path[5]],tnull_path[3],p_path[3],n_max)
+    print_log("Done with p-values...")
 
     # Return
     return nothing
