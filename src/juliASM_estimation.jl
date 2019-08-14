@@ -235,7 +235,6 @@ false
 function check_boundary(θhat::Vector{Float64})::Bool
 
     # Return true θhat on boundary.
-    # return isapprox(abs.(θhat[1]),ETA_MAX_ABS;atol=5e-2)
     return any(isapprox.(abs.(θhat),ETA_MAX_ABS;atol=5e-2)) || any(abs.(θhat).>ETA_MAX_ABS)
 
 end
@@ -578,16 +577,17 @@ Function that performs EM algorithm given partial observations in XOBS.
 """
 function est_theta_em(n::Vector{Int64},xobs::Array{Vector{Int64},1})::Vector{Float64}
 
-    # Check if we have complete data
-    complete = findfirst(x->any(x.==0),xobs)==nothing ? true : false
-
     # If N=1, then estimate α
     sum(n)==1 && return est_alpha(xobs)
+
+    # Check if we have complete data
+    complete = findfirst(x->any(x.==0),xobs)==nothing ? true : false
 
     # Initialize
     min_LogLike = Inf
     LogLike = create_Llkhd(n,xobs)
     θhat = zeros(Float64,length(n)+1)
+
     # Run EM with a number of different initializations
     @inbounds for i=1:15
         θ = em_alg(n,xobs)

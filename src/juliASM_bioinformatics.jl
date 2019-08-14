@@ -401,7 +401,7 @@ function expand_win(l_snp::Int64,r_snp::Int64,win_exp::Int64,blk_size::Int64,
     r_snp += win_exp
 
     # Add remaining to be multiple of blk_size
-    rmdr = (r_snp-l_snp)%blk_size==0 ? 0 : div(blk_size-(r_snp-l_snp)%blk_size,2)
+    rmdr = (r_snp-l_snp+1)%blk_size==0 ? 0 : div(blk_size-(r_snp-l_snp+1)%blk_size,2)
 
     # Cap at 1 and end of chromosome
     return [max(1,l_snp-rmdr),min(chr_size,r_snp+rmdr)]
@@ -414,7 +414,7 @@ Function that returns the number of models required so as to avoid joint model w
 
 # Examples
 ```julia-repl
-julia> find_num_models([50,55,60,65],2,1)
+julia> JuliASM.find_num_models([50,55,60,65],2,1)
 2
 ```
 """
@@ -504,35 +504,30 @@ function gen_gffs(gff::Vector{String},fa::String,vcf::String,win_exp::Int64,blk_
         # Store heterozygous haplotype & corresponding CpG sites if homozygous CpG site/s
         if length(cpg_pos)>0
 
-            # All CpG sites
-            all_cpg_pos = sort(vcat(cpg_pos,het1,het2))
-            het1_ind = [in(x,het1) for x in all_cpg_pos]
-            het2_ind = [in(x,het2) for x in all_cpg_pos]
-            hom_ind = [in(x,cpg_pos) for x in all_cpg_pos]
-
-            # Obtain required number of models
-            n_mod = find_num_models(all_cpg_pos,n_max,1)
-            mod_size = div(length(all_cpg_pos),n_mod)
-            mod_rem = length(all_cpg_pos)-n_mod*mod_size
+            # Obtain required number of models based on homozygous CpG sites
+            n_mod = find_num_models(cpg_pos,n_max,1)
+            mod_size = div(length(cpg_pos),n_mod)
+            mod_rem = length(cpg_pos)-n_mod*mod_size
 
             # Print each set separately
             for i=1:n_mod
-                # Index of subset of CpG sites in all_cpg_pos
-                all_ind = (mod_size*(i-1)+1):min((mod_size*i),length(all_cpg_pos))
-                i==n_mod && mod_rem>0 && (all_ind=extrema(all_ind)[1]:length(all_cpg_pos))
-                # Binary vector corresponding to model
-                bin_mod = falses(length(all_cpg_pos))
-                bin_mod[all_ind] .= true
+                # Index of subset of CpG sites in cpg_pos
+                hom_rng = (mod_size*(i-1)+1):min((mod_size*i),length(cpg_pos))
+                # Add remainders to last block
+                i==n_mod && mod_rem>0 && (hom_rng=extrema(hom_rng)[1]:length(cpg_pos))
                 # Get subset of CpG sites for each
-                hom_mod = all_cpg_pos[bin_mod .& hom_ind]
-                het1_mod = all_cpg_pos[bin_mod .& het1_ind]
-                het2_mod = all_cpg_pos[bin_mod .& het2_ind]
-                # Get f_st & f_end
-                f_st = i==1 ? win[1] : minimum(vcat(hom_mod,het1_mod,het2_mod))
-                f_end = i==n_mod ? win[2] : maximum(vcat(hom_mod,het1_mod,het2_mod))
+                hom_mod = cpg_pos[hom_rng]
+                # Get submodel boundaries
+                inf_bound = i==1 ? win[1] : cpg_pos[max(1,extrema(hom_rng)[1]-1)]
+                sup_bound = i==n_mod ? win[2] : hom_mod[end]
+                # Get heterozygous CpG sites in current submodel
+                het1_mod = het1[findall(x-> inf_bound <= x <= sup_bound,het1)]
+                het2_mod = het2[findall(x-> inf_bound <= x <= sup_bound,het2)]
+                # Make submodel window a multiple of G (no new CpGs included)
+                win_mod = expand_win(inf_bound,sup_bound,0,blk_size,chr_size)
                 # Push output string
-                out_str = "$(curr_chr)\t.\t$(curr_ps)\t$(f_st)\t$(f_end)\t.\t.\t.\t"
-                out_str *= "N=$(length(hom_mod));CpGs=$(hom_mod)"
+                out_str = "$(curr_chr)\t.\t$(curr_ps)-$(i)/$(n_mod)\t$(win_mod[1])\t$(win_mod[2])"
+                out_str *= "\t.\t.\t.\tN=$(length(hom_mod));CpGs=$(hom_mod)"
                 length(het1_mod)>0 && (out_str*=";hetCpGg1=$(het1_mod)")
                 length(het2_mod)>0 && (out_str*=";hetCpGg2=$(het2_mod)")
                 # Push GFF record
@@ -804,12 +799,12 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
     for chr in chr_names
 
         # Get windows pertaining to current chromosome
-        print_log("Processing chr $(chr) ...")
+        print_log("Processing chromosome $(chr) ...")
         features_chr = read_gff_chr(gff,chr)
         chr_size = chr_sizes[findfirst(x->x==chr, chr_names)]
 
         # bedGraph records
-        out_sa = SharedArray{Tuple{Int64,Int64,Float64,Int64,Int64},2}(length(features_chr),8)
+        out_sa=SharedArray{Tuple{Int64,Int64,Float64,Int64,Int64},2}(length(features_chr),8)
 
         # Loop over windows in chromosome
         @sync @distributed for i=1:length(features_chr)
@@ -867,12 +862,16 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
             nme2 = all(z2) ? comp_nme_∇(n2,θ2,∇2) : comp_nme(z2,n2,θ2[1:(end-1)],θ2[end],ex2,exx2)
             uc = comp_uc(z1,z2,n1,n2,θ1,θ2,nme1,nme2)
 
+            # Report positions based on CpG sites not f_st, f_end
+            bed_st = minimum(minimum.(cpg_pos))
+            bed_end = maximum(maximum.(cpg_pos))
+
             # Add statistics to output array
-            out_sa[i,1] = (f_st,f_end,mml1,sum(n),length(n1))
-            out_sa[i,2] = (f_st,f_end,mml2,sum(n),length(n2))
-            out_sa[i,3] = (f_st,f_end,nme1,sum(n),length(n1))
-            out_sa[i,4] = (f_st,f_end,nme2,sum(n),length(n2))
-            out_sa[i,5] = (f_st,f_end,uc,sum(n),length(n))
+            out_sa[i,1] = (bed_st,bed_end,mml1,sum(n),length(n1))
+            out_sa[i,2] = (bed_st,bed_end,mml2,sum(n),length(n2))
+            out_sa[i,3] = (bed_st,bed_end,nme1,sum(n),length(n1))
+            out_sa[i,4] = (bed_st,bed_end,nme2,sum(n),length(n2))
+            out_sa[i,5] = (bed_st,bed_end,uc,sum(n),length(n))
 
         end
 
@@ -1222,7 +1221,8 @@ end # end comp_tnull
     `comp_pvals_stat(TOBS_PATH,TNULL_PATH,N_MAX)`
 
 Function that computes adjusted p-values for each haplotype in TOBS_PATH from the empirical
-distribution of the pertaining statistic in TNULL_PATH.
+distribution of the pertaining statistic in TNULL_PATH. The output file has the genomic
+coordinates, the value of the statistic, and the adjusted p-value.
 
 # Examples
 ```julia-repl
@@ -1236,7 +1236,7 @@ function comp_pvals_stat(tobs_path::Vector{String},tnull_path::String,p_path::St
 
     # Consider case dMML/dNME VS UC
     if length(tobs_path)>1
-        # dMML/dNME
+        # dMML/dNME. NOTE: both files need to have the same order of haplotypes!
         tobs = readdlm(tobs_path[1],'\t',Any)
         tobs[:,4] = abs.(tobs[:,4]-readdlm(tobs_path[2],'\t',Any)[:,4])
     else
@@ -1245,21 +1245,21 @@ function comp_pvals_stat(tobs_path::Vector{String},tnull_path::String,p_path::St
     end
 
     # Initialize p-value matrix
-    pvals = tobs[:,1:4]
-    pvals[:,4] .= "NO DATA"
+    pvals = tobs[:,1:5]
+    pvals[:,5] .= "NO DATA"
 
     # Compute p-values
     for i=1:size(tobs)[1]
         # Check we can compute p-value
         tobs[i,5]<=n_max || continue
         # Compute empirical p-value
-        pvals[i,4] = sum(tnull[tnull[:,1].==tobs[i,5],3].>=tobs[i,4]) / sum(tnull[:,1].==tobs[i,5])
+        pvals[i,5] = sum(tnull[tnull[:,1].==tobs[i,5],3].>=tobs[i,4]) / sum(tnull[:,1].==tobs[i,5])
     end
 
     # Multiple hypothesis testing correction
-    pvals[:,4] = MultipleTesting.adjust(convert(Vector{Float64},pvals[:,4]),BenjaminiHochberg())
+    pvals[:,5] = MultipleTesting.adjust(convert(Vector{Float64},pvals[:,5]),BenjaminiHochberg())
 
-    # Write to output. TODO: get right path
+    # Write to output
     open(p_path,"w") do io
         writedlm(io,pvals,'\t')
     end
