@@ -167,7 +167,7 @@ function get_grad_logZ(n::Vector{Int64},θhat::Vector{Float64})::Vector{Float64}
         log(comp_Z(n,θ[1:(end-1)],θ[end]))
     end
 
-    # Return 0.5/N_k(E_k[S(X)]+1) vector
+    # Return ∇A(θ)
     return Calculus.gradient(f,θhat)
 
 end
@@ -535,18 +535,19 @@ end # end comp_ET
 Function that performs EM algorithm given partial observations in XOBS.
 
 """
-function em_alg(n::Vector{Int64},xobs::Array{Vector{Int64},1})::Vector{Float64}
+function em_alg(n::Vector{Int64},xobs::Array{Vector{Int64},1})::Tuple{Vector{Float64},Bool}
 
     # Check if we have complete data
-    complete = findfirst(x->any(x.==0),xobs)==nothing ? true : false
+    complete = findfirst(x->any(x.==0),xobs)==nothing
 
     # Initialize θhat
     θhat = rand(Uniform(-1.5,1.5),length(n)+1)
 
     # Iterate until ||θ-θhat||<ϵ
+    ϵ = 1e-3
+    convergence = false
     ET = comp_ET(xobs,n,θhat)
-    ϵ = 1e-2
-    @inbounds for i=1:75
+    @inbounds for i=1:10
         # Set up system
         function f!(U,θ)
             ∇logZ = get_grad_logZ(n,θ)
@@ -555,18 +556,18 @@ function em_alg(n::Vector{Int64},xobs::Array{Vector{Int64},1})::Vector{Float64}
             end
         end
         #  Solve and obtain zero
-        sol = nlsolve(f!,θhat)
+        sol = nlsolve(f!,θhat,method=:trust_region)
         θ = converged(sol) ? sol.zero : θhat
         # Check Euclidean distance
-        sqrt(sum((θ-θhat).^2)/sum(θhat.^2))<=ϵ && break
+        convergence = converged(sol) && (complete || (sqrt(sum((θ-θhat).^2)/sum(θhat.^2))<=ϵ))
         # Update θhat
         θhat = θ
-        # Leave loop if complete
-        complete && break
+        # Break if converged
+        convergence && break
     end
 
     # Return θhat
-    return θhat
+    return (θhat,convergence)
 
 end # end em_alg
 """
@@ -575,29 +576,37 @@ end # end em_alg
 Function that performs EM algorithm given partial observations in XOBS.
 
 """
-function est_theta_em(n::Vector{Int64},xobs::Array{Vector{Int64},1})::Vector{Float64}
+function est_theta_em(n::Vector{Int64},xobs::Array{Vector{Int64},1})::Tuple{Vector{Float64},Bool}
 
     # If N=1, then estimate α
-    sum(n)==1 && return est_alpha(xobs)
+    sum(n)==1 && return (est_alpha(xobs),true)
 
     # Check if we have complete data
-    complete = findfirst(x->any(x.==0),xobs)==nothing ? true : false
+    complete = findfirst(x->any(x.==0),xobs)==nothing
 
     # Initialize
     min_LogLike = Inf
+    convergence = false
     LogLike = create_Llkhd(n,xobs)
     θhat = zeros(Float64,length(n)+1)
 
     # Run EM with a number of different initializations
     @inbounds for i=1:15
-        θ = em_alg(n,xobs)
+        # EM Algorithm
+        θ,converged = em_alg(n,xobs)
+        # If did not converge move onto new init
+        converged || continue
+        # If it converged and minimizes (-) log-likelihood, then keep estimate
         θhat = LogLike(θ)<min_LogLike ? θ : θhat
         min_LogLike = LogLike(θ)<min_LogLike ? LogLike(θ) : min_LogLike
+        # Set convergence true since at least one init worked
+        convergence = true
+        # If full data then no need to re-run EM
         complete && break
     end
 
     # Return θhat
-    return θhat
+    return (θhat,convergence)
 
 end # end est_theta_em
 ###################################################################################################
