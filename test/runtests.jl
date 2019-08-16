@@ -13,15 +13,18 @@ test_path = JuliASM_path * "/test/"
     # Initialize all variables
     n=[2,2]; a=[-1.0,1.0]; b=1.0; θ=vcat([a,b]...); ∇logZ=JuliASM.get_grad_logZ(n,θ);
     ex=JuliASM.comp_ex(n,a,b); exx=JuliASM.comp_exx(n,a,b);
-    Random.seed!(1234); xobs=[JuliASM.gen_x_mc(n,a,b) for i=1:50]
+    Random.seed!(1234); xobs=[JuliASM.gen_x_mc(n,a,b) for i=1:50];
+    θhat,convergence=JuliASM.est_theta_em(n,xobs);
     # Check proper computation partition function
     @test JuliASM.comp_Z(n,a,b)≈235.912 atol=1e-3
     # Check proper computation scaling factor
     @test JuliASM.comp_g(n,a,b,1.0,1.0)≈143.330 atol=1e-3
     # Check proper likelihood
     @test JuliASM.comp_lkhd([1,1,0,1,1],n,a,b)≈0.232 atol=1e-3
+    # Check convergence of EM
+    @test convergence
     # Check proper estimation of θ
-    @test sum((JuliASM.est_theta_em(n,xobs)-θ).^2)<0.25
+    @test sum((θhat-θ).^2)<0.25
 end
 
 # Test set for information theory related functions
