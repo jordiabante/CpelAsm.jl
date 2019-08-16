@@ -833,9 +833,17 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
 
             # Estimate each single-allele model and check if on boundary of parameter space
             θ1,converged = est_theta_em(n1,xobs1)
-            (!converged || check_boundary(θ1)) && println("Not converged at $(xobs1)") && continue
+            converged || println("Failed to converge at $(xobs1)")
+            converged || continue
+            converged && println("Converged at $(xobs1)")
+            check_boundary(θ1) && println("Boundary at $(θ1) with $(xobs1)")
+            check_boundary(θ1) && continue
             θ2,converged = est_theta_em(n2,xobs2)
-            (!converged || check_boundary(θ2)) && println("Not converged at $(xobs2)") && continue
+            converged || println("Failed to converge at $(xobs2)")
+            converged || continue
+            converged && println("Converged at $(xobs2)")
+            check_boundary(θ2) && println("Boundary at $(θ2) with $(xobs2)")
+            check_boundary(θ2) && continue
 
             # Get binary vector with homozygous CpG sites
             z1 = BitArray([p in cpg_pos[1] ? true : false for p in cpg_pos[2]])
@@ -1190,9 +1198,17 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
 
             # Estimate each single-allele model and check if on boundary of parameter space
             θ1,converged = est_theta_em(n,xobs1)
-            (!converged || check_boundary(θ1)) && println("Not converged at $(xobs1)") && continue
+            converged || println("Failed to converge at $(xobs1)")
+            converged || continue
+            converged && println("Converged at $(xobs1)")
+            check_boundary(θ1) && println("Boundary at $(θ1) with $(xobs1)")
+            check_boundary(θ1) && continue
             θ2,converged = est_theta_em(n,xobs2)
-            (!converged || check_boundary(θ2)) && println("Not converged at $(xobs2)") && continue
+            converged || println("Failed to converge at $(xobs2)")
+            converged || continue
+            converged && println("Converged at $(xobs2)")
+            check_boundary(θ2) && println("Boundary at $(θ2) with $(xobs2)")
+            check_boundary(θ2) && continue
 
             # Estimate moments
             ∇1 = get_grad_logZ(n,θ1)
