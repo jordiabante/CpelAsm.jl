@@ -452,10 +452,20 @@ function est_theta_sa(n::Vector{Int64},xobs::Array{Vector{Int64},1})::Vector{Flo
 
 end # end est_theta_sa
 """
-    `comp_ES(X,[N1,...,N_K],θ)`
+    `comp_ES(𝑋,[N1,...,N_K],θ)`
 
-Function that computes expected value of the complete vector of statistics S(W), where W is the
-complete methylation state and X is the observed portion of it.
+Function that computes expected value of the complete vector of sufficient statistics 𝐄[S(X)|𝑋;θ],
+where X is the full methylation state, given the observed methylation vector 𝑋 and parameter
+vector θ.
+
+# Examples
+```julia-repl
+julia> JuliASM.comp_ES([1,-1,0,-1],[2,2],[0.0,0.0,0.0])
+3-element Array{Float64,1}:
+  0.0
+ -1.0
+ -1.0
+```
 """
 function comp_ES(x::Vector{Int64},n::Vector{Int64},θ::Vector{Float64})::Vector{Float64}
 
@@ -520,8 +530,24 @@ end # end comp_ES
 """
     `comp_ET(XOBS,[N1,...,N_K],θ)`
 
-Function that computes expected value of the complete vector of statistics T({W1,...,Wm}), where Wi
-is the complete methylation state of the i-th observation and Xi is the observed portion of it.
+Function that computes expectation
+
+    𝐄[T(X_1,...,X_M)|𝑋_1,...,𝑋_M;θ],
+
+where X_i is the complete methylation state that corresponds to the i-th observation, 𝑋_i is the
+corresponding observed vector, and θ is the parameter vector the expectation is computed wrt.
+
+# Examples
+```julia-repl
+julia> Random.seed!(1234);
+julia> n=[2,2];
+julia> xobs=JuliASM.gen_ising_full_data(100,n);
+julia> JuliASM.comp_ET(xobs,n,[0.0,0.0,0.0])
+3-element Array{Float64,1}:
+   0.0
+ -20.0
+  -6.0
+```
 """
 function comp_ET(xobs::Array{Vector{Int64},1},n::Vector{Int64},θ::Vector{Float64})::Vector{Float64}
 
@@ -532,8 +558,17 @@ end # end comp_ET
 """
     `em_alg([N1,...,N_K],XOBS)`
 
-Function that performs EM algorithm given partial observations in XOBS.
+Function that runs a single instance of the EM algorithm given observations in XOBS. Returns a pair
+`θhat` and `convergence` flag.
 
+# Examples
+```julia-repl
+julia> Random.seed!(1234);
+julia> n=[2,2];
+julia> xobs=JuliASM.gen_ising_full_data(100,n);
+julia> JuliASM.em_alg(n,xobs)
+([-0.00114078, -0.10281, -0.0235107], true)
+```
 """
 function em_alg(n::Vector{Int64},xobs::Array{Vector{Int64},1})::Tuple{Vector{Float64},Bool}
 
@@ -575,8 +610,19 @@ end # end em_alg
 """
     `est_theta_em([N1,...,N_K],XOBS)`
 
-Function that performs EM algorithm given partial observations in XOBS.
+Function that runs multiple instances of the EM algorithm given observations in XOBS. Returns a pair
+(θhat,convergence flag). This is done so as to try different initializations for the EM algorithm.
+The θhat that maximizes the log-likelihood is returned as long as at least one instance of the EM
+algorithm has converged.
 
+# Examples
+```julia-repl
+julia> Random.seed!(1234);
+julia> n=[2,2];
+julia> xobs=JuliASM.gen_ising_full_data(100,n);
+julia> JuliASM.est_theta_em(n,xobs)
+([-0.00114078, -0.10281, -0.0235107], true)
+```
 """
 function est_theta_em(n::Vector{Int64},xobs::Array{Vector{Int64},1})::Tuple{Vector{Float64},Bool}
 
