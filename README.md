@@ -48,7 +48,7 @@ b2 = "$(dir)/bam/example.a2.bam"
 fa = "$(dir)/fasta/example.fa"
 vcf = "$(dir)/vcf/example.vcf"
 out = "$(dir)/out/"
-run_analysis(b1,b2,b1,vcf,fa,out;blk_size=20,cov_ths=3,cov_b=20.0,win_exp=10,mc_null=1000,n_max=5)
+run_analysis(b1,b2,b1,vcf,fa,out;blk_size=25,cov_ths=3,cov_b=20.0,win_exp=5,mc_null=1000,n_max=10)
 ```
 
 ## Authors

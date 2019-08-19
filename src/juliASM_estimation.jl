@@ -599,7 +599,7 @@ function est_theta_em(n::Vector{Int64},xobs::Array{Vector{Int64},1})::Tuple{Vect
         # If did not converge move onto new initialization
         converged || continue
         # If it converged and minimizes minus log-likelihood, then keep estimate
-        if LogLike(θcand) < min_LogLike
+        if LogLike(θcand)<min_LogLike
             θhat = θcand
             min_LogLike = min_LogLike
         end
