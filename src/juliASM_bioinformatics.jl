@@ -182,14 +182,14 @@ For info on OT, CTOT, OB, CTOB nomenclature see
 julia> read_bam(BAM_PATH,"chr1",30,80,[40,60],false,(0,0,0,0))
 ```
 """
-function read_bam(bam::String,chr::String,f_st::Int64,f_end::Int64,cpg_pos::Vector{Int64},
+function read_bam(bam::String,chr::String,hap_st::Int64,hap_end::Int64,cpg_pos::Vector{Int64},
                   chr_size::Int64,pe::Bool,trim::NTuple{4,Int64})::Array{Vector{Int64},1}
 
     # Number of CpG sites is determined by that in the region
     N = length(cpg_pos)
 
     # Expand window in PE case to include pair even if it's outside the window
-    exp_win = pe ? [max(1,f_st-75),min(chr_size,f_end+75)] : [f_st,f_end]
+    exp_win = pe ? [max(1,hap_st-75),min(chr_size,hap_end+75)] : [hap_st,hap_end]
 
     # Get records overlapping window.
     reader = open(BAM.Reader,bam,index=bam*".bai")
@@ -389,22 +389,16 @@ nearby CpG sites, and the size of the subregions into which the whole region wil
 
 # Examples
 ```julia-repl
-julia> expand_win(50,80,10,50,2000)
-??
+julia> expand_win(50,80,10,2000)
+2-element Array{Int64,1}:
+ 40
+ 90
 ```
 """
-function expand_win(l_snp::Int64,r_snp::Int64,win_exp::Int64,blk_size::Int64,
-                    chr_size::Int64)::Vector{Int64}
+function expand_win(l_snp::Int64,r_snp::Int64,win_exp::Int64,chr_size::Int64)::Vector{Int64}
 
-    # Expand left and right to include nearby CpG sites
-    l_snp -= win_exp
-    r_snp += win_exp
-
-    # Add remaining to be multiple of blk_size
-    rmdr = (r_snp-l_snp+1)%blk_size==0 ? 0 : div(blk_size-(r_snp-l_snp+1)%blk_size,2)
-
-    # Cap at 1 and end of chromosome
-    return [max(1,l_snp-rmdr),min(chr_size,r_snp+rmdr)]
+    # Return extended window
+    return [max(1,l_snp-win_exp),min(chr_size,r_snp+win_exp)]
 
 end # end expand_win
 """
@@ -425,7 +419,7 @@ function find_num_models(cpg_pos::Vector{Int64},n_max::Int64,n_mod::Int64)::Int6
 
 end # end find_num_models
 """
-    `gen_gffs([HET_GFF_PATH,HOM_GFF_PATH],FA_PATH,VCF_PATH,WIN_EXP,BLOCK_SIZE,NMAX)`
+    `gen_gffs([HET_GFF_PATH,HOM_GFF_PATH],FA_PATH,VCF_PATH,WIN_EXP,NMAX)`
 
 Function that creates a GFF file containing the genomic regions to be analyzed by `JuliASM`. If a
 set of SNPs is phased, this function will create a single window for all. In case, the set of SNPs
@@ -436,11 +430,10 @@ in it.
 
 # Examples
 ```julia-repl
-julia> gen_gffs([HET_GFF_PATH,HOM_GFF_PATH],FA_PATH,VCF_PATH,WIN_EXP,BLOCK_SIZE,NMAX)
+julia> gen_gffs([HET_GFF_PATH,HOM_GFF_PATH],FA_PATH,VCF_PATH,WIN_EXP,NMAX)
 ```
 """
-function gen_gffs(gff::Vector{String},fa::String,vcf::String,win_exp::Int64,blk_size::Int64,
-                  n_max::Int64)
+function gen_gffs(gff::Vector{String},fa::String,vcf::String,win_exp::Int64,n_max::Int64)
 
     # Initialize VCF variables
     het_records = Vector{GFF3.Record}()
@@ -465,14 +458,14 @@ function gen_gffs(gff::Vector{String},fa::String,vcf::String,win_exp::Int64,blk_
     while true
 
         # Check if chromosome is in FASTA file. If not, obtain the next valid 1
-        record = next_record(reader_vcf, chr_names, record)
+        record = next_record(reader_vcf,chr_names,record)
 
         # Check we have loaded the right chromosome from FASTA
         if !(curr_chr == VCF.chrom(record))
             curr_chr = VCF.chrom(record)
             reader_fa = open(FASTA.Reader,fa,index=fa*".fai")
             fa_record = reader_fa[curr_chr]
-            chr_size = chr_sizes[findfirst(x->x==curr_chr, chr_names)]
+            chr_size = chr_sizes[findfirst(x->x==curr_chr,chr_names)]
             close(reader_fa)
             prev_end=0
         end
@@ -494,8 +487,8 @@ function gen_gffs(gff::Vector{String},fa::String,vcf::String,win_exp::Int64,blk_
             eof(reader_vcf) ? record=VCF.Record() : read!(reader_vcf, record)
         end
 
-        # Get remainder from block size and distribute it evenly
-        win = expand_win(wSt,wEnd,win_exp,blk_size,chr_size)
+        # Expand window win_exp on each side
+        win = expand_win(wSt,wEnd,win_exp,chr_size)
 
         # Obtain DNA sequence from reference and homozygous CpG loci from it
         wSeq = convert(String,FASTA.sequence(fa_record,win[1]:win[2]))
@@ -524,7 +517,7 @@ function gen_gffs(gff::Vector{String},fa::String,vcf::String,win_exp::Int64,blk_
                 het1_mod = het1[findall(x-> inf_bound <= x <= sup_bound,het1)]
                 het2_mod = het2[findall(x-> inf_bound <= x <= sup_bound,het2)]
                 # Make submodel window a multiple of G (no new CpGs included)
-                win_mod = expand_win(inf_bound,sup_bound,0,blk_size,chr_size)
+                win_mod = expand_win(inf_bound,sup_bound,0,chr_size)
                 # Push output string
                 out_str = "$(curr_chr)\t.\t$(curr_ps)-$(i)/$(n_mod)\t$(win_mod[1])\t$(win_mod[2])"
                 out_str *= "\t.\t.\t.\tN=$(length(hom_mod));CpGs=$(hom_mod)"
@@ -594,7 +587,7 @@ function read_gff_chr(gff::String,chr::String)::Vector{GFF3.Record}
     filter!(x -> GFF3.seqid(x)==chr, features)
 
     # Return
-    return features
+        return features
 
 end # end read_gff_chr
 """
@@ -651,41 +644,34 @@ function get_cpg_pos(atts::Dict{String,Vector{String}})::Array{Vector{Int64},1}
 
 end # end get_cpg_pos
 """
-    `get_ns(CPG_POS,BLOCK_SIZE,FEAT_ST)`
+    `get_ns(CPG_POS,G_MAX,HAP_ST,HAP_END)`
 
-Functions that returns `[N1,...,NK]` given the position of the CpG sites and a block size
-`BLOCK_SIZE` into which the region is partitioned.
+Functions that returns [N1,...,NK] given the position of the CpG sites & maximum granularity G_MAX.
 
 # Examples
 ```julia-repl
-julia> get_ns([100,250,300,350],200,90)
-2-element Vector{Int64}:
+julia> get_ns([100,200,300,350],200,90,400)
+2-element Array{Int64,1}:
  2
  2
 ```
 """
-function get_ns(cpg_pos::Vector{Int64},blk_size::Int64,f_st::Int64)::Vector{Int64}
+function get_ns(cpg_pos::Vector{Int64},g_max::Int64,hap_st::Int64,hap_end::Int64)::Vector{Int64}
 
-    # Check all cpg_pos are not upstream of f_st (provisional check)
-    if minimum(cpg_pos)<f_st
-        println(stderr, "[$(now())]: CpG sites in $cpg_pos upstream of f_st at $f_st.")
-        println(stderr, "[$(now())]: Exiting julia ...")
-        exit(1)
-    end
+    # Check if need to partition
+    (hap_end-hap_st+1)>g_max || return [length(cpg_pos)]
 
-    # Partition array
-    y = Int64[]
-    for p in cpg_pos
-        j = 0
-        while true
-            ((p-f_st-j*blk_size)>=0) && ((p-f_st-(j+1)*blk_size)<=0) && break
-            j += 1
-        end
-        push!(y,j)
-    end
+    # Get K of model
+    k = ceil((hap_end-hap_st+1)/g_max)
 
-    # Return array of arrays
-    return [sum(y.==i) for i in unique(y)]
+    # Get delimiters
+    delimiters = vcat(collect(hap_st:(hap_end-hap_st+1)/k:hap_end),hap_end)
+
+    # Partition CpG sites
+    ids = [findfirst(y->y>x,delimiters)-1 for x in cpg_pos]
+
+    # Return [N1,...,NK] vector
+    return [sum(ids.==i) for i in unique(ids)]
 
 end # end get_ns
 """
@@ -783,7 +769,7 @@ julia> comp_tobs(BAM1_PATH,BAM2_PATH,GFF_PATH,FA_PATH,OUT_PATHS)
 ```
 """
 function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::Vector{String};
-                   pe::Bool=true,blk_size::Int64=300,cov_ths::Int64=5,trim::NTuple{4,Int64}=
+                   pe::Bool=true,g_max::Int64=300,cov_ths::Int64=5,trim::NTuple{4,Int64}=
                    (0,0,0,0))
 
     # BigWig output files
@@ -800,31 +786,31 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
 
         # Get windows pertaining to current chromosome
         print_log("Processing chromosome $(chr) ...")
-        features_chr = read_gff_chr(gff,chr)
+        hap_chr = read_gff_chr(gff,chr)
         chr_size = chr_sizes[findfirst(x->x==chr, chr_names)]
 
         # bedGraph records
-        out_sa=SharedArray{Tuple{Int64,Int64,Float64,Int64,Int64},2}(length(features_chr),8)
+        out_sa=SharedArray{Tuple{Int64,Int64,Float64,Int64,Int64},2}(length(hap_chr),8)
 
         # Loop over windows in chromosome
-        @sync @distributed for i=1:length(features_chr)
+        @sync @distributed for i=1:length(hap_chr)
 
-            # Get window of interest
-            feat = features_chr[i]
-            f_st = GFF3.seqstart(feat)
-            f_end = GFF3.seqend(feat)
+            # Get haplotype of interest
+            hap = hap_chr[i]
+            hap_st = GFF3.seqstart(hap)
+            hap_end = GFF3.seqend(hap)
 
             # Get homozygous & heterozygous CpG sites (1:hom, 2:hap1, 3: hap2)
-            cpg_pos = get_cpg_pos(Dict(GFF3.attributes(feat)))
-            n = get_ns(cpg_pos[1],blk_size,f_st)
-            n1 = get_ns(cpg_pos[2],blk_size,f_st)
-            n2 = get_ns(cpg_pos[3],blk_size,f_st)
+            cpg_pos = get_cpg_pos(Dict(GFF3.attributes(hap)))
+            n = get_ns(cpg_pos[1],g_max,hap_st,hap_end)
+            n1 = get_ns(cpg_pos[2],g_max,hap_st,hap_end)
+            n2 = get_ns(cpg_pos[3],g_max,hap_st,hap_end)
             length(n)>0 || continue
 
-            # Get vectors from BAM1/2 overlapping feature & compute average coverage
-            xobs1 = read_bam(bam1,chr,f_st,f_end,cpg_pos[2],chr_size,pe,trim)
+            # Get vectors from BAM1/2 overlapping haplotype & compute average coverage
+            xobs1 = read_bam(bam1,chr,hap_st,hap_end,cpg_pos[2],chr_size,pe,trim)
             cov_ths <= mean_cov(xobs1) <= 200 || continue
-            xobs2 = read_bam(bam2,chr,f_st,f_end,cpg_pos[3],chr_size,pe,trim)
+            xobs2 = read_bam(bam2,chr,hap_st,hap_end,cpg_pos[3],chr_size,pe,trim)
             cov_ths <= mean_cov(xobs2) <= 200 || continue
 
             # Check MLE exists
@@ -833,16 +819,10 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
 
             # Estimate each single-allele model and check if on boundary of parameter space
             θ1,converged = est_theta_em(n1,xobs1)
-                # converged || println("Failed to converge at $(xobs1)")
             converged || continue
-                # converged && println("Converged at $(xobs1)")
-                # check_boundary(θ1) && println("Boundary at $(θ1) with $(xobs1)")
             check_boundary(θ1) && continue
             θ2,converged = est_theta_em(n2,xobs2)
-                # converged || println("Failed to converge at $(xobs2)")
             converged || continue
-                # converged && println("Converged at $(xobs2)")
-                # check_boundary(θ2) && println("Boundary at $(θ2) with $(xobs2)")
             check_boundary(θ2) && continue
 
             # Get binary vector with homozygous CpG sites
@@ -874,7 +854,7 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
             nme2 = all(z2) ? comp_nme_∇(n2,θ2,∇2) : comp_nme(z2,n2,θ2[1:(end-1)],θ2[end],ex2,exx2)
             uc = comp_uc(z1,z2,n1,n2,θ1,θ2,nme1,nme2)
 
-            # Report positions based on CpG sites not f_st, f_end
+            # Report positions based on CpG sites not hap_st, hap_end
             bed_st = minimum(minimum.(cpg_pos))
             bed_end = maximum(maximum.(cpg_pos))
 
@@ -937,7 +917,7 @@ Function that returns a table with maximum K for each N in GFF_PATH.
 julia> get_kstar_table(GFF_PATH,CHR_NAMES,BLK_SIZE)
 ```
 """
-function get_kstar_table(gff::String,chr_names::Vector{String},blk_size::Int64)::Dict{Int64,Int64}
+function get_kstar_table(gff::String,chr_names::Vector{String},g_max::Int64)::Dict{Int64,Int64}
 
     # Loop over chromosomes
     table = Dict{Int64,Int64}()
@@ -947,8 +927,9 @@ function get_kstar_table(gff::String,chr_names::Vector{String},blk_size::Int64):
         for win in hom_win
             # Get window info
             win_st = GFF3.seqstart(win)
+            win_end = GFF3.seqend(win)
             cpg_pos = get_cpg_pos(Dict(GFF3.attributes(win)))
-            n = get_ns(cpg_pos[1],blk_size,win_st)
+            n = get_ns(cpg_pos[1],g_max,win_st,win_end)
             # Update table if necessary
             haskey(table,sum(n)) || (table[sum(n)]=length(n))
             length(n)>table[sum(n)] && (table[sum(n)]=length(n))
@@ -1127,7 +1108,7 @@ julia> comp_tnull(BAM_PATH,GFF_PATH,FA_PATH,OUT_PATH)
 ```
 """
 function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_paths::Vector{String}
-                    ;pe::Bool=true,blk_size::Int64=300,cov_ths::Int64=5,cov_a::Float64=0.0,
+                    ;pe::Bool=true,g_max::Int64=300,cov_ths::Int64=5,cov_a::Float64=0.0,
                     cov_b::Float64=1.0,trim::NTuple{4,Int64}=(0,0,0,0),mc_null::Int64=5000,
                     n_max::Int64=20)
 
@@ -1141,7 +1122,7 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
 
     # Obtain Kstar for every N & maximum N to analyze
     print_log("Generating Kstar table ...")
-    kstar_table = get_kstar_table(het_gff,collect(keys(chr_dic)),blk_size)
+    kstar_table = get_kstar_table(het_gff,collect(keys(chr_dic)),g_max)
 
     # Cap Nmax
     n_max = min(maximum(keys(kstar_table)),n_max)
@@ -1175,12 +1156,12 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
             sum(filled)>=mc_null && continue
 
             # Get homozygous window
-            feat = win_ntot[i]
-            chr = GFF3.seqid(feat)
+            hap = win_ntot[i]
+            chr = GFF3.seqid(hap)
             chr_size = chr_dic[chr]
 
             # Sample ntot contiguous CpG sites and partition into Kstar
-            cpg_pos = get_cpg_pos(Dict(GFF3.attributes(feat)))[1]
+            cpg_pos = get_cpg_pos(Dict(GFF3.attributes(hap)))[1]
             cpg_pos = sample_ntot_cpgs(ntot,cpg_pos)
             n = get_nvec_kstar(ntot,kstar)
 
@@ -1198,16 +1179,10 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
 
             # Estimate each single-allele model and check if on boundary of parameter space
             θ1,converged = est_theta_em(n,xobs1)
-                # converged || println("Failed to converge at $(xobs1)")
             converged || continue
-                # converged && println("Converged at $(xobs1)")
-                # check_boundary(θ1) && println("Boundary at $(θ1) with $(xobs1)")
             check_boundary(θ1) && continue
             θ2,converged = est_theta_em(n,xobs2)
-                # converged || println("Failed to converge at $(xobs2)")
             converged || continue
-                # converged && println("Converged at $(xobs2)")
-                # check_boundary(θ2) && println("Boundary at $(θ2) with $(xobs2)")
             check_boundary(θ2) && continue
 
             # Estimate moments
@@ -1334,7 +1309,7 @@ julia> run_analysis(BAM1_PATH,BAM2_PATH,BAMU_PATH,VCF_PATH,FA_PATH,OUT_PATH)
 ```
 """
 function run_analysis(bam1::String,bam2::String,bamu::String,vcf::String,fa::String,outdir::String;
-                      pe::Bool=true,blk_size::Int64=300,win_exp::Int64=100,cov_ths::Int64=5,
+                      pe::Bool=true,g_max::Int64=300,win_exp::Int64=100,cov_ths::Int64=5,
                       cov_a::Float64=0.0,cov_b::Float64=1.0,trim::NTuple{4,Int64}=(0,0,0,0),
                       mc_null::Int64=5000,n_max::Int64=25)
 
@@ -1366,16 +1341,16 @@ function run_analysis(bam1::String,bam2::String,bamu::String,vcf::String,fa::Str
     hom_gff = outdir * split(basename(vcf),".")[1] * "_hom.juliasm.gff"
     if !(isfile(het_gff))
         print_log("Generating JuliASM GFF files ...")
-        gen_gffs([het_gff,hom_gff],fa,vcf,win_exp,blk_size,n_max)
+        gen_gffs([het_gff,hom_gff],fa,vcf,win_exp,n_max)
     end
 
     # Compute observed statistics from heterozygous loci
     print_log("Computing observed statistics in heterozygous loci...")
-    comp_tobs(bam1,bam2,het_gff,fa,tobs_path;pe=pe,blk_size=blk_size,cov_ths=cov_ths,trim=trim)
+    comp_tobs(bam1,bam2,het_gff,fa,tobs_path;pe=pe,g_max=g_max,cov_ths=cov_ths,trim=trim)
 
     # Compute null statistics from homozygous loci
     print_log("Generating null statistics in homozygous loci ...")
-    comp_tnull(bamu,het_gff,hom_gff,fa,tnull_path;pe=pe,blk_size=blk_size,cov_ths=cov_ths,
+    comp_tnull(bamu,het_gff,hom_gff,fa,tnull_path;pe=pe,g_max=g_max,cov_ths=cov_ths,
                cov_a=cov_a,cov_b=cov_b,trim=trim,mc_null=mc_null,n_max=n_max)
 
     # Compute null statistics from heterozygous loci
