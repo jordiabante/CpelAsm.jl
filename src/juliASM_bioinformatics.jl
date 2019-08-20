@@ -659,7 +659,7 @@ julia> get_ns([100,200,300,350],200,90,400)
 function get_ns(cpg_pos::Vector{Int64},g_max::Int64,hap_st::Int64,hap_end::Int64)::Vector{Int64}
 
     # Check if need to partition
-    (hap_end-hap_st+1)>g_max || return [length(cpg_pos)]
+    (hap_end-hap_st)>g_max || return [length(cpg_pos)]
 
     # Get K of model
     k = ceil((hap_end-hap_st+1)/g_max)
