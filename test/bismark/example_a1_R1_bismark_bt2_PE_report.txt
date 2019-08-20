@@ -1,0 +1,42 @@
+Bismark report for: fastq/example_a1_R1.fastq.gz and fastq/example_a1_R2.fastq.gz (version: v0.22.1)
+Bismark was run with Bowtie 2 against the bisulfite genome of /Users/jordiabante/Documents/code/julia/JuliASM.jl/test/fasta/ with the specified options: -q --score-min L,0,-0.2 --ignore-quals --no-mixed --no-discordant --dovetail --maxins 500
+Option '--directional' specified (default mode): alignments to complementary strands (CTOT, CTOB) were ignored (i.e. not performed)
+
+Final Alignment report
+======================
+Sequence pairs analysed in total:	100
+Number of paired-end alignments with a unique best hit:	94
+Mapping efficiency:	94.0% 
+Sequence pairs with no alignments under any condition:	6
+Sequence pairs did not map uniquely:	0
+Sequence pairs which were discarded because genomic sequence could not be extracted:	1
+
+Number of sequence pairs with unique best (first) alignment came from the bowtie output:
+CT/GA/CT:	38	((converted) top strand)
+GA/CT/CT:	0	(complementary to (converted) top strand)
+GA/CT/GA:	0	(complementary to (converted) bottom strand)
+CT/GA/GA:	55	((converted) bottom strand)
+
+Number of alignments to (merely theoretical) complementary strands being rejected in total:	0
+
+Final Cytosine Methylation Report
+=================================
+Total number of C's analysed:	1919
+
+Total methylated C's in CpG context:	342
+Total methylated C's in CHG context:	221
+Total methylated C's in CHH context:	602
+Total methylated C's in Unknown context:	43
+
+Total unmethylated C's in CpG context:	174
+Total unmethylated C's in CHG context:	155
+Total unmethylated C's in CHH context:	425
+Total unmethylated C's in Unknown context:	49
+
+C methylated in CpG context:	66.3%
+C methylated in CHG context:	58.8%
+C methylated in CHH context:	58.6%
+C methylated in unknown context (CN or CHN):	46.7%
+
+
+Bismark completed in 0d 0h 0m 5s
