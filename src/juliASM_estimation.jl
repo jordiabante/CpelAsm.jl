@@ -591,8 +591,16 @@ function em_alg(n::Vector{Int64},xobs::Array{Vector{Int64},1})::Tuple{Vector{Flo
                 U[j] =  ∇logZ[j] - ET[j] / length(xobs)
             end
         end
-        #  Solve NL system
-        sol = nlsolve(f!,θhat;iterations=20,ftol=1e-3)
+        #  Try to solve NL system
+	sol =
+        try
+	   # Call solver
+	   nlsolve(f!,θhat;iterations=20,ftol=1e-3)
+        catch x
+	   # Report x error if found
+	   print_log(x)
+	   break   
+        end
         # Leave if no convergence
         converged(sol) || break
         # Check Euclidean distance
