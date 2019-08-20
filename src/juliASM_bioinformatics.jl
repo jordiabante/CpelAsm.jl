@@ -668,7 +668,7 @@ function get_ns(cpg_pos::Vector{Int64},g_max::Int64,hap_st::Int64,hap_end::Int64
     delimiters = vcat(collect(hap_st:(hap_end-hap_st+1)/k:hap_end),hap_end)
 
     # Partition CpG sites
-    ids = [findfirst(y->y>x,delimiters)-1 for x in cpg_pos]
+    ids = [findfirst(y->y>=x,delimiters)-1 for x in cpg_pos]
 
     # Return [N1,...,NK] vector
     return [sum(ids.==i) for i in unique(ids)]
