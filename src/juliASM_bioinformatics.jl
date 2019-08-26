@@ -818,11 +818,9 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
             length(unique(xobs2))>1 || continue
 
             # Estimate each single-allele model and check if on boundary of parameter space
-            θ1,converged = est_theta_em(n1,xobs1)
-            converged || continue
+            θ1 = est_theta_sa(n1,xobs1)
             check_boundary(θ1) && continue
-            θ2,converged = est_theta_em(n2,xobs2)
-            converged || continue
+            θ2 = est_theta_sa(n2,xobs2)
             check_boundary(θ2) && continue
 
             # Get binary vector with homozygous CpG sites
@@ -1178,11 +1176,9 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
             length(unique(xobs2))>1 || continue
 
             # Estimate each single-allele model and check if on boundary of parameter space
-            θ1,converged = est_theta_em(n,xobs1)
-            converged || continue
+            θ1 = est_theta_sa(n,xobs1)
             check_boundary(θ1) && continue
-            θ2,converged = est_theta_em(n,xobs2)
-            converged || continue
+            θ2 = est_theta_sa(n,xobs2)
             check_boundary(θ2) && continue
 
             # Estimate moments
