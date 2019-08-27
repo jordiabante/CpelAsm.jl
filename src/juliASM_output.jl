@@ -536,31 +536,31 @@ end # end comp_evec
 ###################################################################################################
 # VERIFICATION FUNCTIONS (UNUSED)
 ###################################################################################################
-# """
-#     `comp_Z_xcal([N1,...,NK],[α1,...,αK],β)`
-#
-# Function that computes the partition function computed recursively over 𝒳.
-#
-# # Examples
-# ```julia-repl
-# julia> n=[4]; a=[0.0]; b=0.0;
-# julia> JuliASM.comp_Z_xcal(n,a,b)
-# 16.0
-# ```
-# """
-# function comp_Z_xcal(n::Vector{Int64},a::Vector{Float64},b::Float64)::Float64
-#
-#     # Loop over 𝒳h
-#     Z = 0.0
-#     xcal = generate_xcal(sum(n))
-#     @inbounds for x in xcal
-#         Z += exp(-)
-#     end
-#
-#     # Return
-#     return Z
-#
-# end # end comp_Z_xcal
+"""
+    `comp_Z_xcal([N1,...,NK],[α1,...,αK],β)`
+
+Function that computes the partition function computed recursively over 𝒳.
+
+# Examples
+```julia-repl
+julia> n=[4]; a=[0.0]; b=0.0;
+julia> JuliASM.comp_Z_xcal(n,a,b)
+16.0
+```
+"""
+function comp_Z_xcal(n::Vector{Int64},a::Vector{Float64},b::Float64)::Float64
+
+    # Loop over 𝒳h
+    Z = 0.0
+    xcal = generate_xcal(sum(n))
+    @inbounds for x in xcal
+        Z += exp(-)
+    end
+
+    # Return
+    return Z
+
+end # end comp_Z_xcal
 """
     `comp_nme_xcal(Z,[N1,...,NK],[α1,...,αK],β,EX,EXX)`
 

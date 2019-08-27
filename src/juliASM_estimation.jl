@@ -9,8 +9,8 @@ const CI_THRESH=1.0
 """
     `create_Ux([N1,...,NK],[α1,...,αK],β)`
 
-Function that creates a function to compute potential energy for a region with
-[N1,...,NK], parameters [α1,...,αK], and correlation β.
+Function that creates a function to compute potential energy for a region with [N1,...,NK],
+parameters [α1,...,αK], and correlation β.
 
 # Examples
 ```julia-repl
@@ -323,8 +323,8 @@ end
 """
     `create_Llkhd([N1,...,NK],XOBS)`
 
-Create function to compute the minus log-likelihood function for a region with N
-CpG sites given the M partial observations XOBS.
+Create function to compute the minus log-likelihood function for a region with N CpG sites given
+the M partial observations XOBS.
 
 # Examples
 ```julia-repl
@@ -392,7 +392,7 @@ end # end create_Llkhd
 """
     `est_alpha(XOBS)`
 
-Estimate parameter α for N=1 case.
+Estimate parameter α in N=1 case.
 
 # Examples
 ```julia-repl
@@ -418,7 +418,7 @@ end # end est_alpha
 """
     `est_theta_sa([N1,...,NK],XOBS)`
 
-Estimate parameter vector η=[α, β] based on full or partial observations using simulated annealing.
+Estimate parameter vector η=[α1,...,αK,β] using simulated annealing.
 
 # Examples
 ```julia-repl
@@ -592,14 +592,14 @@ function em_alg(n::Vector{Int64},xobs::Array{Vector{Int64},1})::Tuple{Vector{Flo
             end
         end
         #  Try to solve NL system
-	sol =
+	    sol =
         try
-	   # Call solver
-	   nlsolve(f!,θhat;iterations=20,ftol=1e-3)
+	        # Call solver
+	        nlsolve(f!,θhat;iterations=20,ftol=1e-3)
         catch x
-	   # Report x error if found
-	   print_log("Issue with NL solver.")
-	   break   
+	        # Report x error if found
+	        print_log("Issue with NL solver.")
+	        break
         end
         # Leave if no convergence
         converged(sol) || break
@@ -795,6 +795,6 @@ function mle_bin_param(xobs::Array{Vector{Int64},1})::Vector{Float64}
     end
 
     # Return phat
-    return phat #/ sum(phat)
+    return phat
 
 end # end mle_bin_param

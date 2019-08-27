@@ -27,7 +27,6 @@ using MultipleTesting           # For multiple hypothesis testing
 ###################################################################################################
 # INCLUDES
 ###################################################################################################
-include("juliASM_plots.jl")
 include("juliASM_estimation.jl")
 include("juliASM_simulations.jl")
 include("juliASM_bioinformatics.jl")

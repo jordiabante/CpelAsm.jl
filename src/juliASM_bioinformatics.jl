@@ -147,7 +147,7 @@ Function that tries to find BAM records overlaping with `CHR` at positions `WIND
 
 # Examples
 ```julia-repl
-julia> try_olaps(reader,chr,win)
+julia> JuliASM.try_olaps(reader,chr,win)
 ```
 """
 function try_olaps(reader::BAM.Reader,chr::String,win::Vector{Int64})::Vector{BAM.Record}
@@ -179,7 +179,7 @@ For info on OT, CTOT, OB, CTOB nomenclature see
 
 # Examples
 ```julia-repl
-julia> read_bam(BAM_PATH,"chr1",30,80,[40,60],false,(0,0,0,0))
+julia> JuliASM.read_bam(BAM_PATH,"chr1",30,80,[40,60],false,(0,0,0,0))
 ```
 """
 function read_bam(bam::String,chr::String,hap_st::Int64,hap_end::Int64,cpg_pos::Vector{Int64},
@@ -252,7 +252,7 @@ Function that appends `GFF_RECORDS` into `OUT_GFF`.
 
 # Examples
 ```julia-repl
-julia> write_gff!(gff, gff_records)
+julia> JuliASM.write_gff!(gff, gff_records)
 ```
 """
 function write_gff!(gff::String,gff_records::Vector{GFF3.Record})
@@ -277,7 +277,7 @@ reached its end. This function is only used in `gen_gffs()`.
 
 # Examples
 ```julia-repl
-julia> next_record(reader, chr_names, record)
+julia> JuliASM.next_record(reader, chr_names, record)
 ```
 """
 function next_record(reader::VCF.Reader,chr_names::Vector{String},record::VCF.Record)::VCF.Record
@@ -304,7 +304,7 @@ Assumes that REF is the one pertaining to genome 1, and ALT is the one pertainin
 
 # Examples
 ```julia-repl
-julia> is_het_cpg!(var,seq,h1,h2)
+julia> JuliASM.is_het_cpg!(var,seq,h1,h2)
 ```
 """
 function is_het_cpg!(var::VCF.Record,seq::FASTA.Record,h1::Vector{Int64},h2::Vector{Int64})
@@ -350,7 +350,7 @@ function is only used in `gen_gffs()`.
 
 # Examples
 ```julia-repl
-julia> get_records_ps!(reader,seq,record,curr_ps,wEnd,h1,h2)
+julia> JuliASM.get_records_ps!(reader,seq,record,curr_ps,wEnd,h1,h2)
 ```
 """
 function get_records_ps!(reader::VCF.Reader,seq::FASTA.Record,record::VCF.Record,curr_ps::String,
@@ -389,7 +389,7 @@ nearby CpG sites, and the size of the subregions into which the whole region wil
 
 # Examples
 ```julia-repl
-julia> expand_win(50,80,10,2000)
+julia> JuliASM.expand_win(50,80,10,2000)
 2-element Array{Int64,1}:
  40
  90
@@ -430,7 +430,7 @@ in it.
 
 # Examples
 ```julia-repl
-julia> gen_gffs([HET_GFF_PATH,HOM_GFF_PATH],FA_PATH,VCF_PATH,WIN_EXP,NMAX)
+julia> JuliASM.gen_gffs([HET_GFF_PATH,HOM_GFF_PATH],FA_PATH,VCF_PATH,WIN_EXP,NMAX)
 ```
 """
 function gen_gffs(gff::Vector{String},fa::String,vcf::String,win_exp::Int64,n_max::Int64)
@@ -575,7 +575,7 @@ https://useast.ensembl.org/info/website/upload/gff3.html.
 
 # Examples
 ```julia-repl
-julia> read_gff_chr(GFF_PATH,"chr1")
+julia> JuliASM.read_gff_chr(GFF_PATH,"chr1")
 ```
 """
 function read_gff_chr(gff::String,chr::String)::Vector{GFF3.Record}
@@ -597,7 +597,7 @@ Function that writes records in `RECORDS` into `PATH`.
 
 # Examples
 ```julia-repl
-julia> write_tobs(RECORDS,CHR,PATH)
+julia> JuliASM.write_tobs(RECORDS,CHR,PATH)
 ```
 """
 function write_tobs(recs::Vector{Tuple{Int64,Int64,Float64,Int64,Int64}},chr::String,path::String)
@@ -622,7 +622,7 @@ sites in it.
 
 # Examples
 ```julia-repl
-julia> get_cpg_pos(feat_atts)
+julia> JuliASM.get_cpg_pos(feat_atts)
 ```
 """
 function get_cpg_pos(atts::Dict{String,Vector{String}})::Array{Vector{Int64},1}
@@ -650,7 +650,7 @@ Functions that returns [N1,...,NK] given the position of the CpG sites & maximum
 
 # Examples
 ```julia-repl
-julia> get_ns([100,200,300,350],200,90,400)
+julia> JuliASM.get_ns([100,200,300,350],200,90,400)
 2-element Array{Int64,1}:
  2
  2
@@ -682,7 +682,7 @@ Function returns the average coverage per CpG given some observations `XOBS`.
 # Examples
 ```julia-repl
 julia> xobs=[[1,-1] for i=1:10]; append!(xobs,[[1,0] for i=1:10]);
-julia> mean_cov(xobs)
+julia> JuliASM.mean_cov(xobs)
 15.0
 ```
 """
@@ -888,7 +888,7 @@ Function that writes null records in `RECORDS` into `PATH`.
 
 # Examples
 ```julia-repl
-julia> write_tnull(RECORDS,PATH)
+julia> JuliASM.write_tnull(RECORDS,PATH)
 ```
 """
 function write_tnull(recs::Vector{Tuple{Int8,Int8,Float64}},path::String)
@@ -912,7 +912,7 @@ Function that returns a table with maximum K for each N in GFF_PATH.
 
 # Examples
 ```julia-repl
-julia> get_kstar_table(GFF_PATH,CHR_NAMES,BLK_SIZE)
+julia> JuliASM.get_kstar_table(GFF_PATH,CHR_NAMES,BLK_SIZE)
 ```
 """
 function get_kstar_table(gff::String,chr_names::Vector{String},g_max::Int64)::Dict{Int64,Int64}
@@ -946,7 +946,7 @@ sites.
 
 # Examples
 ```julia-repl
-julia> sample_win_n(GFF_PATH,CHR_NAMES,NTOT,MC_NULL)
+julia> JuliASM.sample_win_n(GFF_PATH,CHR_NAMES,NTOT,MC_NULL)
 ```
 """
 function sample_win_ntot(gff::String,chr_names::Vector{String},ntot::Int64,
@@ -969,7 +969,7 @@ Function that samples NTOT contiguous CpG sites from CPG_POS.
 
 # Examples
 ```julia-repl
-julia> sample_ntot_cpgs(4,[10,15,20,25,30,35,40])
+julia> JuliASM.sample_ntot_cpgs(4,[10,15,20,25,30,35,40])
 4-element Array{Int64,1}:
  10
  15
@@ -993,7 +993,7 @@ Function that returns vector n with Ntot CpG sites divided into Kstar subregions
 
 # Examples
 ```julia-repl
-julia> get_nvec_kstar(10,4)
+julia> JuliASM.get_nvec_kstar(10,4)
 4-element Array{Int64,1}:
  3
  2
@@ -1023,7 +1023,7 @@ then two empty vectors are returned.
 
 # Examples
 ```julia-repl
-julia> cov_obs_part(xobs,cov_ths,cov_a,cov_b)
+julia> JuliASM.cov_obs_part(xobs,cov_ths,cov_a,cov_b)
 ```
 """
 function cov_obs_part(xobs::Vector{Vector{Int64}},cov_ths::Int64,cov_a::Float64,
@@ -1221,7 +1221,7 @@ coordinates, the value of the statistic, and the adjusted p-value.
 
 # Examples
 ```julia-repl
-julia> comp_pvals_stat(tobs_path,tnull_path)
+julia> JuliASM.comp_pvals_stat(tobs_path,tnull_path)
 ```
 """
 function comp_pvals_stat(tobs_path::Vector{String},tnull_path::String,p_path::String,n_max::Int64)
