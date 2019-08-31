@@ -1108,7 +1108,7 @@ julia> comp_tnull(BAM_PATH,GFF_PATH,FA_PATH,OUT_PATH)
 function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_paths::Vector{String}
                     ;pe::Bool=true,g_max::Int64=300,cov_ths::Int64=5,cov_a::Float64=0.0,
                     cov_b::Float64=1.0,trim::NTuple{4,Int64}=(0,0,0,0),mc_null::Int64=5000,
-                    n_max::Int64=20)
+                    n_max::Int64=20,n_subset::Vector{Int64}=collect(1:n_max))
 
     # BigWig output files
     dmml_path,dnme_path,uc_path = out_paths
@@ -1126,7 +1126,7 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
     n_max = min(maximum(keys(kstar_table)),n_max)
 
     # Loop over Ns of interes
-    for ntot in keys(kstar_table)
+    for ntot in intersect(keys(kstar_table),n_subset)
 
         # Skip if greater than n_max
         ntot>n_max && continue
@@ -1241,19 +1241,19 @@ function comp_pvals_stat(tobs_path::Vector{String},tnull_path::String,p_path::St
 
     # Initialize p-value matrix
     pvals = tobs[:,1:5]
-    pvals[:,5] .= "NO DATA"
+    pvals[:,5] .= "NO NULL DATA"
 
     # Compute p-values
     for i=1:size(tobs)[1]
         # Check we can compute p-value
-        tobs[i,5]<=n_max || continue
+        (tobs[i,5]<=n_max && sum(tnull[:,1].==tobs[i,5])>0) || continue
         # Compute empirical p-value
         pvals[i,5] = sum(tnull[tnull[:,1].==tobs[i,5],3].>=tobs[i,4]) / sum(tnull[:,1].==tobs[i,5])
     end
 
-    # Multiple hypothesis testing correction
-    # NOTE: should we apply BH on each N independently?
-    pvals[:,5] = MultipleTesting.adjust(convert(Vector{Float64},pvals[:,5]),BenjaminiHochberg())
+    # Multiple hypothesis testing correction. NOTE: should we apply BH on each N independently?
+    ind = pvals[:,5].!="NO NULL DATA"
+    pvals[ind,5] = MultipleTesting.adjust(convert(Vector{Float64},pvals[ind,5]),BenjaminiHochberg())
 
     # Write to output
     open(p_path,"w") do io
@@ -1307,7 +1307,7 @@ julia> run_analysis(BAM1_PATH,BAM2_PATH,BAMU_PATH,VCF_PATH,FA_PATH,OUT_PATH)
 function run_analysis(bam1::String,bam2::String,bamu::String,vcf::String,fa::String,outdir::String;
                       pe::Bool=true,g_max::Int64=300,win_exp::Int64=100,cov_ths::Int64=5,
                       cov_a::Float64=0.0,cov_b::Float64=1.0,trim::NTuple{4,Int64}=(0,0,0,0),
-                      mc_null::Int64=5000,n_max::Int64=25)
+                      mc_null::Int64=5000,n_max::Int64=25,n_subset::Vector{Int64}=collect(1:n_max))
 
     # Print initialization of juliASM
     print_log("Starting JuliASM analysis ...")
@@ -1347,7 +1347,7 @@ function run_analysis(bam1::String,bam2::String,bamu::String,vcf::String,fa::Str
     # Compute null statistics from homozygous loci
     print_log("Generating null statistics in homozygous loci ...")
     comp_tnull(bamu,het_gff,hom_gff,fa,tnull_path;pe=pe,g_max=g_max,cov_ths=cov_ths,
-               cov_a=cov_a,cov_b=cov_b,trim=trim,mc_null=mc_null,n_max=n_max)
+               cov_a=cov_a,cov_b=cov_b,trim=trim,mc_null=mc_null,n_max=n_max,n_subset=n_subset)
 
     # Compute null statistics from heterozygous loci
     print_log("Computing p-values in heterozygous loci ...")
