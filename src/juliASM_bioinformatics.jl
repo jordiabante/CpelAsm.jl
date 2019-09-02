@@ -587,7 +587,7 @@ function read_gff_chr(gff::String,chr::String)::Vector{GFF3.Record}
     filter!(x -> GFF3.seqid(x)==chr, features)
 
     # Return
-        return features
+    return features
 
 end # end read_gff_chr
 """
@@ -757,6 +757,92 @@ function print_log(mess::String)
 
 end # end print_log
 """
+    `proc_obs_hap()`
+
+Function that computes an observed dMML, dNME, and UC given a homozygous haplotype.
+
+# Examples
+```julia-repl
+julia> proc_obs_hap()
+```
+"""
+function proc_obs_hap(hap::GFF3.Record,chr::String,chr_size::Int64,bam1::String,bam2::String,
+                      gff::String,fa::String,out_paths::Vector{String},pe::Bool,g_max::Int64,
+                      cov_ths::Int64,trim::NTuple{4,Int64})::Vector{Tuple{Int64,Int64,Float64,
+                      Int64,Int64}}
+
+    # Empty output
+    empty_out = [(0,0,0.0,0,0),(0,0,0.0,0,0),(0,0,0.0,0,0),(0,0,0.0,0,0),(0,0,0.0,0,0)]
+
+    # Get window
+    hap_st = GFF3.seqstart(hap)
+    hap_end = GFF3.seqend(hap)
+
+    # Get homozygous & heterozygous CpG sites (1:hom, 2:hap1, 3: hap2)
+    cpg_pos = get_cpg_pos(Dict(GFF3.attributes(hap)))
+    n = get_ns(cpg_pos[1],g_max,hap_st,hap_end)
+    n1 = get_ns(cpg_pos[2],g_max,hap_st,hap_end)
+    n2 = get_ns(cpg_pos[3],g_max,hap_st,hap_end)
+    length(n)>0 || return empty_out
+
+    # Get vectors from BAM1/2 overlapping haplotype & compute average coverage
+    xobs1 = read_bam(bam1,chr,hap_st,hap_end,cpg_pos[2],chr_size,pe,trim)
+    cov_ths <= mean_cov(xobs1) <= 200 || return empty_out
+    xobs2 = read_bam(bam2,chr,hap_st,hap_end,cpg_pos[3],chr_size,pe,trim)
+    cov_ths <= mean_cov(xobs2) <= 200 || return empty_out
+
+    # Check MLE exists
+    length(unique(xobs1))>1 || return empty_out
+    length(unique(xobs2))>1 || return empty_out
+
+    # Estimate each single-allele model and check if on boundary of parameter space
+    θ1 = est_theta_sa(n1,xobs1)
+    check_boundary(θ1) && return empty_out
+    θ2 = est_theta_sa(n2,xobs2)
+    check_boundary(θ2) && return empty_out
+
+    # Get binary vector with homozygous CpG sites
+    z1 = BitArray([p in cpg_pos[1] ? true : false for p in cpg_pos[2]])
+    z2 = BitArray([p in cpg_pos[1] ? true : false for p in cpg_pos[3]])
+
+    # Estimate intermediate quantities
+    if all(z1)
+        # In case all are homozygous CpG sites
+        ∇1 = get_grad_logZ(n1,θ1)
+    else
+        # In case NOT all are homozygous CpG sites
+        ex1 = comp_ex(n1,θ1[1:(end-1)],θ1[end])
+        exx1 = comp_exx(n1,θ1[1:(end-1)],θ1[end])
+    end
+    if all(z2)
+        # In case all are homozygous CpG sites
+        ∇2 = get_grad_logZ(n2,θ2)
+    else
+        # In case NOT all are homozygous CpG sites
+        ex2 = comp_ex(n2,θ2[1:(end-1)],θ2[end])
+        exx2 = comp_exx(n2,θ2[1:(end-1)],θ2[end])
+    end
+
+    # Compute output
+    mml1 = all(z1) ? comp_mml_∇(n1,∇1) : comp_mml(z1,ex1)
+    mml2 = all(z2) ? comp_mml_∇(n2,∇2) : comp_mml(z2,ex2)
+    nme1 = all(z1) ? comp_nme_∇(n1,θ1,∇1) : comp_nme(z1,n1,θ1[1:(end-1)],θ1[end],ex1,exx1)
+    nme2 = all(z2) ? comp_nme_∇(n2,θ2,∇2) : comp_nme(z2,n2,θ2[1:(end-1)],θ2[end],ex2,exx2)
+    uc = comp_uc(z1,z2,n1,n2,θ1,θ2,nme1,nme2)
+
+    # Report positions based on CpG sites not hap_st, hap_end
+    bed_st = minimum(minimum.(cpg_pos))
+    bed_end = maximum(maximum.(cpg_pos))
+
+    # Return output
+    return [(bed_st,bed_end,mml1,sum(n),length(n1)),
+            (bed_st,bed_end,mml2,sum(n),length(n2)),
+            (bed_st,bed_end,nme1,sum(n),length(n1)),
+            (bed_st,bed_end,nme2,sum(n),length(n2)),
+            (bed_st,bed_end,uc,sum(n),length(n))]
+
+end
+"""
     `comp_tobs(BAM1_PATH,BAM2_PATH,GFF_PATH,FA_PATH,OUT_PATHS)`
 
 Function that computes MML1/2, NME1/2, and UC on a pair of BAM files (allele 1, allele 2) given a
@@ -786,91 +872,19 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
 
         # Get windows pertaining to current chromosome
         print_log("Processing chromosome $(chr) ...")
-        hap_chr = read_gff_chr(gff,chr)
+        haps_chr = read_gff_chr(gff,chr)
         chr_size = chr_sizes[findfirst(x->x==chr, chr_names)]
 
-        # bedGraph records
-        out_sa=SharedArray{Tuple{Int64,Int64,Float64,Int64,Int64},2}(length(hap_chr),8)
-
-        # Loop over windows in chromosome
-        @sync @distributed for i=1:length(hap_chr)
-
-            # Get haplotype of interest
-            hap = hap_chr[i]
-            hap_st = GFF3.seqstart(hap)
-            hap_end = GFF3.seqend(hap)
-
-            # Get homozygous & heterozygous CpG sites (1:hom, 2:hap1, 3: hap2)
-            cpg_pos = get_cpg_pos(Dict(GFF3.attributes(hap)))
-            n = get_ns(cpg_pos[1],g_max,hap_st,hap_end)
-            n1 = get_ns(cpg_pos[2],g_max,hap_st,hap_end)
-            n2 = get_ns(cpg_pos[3],g_max,hap_st,hap_end)
-            length(n)>0 || continue
-
-            # Get vectors from BAM1/2 overlapping haplotype & compute average coverage
-            xobs1 = read_bam(bam1,chr,hap_st,hap_end,cpg_pos[2],chr_size,pe,trim)
-            cov_ths <= mean_cov(xobs1) <= 200 || continue
-            xobs2 = read_bam(bam2,chr,hap_st,hap_end,cpg_pos[3],chr_size,pe,trim)
-            cov_ths <= mean_cov(xobs2) <= 200 || continue
-
-            # Check MLE exists
-            length(unique(xobs1))>1 || continue
-            length(unique(xobs2))>1 || continue
-
-            # Estimate each single-allele model and check if on boundary of parameter space
-            θ1 = est_theta_sa(n1,xobs1)
-            check_boundary(θ1) && continue
-            θ2 = est_theta_sa(n2,xobs2)
-            check_boundary(θ2) && continue
-
-            # Get binary vector with homozygous CpG sites
-            z1 = BitArray([p in cpg_pos[1] ? true : false for p in cpg_pos[2]])
-            z2 = BitArray([p in cpg_pos[1] ? true : false for p in cpg_pos[3]])
-
-            # Estimate intermediate quantities
-            if all(z1)
-                # In case all are homozygous CpG sites
-                ∇1 = get_grad_logZ(n1,θ1)
-            else
-                # In case NOT all are homozygous CpG sites
-                ex1 = comp_ex(n1,θ1[1:(end-1)],θ1[end])
-                exx1 = comp_exx(n1,θ1[1:(end-1)],θ1[end])
-            end
-            if all(z2)
-                # In case all are homozygous CpG sites
-                ∇2 = get_grad_logZ(n2,θ2)
-            else
-                # In case NOT all are homozygous CpG sites
-                ex2 = comp_ex(n2,θ2[1:(end-1)],θ2[end])
-                exx2 = comp_exx(n2,θ2[1:(end-1)],θ2[end])
-            end
-
-            # Compute output
-            mml1 = all(z1) ? comp_mml_∇(n1,∇1) : comp_mml(z1,ex1)
-            mml2 = all(z2) ? comp_mml_∇(n2,∇2) : comp_mml(z2,ex2)
-            nme1 = all(z1) ? comp_nme_∇(n1,θ1,∇1) : comp_nme(z1,n1,θ1[1:(end-1)],θ1[end],ex1,exx1)
-            nme2 = all(z2) ? comp_nme_∇(n2,θ2,∇2) : comp_nme(z2,n2,θ2[1:(end-1)],θ2[end],ex2,exx2)
-            uc = comp_uc(z1,z2,n1,n2,θ1,θ2,nme1,nme2)
-
-            # Report positions based on CpG sites not hap_st, hap_end
-            bed_st = minimum(minimum.(cpg_pos))
-            bed_end = maximum(maximum.(cpg_pos))
-
-            # Add statistics to output array
-            out_sa[i,1] = (bed_st,bed_end,mml1,sum(n),length(n1))
-            out_sa[i,2] = (bed_st,bed_end,mml2,sum(n),length(n2))
-            out_sa[i,3] = (bed_st,bed_end,nme1,sum(n),length(n1))
-            out_sa[i,4] = (bed_st,bed_end,nme2,sum(n),length(n2))
-            out_sa[i,5] = (bed_st,bed_end,uc,sum(n),length(n))
-
-        end
+        # Process them
+        out_pmap = pmap(hap -> proc_obs_hap(hap,chr,chr_size,bam1,bam2,gff,fa,out_paths,pe,g_max,
+                        cov_ths,trim),haps_chr)
 
         # Add last to respective bedGraph file
-        write_tobs(out_sa[:,1],chr,mml1_path)
-        write_tobs(out_sa[:,2],chr,mml2_path)
-        write_tobs(out_sa[:,3],chr,nme1_path)
-        write_tobs(out_sa[:,4],chr,nme2_path)
-        write_tobs(out_sa[:,5],chr,uc_path)
+        write_tobs([x[1] for x in out_pmap],chr,mml1_path)
+        write_tobs([x[2] for x in out_pmap],chr,mml2_path)
+        write_tobs([x[3] for x in out_pmap],chr,nme1_path)
+        write_tobs([x[4] for x in out_pmap],chr,nme2_path)
+        write_tobs([x[5] for x in out_pmap],chr,uc_path)
 
     end
 
@@ -1206,7 +1220,6 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
         while length(out_dmml)<mc_null
 
             # Sample 10% of total mc_null
-            print_log("Computing null statistis round $(i)...")
             haps_ntot = sample_win_ntot(hom_gff,collect(keys(chr_dic)),ntot,Int(round(0.2*mc_null)))
 
             # Process them
