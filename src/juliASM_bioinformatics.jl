@@ -891,7 +891,7 @@ Function that writes null records in `RECORDS` into `PATH`.
 julia> JuliASM.write_tnull(RECORDS,PATH)
 ```
 """
-function write_tnull(recs::Vector{Tuple{Int8,Int8,Float64}},path::String)
+function write_tnull(recs::Vector{Tuple{Int64,Int64,Float64}},path::String)
 
     # Open output bedGraph file in append mode (no need to close it)
     open(path, "a") do f
@@ -1095,7 +1095,67 @@ function cov_obs_part(xobs::Vector{Vector{Int64}},cov_ths::Int64,cov_a::Float64,
 
 end # end cov_obs_part
 """
-    `cov_ths_part(BAM_PATH,GFF_PATH,FA_PATH,OUT_PATH)`
+    `proc_null_hap()`
+
+Function that computes a null dMML, dNME, and UC given a homozygous haplotype.
+
+# Examples
+```julia-repl
+julia> proc_null_hap()
+```
+"""
+function proc_null_hap(hap::GFF3.Record,ntot::Int64,bam::String,het_gff::String,hom_gff::String,
+                       fa::String,kstar::Int64,out_paths::Vector{String},pe::Bool,g_max::Int64,
+                       cov_ths::Int64,cov_a::Float64,cov_b::Float64,trim::NTuple{4,Int64},
+                       mc_null::Int64,n_max::Int64,n_subset::Vector{Int64},chr_dic::Dict{String,
+                       Int64})::Vector{Tuple{Int8,Int8,Float64}}
+
+    # Empty output
+    empty_out = [(0,0,0.0),(0,0,0.0),(0,0,0.0)]
+
+    # Get homozygous window
+    chr = GFF3.seqid(hap)
+    chr_size = chr_dic[chr]
+
+    # Sample ntot contiguous CpG sites and partition into Kstar
+    cpg_pos = get_cpg_pos(Dict(GFF3.attributes(hap)))[1]
+    cpg_pos = sample_ntot_cpgs(ntot,cpg_pos)
+    n = get_nvec_kstar(ntot,kstar)
+
+    # Check average coverage is within normal limits (watch for repetitive regions)
+    xobs = read_bam(bam,chr,cpg_pos[1],cpg_pos[end],cpg_pos,chr_size,pe,trim)
+    2*cov_ths <= mean_cov(xobs) <= 400 || return empty_out
+
+    # Randomly partition observations (sample minimum coverage)
+    xobs1,xobs2 = cov_obs_part(xobs,cov_ths,cov_a,cov_b)
+    (length(xobs1)>0) && (length(xobs2)>0) || return empty_out
+
+    # Check MLE exists
+    length(unique(xobs1))>1 || return empty_out
+    length(unique(xobs2))>1 || return empty_out
+
+    # Estimate each single-allele model and check if on boundary of parameter space
+    θ1 = est_theta_sa(n,xobs1)
+    check_boundary(θ1) && return empty_out
+    θ2 = est_theta_sa(n,xobs2)
+    check_boundary(θ2) && return empty_out
+
+    # Estimate moments
+    ∇1 = get_grad_logZ(n,θ1)
+    ∇2 = get_grad_logZ(n,θ2)
+
+    # Estimate output quantities
+    nme1 = comp_nme_∇(n,θ1,∇1)
+    nme2 = comp_nme_∇(n,θ2,∇2)
+    uc = comp_uc(trues(ntot),trues(ntot),n,n,θ1,θ2,nme1,nme2)
+
+    # Return output
+    return [(ntot,kstar,round(abs(comp_mml_∇(n,∇1)-comp_mml_∇(n,∇2));digits=8)),
+            (ntot,kstar,round(abs(nme1-nme2);digits=8)),(ntot,kstar,uc)]
+
+end
+"""
+    `comp_tnull(BAM_PATH,GFF_PATH,FA_PATH,OUT_PATH)`
 
 Function that computes null dMMLs, dNME, and UC from a BAM files at locations given by GFF that
 contains the windows with not genetic variants and a FASTA file that contains the reference genome.
@@ -1125,7 +1185,7 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
     # Cap Nmax
     n_max = min(maximum(keys(kstar_table)),n_max)
 
-    # Loop over Ns of interes
+    # Loop over Ns of interest
     for ntot in intersect(keys(kstar_table),n_subset)
 
         # Skip if greater than n_max
@@ -1136,74 +1196,52 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
 
         # Print current N
         print_log("Generating null statistics for N=$(ntot) with K*=$(kstar) ...")
+        out_dmml = Vector{Tuple{Int64,Int64,Float64}}()
+        out_dnme = Vector{Tuple{Int64,Int64,Float64}}()
+        out_uc = Vector{Tuple{Int64,Int64,Float64}}()
 
         # Sample windows with N=ntot
         print_log("Sampling $(mc_null) windows ...")
-        win_ntot = sample_win_ntot(hom_gff,collect(keys(chr_dic)),ntot,5*mc_null)
+        i = 1
+        while length(out_dmml)<mc_null
 
-        # bedGraph records
-        print_log("Initializing output array ...")
-        out_sa = SharedArray{Tuple{Int8,Int8,Float64},2}(5*mc_null,3)
-        filled = SharedArray{Bool,1}(5*mc_null)
+            # Sample 10% of total mc_null
+            print_log("Computing null statistis round $(i)...")
+            haps_ntot = sample_win_ntot(hom_gff,collect(keys(chr_dic)),ntot,Int(round(0.2*mc_null)))
 
-        # Produce a set of null statistics for each index
-        print_log("Computing null statistis ...")
-        @sync @distributed for i=1:length(win_ntot)
+            # Process them
+            out_pmap = pmap(hap -> proc_null_hap(hap,ntot,bam,het_gff,hom_gff,fa,kstar,out_paths,
+                            pe,g_max,cov_ths,cov_a,cov_b,trim,mc_null,n_max,n_subset,chr_dic),
+                            haps_ntot)
 
-            # Check if enough Tnull have been generated and continue if so
-            sum(filled)>=mc_null && continue
+            # Keep only the ones with data
+            ind = findall(x->x[1][1]!=0,out_pmap)
+            out_pmap = out_pmap[ind]
 
-            # Get homozygous window
-            hap = win_ntot[i]
-            chr = GFF3.seqid(hap)
-            chr_size = chr_dic[chr]
+            # Save succesful runs
+            if length(out_pmap)>0
+                print_log("Saving $(length(out_pmap)) null stats ...")
+                append!(out_dmml,[x[1] for x in out_pmap])
+                append!(out_dnme,[x[2] for x in out_pmap])
+                append!(out_uc,[x[3] for x in out_pmap])
+            end
 
-            # Sample ntot contiguous CpG sites and partition into Kstar
-            cpg_pos = get_cpg_pos(Dict(GFF3.attributes(hap)))[1]
-            cpg_pos = sample_ntot_cpgs(ntot,cpg_pos)
-            n = get_nvec_kstar(ntot,kstar)
+            # Break if run for too long
+            if i>100
+                print_log("Exceeded $(i) iterations in comp_tnull ...")
+                break
+            end
 
-            # Check average coverage is within normal limits (watch for repetitive regions)
-            xobs = read_bam(bam,chr,cpg_pos[1],cpg_pos[end],cpg_pos,chr_size,pe,trim)
-            2*cov_ths <= mean_cov(xobs) <= 400 || continue
-
-            # Randomly partition observations (sample minimum coverage)
-            xobs1,xobs2 = cov_obs_part(xobs,cov_ths,cov_a,cov_b)
-            (length(xobs1)>0) && (length(xobs2)>0) || continue
-
-            # Check MLE exists
-            length(unique(xobs1))>1 || continue
-            length(unique(xobs2))>1 || continue
-
-            # Estimate each single-allele model and check if on boundary of parameter space
-            θ1 = est_theta_sa(n,xobs1)
-            check_boundary(θ1) && continue
-            θ2 = est_theta_sa(n,xobs2)
-            check_boundary(θ2) && continue
-
-            # Estimate moments
-            ∇1 = get_grad_logZ(n,θ1)
-            ∇2 = get_grad_logZ(n,θ2)
-
-            # Estimate output quantities
-            nme1 = comp_nme_∇(n,θ1,∇1)
-            nme2 = comp_nme_∇(n,θ2,∇2)
-            uc = comp_uc(trues(ntot),trues(ntot),n,n,θ1,θ2,nme1,nme2)
-
-            # Store output
-            out_sa[i,1] = (ntot,kstar,round(abs(comp_mml_∇(n,∇1)-comp_mml_∇(n,∇2));digits=8))
-            out_sa[i,2] = (ntot,kstar,round(abs(nme1-nme2);digits=8))
-            out_sa[i,3] = (ntot,kstar,uc)
-            filled[i] = true
-
+            # Increase counter
+            i += 1
         end
 
         # Add last to respective bedGraph file
-        write_tnull(out_sa[:,1],dmml_path)
-        write_tnull(out_sa[:,2],dnme_path)
-        write_tnull(out_sa[:,3],uc_path)
+        write_tnull(out_dmml,dmml_path)
+        write_tnull(out_dnme,dnme_path)
+        write_tnull(out_uc,uc_path)
 
-    end
+    end # end N for loop
 
     # Sort files
     sort_bedgraphs([dmml_path,dnme_path,uc_path])
