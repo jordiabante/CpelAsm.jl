@@ -61,6 +61,7 @@ export comp_uc                      # Compute UC
 export gen_gffs                     # Function to generate GFF files
 export comp_tobs                    # Compute statistis in haplotypes
 export comp_tnull                   # Generate null statistis
+export comp_tnull_ntot              # Generate null statistis for a specific n
 export comp_pvals                   # Compute p-values
 export run_analysis                 # Run it all
 
