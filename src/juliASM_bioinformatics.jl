@@ -791,10 +791,6 @@ function proc_obs_hap(hap::GFF3.Record,chr::String,chr_size::Int64,bam1::String,
     xobs2 = read_bam(bam2,chr,hap_st,hap_end,cpg_pos[3],chr_size,pe,trim)
     cov_ths <= mean_cov(xobs2) <= 200 || return empty_out
 
-    # Check MLE exists
-    length(unique(xobs1))>1 || return empty_out
-    length(unique(xobs2))>1 || return empty_out
-
     # Estimate each single-allele model and check if on boundary of parameter space
     θ1 = est_theta_sa(n1,xobs1)
     check_boundary(θ1) && return empty_out
@@ -1144,10 +1140,6 @@ function proc_null_hap(hap::GFF3.Record,ntot::Int64,bam::String,het_gff::String,
     xobs1,xobs2 = cov_obs_part(xobs,cov_ths,cov_a,cov_b)
     (length(xobs1)>0) && (length(xobs2)>0) || return empty_out
 
-    # Check MLE exists
-    length(unique(xobs1))>1 || return empty_out
-    length(unique(xobs2))>1 || return empty_out
-
     # Estimate each single-allele model and check if on boundary of parameter space
     θ1 = est_theta_sa(n,xobs1)
     check_boundary(θ1) && return empty_out
@@ -1240,7 +1232,7 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
             end
 
             # Break if run for too long
-            if i>100
+            if i>150
                 print_log("Exceeded $(i) iterations in comp_tnull ...")
                 break
             end
@@ -1255,92 +1247,6 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
         write_tnull(out_uc,uc_path)
 
     end # end N for loop
-
-    # Sort files
-    sort_bedgraphs([dmml_path,dnme_path,uc_path])
-
-    # Return nothing
-    return nothing
-
-end # end comp_tnull
-"""
-    `comp_tnull_ntot(NTOT,BAM_PATH,GFF_PATH,FA_PATH,OUT_PATH)`
-
-Function that computes null dMMLs, dNME, and UC from a BAM files at locations, given by GFF that
-contains the windows with not genetic variants and a FASTA file that contains the reference genome,
-for a specific N=NTOT.
-
-# Examples
-```julia-repl
-julia> comp_tnull_ntot(NTOT,BAM_PATH,GFF_PATH,FA_PATH,OUT_PATH)
-```
-"""
-function comp_tnull_ntot(ntot::Int64,bam::String,het_gff::String,hom_gff::String,fa::String,
-                         out_paths::Vector{String};pe::Bool=true,g_max::Int64=300,cov_ths::Int64=5,
-                         cov_a::Float64=0.0,cov_b::Float64=1.0,trim::NTuple{4,Int64}=(0,0,0,0),
-                         mc_null::Int64=5000,n_max::Int64=20,n_subset::Vector{Int64}=
-                         collect(1:n_max))
-
-    # BigWig output files
-    dmml_path,dnme_path,uc_path = out_paths
-
-    # Find relevant chromosomes and sizes
-    reader_fa = open(FASTA.Reader,fa,index=fa*".fai")
-    chr_dic = Dict(zip(reader_fa.index.names,reader_fa.index.lengths))
-    close(reader_fa)
-
-    # Obtain Kstar for every N & maximum N to analyze
-    print_log("Generating Kstar table ...")
-    kstar_table = get_kstar_table(het_gff,collect(keys(chr_dic)),g_max)
-
-    # Get kstar
-    kstar = kstar_table[ntot]
-
-    # Print current N
-    print_log("Generating null statistics for N=$(ntot) with K*=$(kstar) ...")
-    out_dmml = Vector{Tuple{Int64,Int64,Float64}}()
-    out_dnme = Vector{Tuple{Int64,Int64,Float64}}()
-    out_uc = Vector{Tuple{Int64,Int64,Float64}}()
-
-    # Sample windows with N=ntot
-    print_log("Sampling $(mc_null) windows ...")
-    i = 1
-    while length(out_dmml)<mc_null
-
-        # Sample 10% of total mc_null
-        haps_ntot = sample_win_ntot(hom_gff,collect(keys(chr_dic)),ntot,Int(round(0.2*mc_null)))
-
-        # Process them
-        out_pmap = pmap(hap -> proc_null_hap(hap,ntot,bam,het_gff,hom_gff,fa,kstar,out_paths,
-                        pe,g_max,cov_ths,cov_a,cov_b,trim,mc_null,n_max,n_subset,chr_dic),
-                        haps_ntot)
-
-        # Keep only the ones with data
-        ind = findall(x->x[1][1]!=0,out_pmap)
-        out_pmap = out_pmap[ind]
-
-        # Save succesful runs
-        if length(out_pmap)>0
-            print_log("Saving $(length(out_pmap)) null stats ...")
-            append!(out_dmml,[x[1] for x in out_pmap])
-            append!(out_dnme,[x[2] for x in out_pmap])
-            append!(out_uc,[x[3] for x in out_pmap])
-        end
-
-        # Break if run for too long
-        if i>100
-            print_log("Exceeded $(i) iterations in comp_tnull ...")
-            break
-        end
-
-        # Increase counter
-        i += 1
-    end
-
-    # Add last to respective bedGraph file
-    write_tnull(out_dmml,dmml_path)
-    write_tnull(out_dnme,dnme_path)
-    write_tnull(out_uc,uc_path)
 
     # Sort files
     sort_bedgraphs([dmml_path,dnme_path,uc_path])
