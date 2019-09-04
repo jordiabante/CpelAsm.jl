@@ -772,7 +772,7 @@ function proc_obs_hap(hap::GFF3.Record,chr::String,chr_size::Int64,bam1::String,
                       Int64,Int64}}
 
     # Empty output
-    empty_out = [(0,0,0.0,0,0),(0,0,0.0,0,0),(0,0,0.0,0,0),(0,0,0.0,0,0),(0,0,0.0,0,0)]
+    nan_out = [(0,0,0.0,0,0),(0,0,0.0,0,0),(0,0,0.0,0,0),(0,0,0.0,0,0),(0,0,0.0,0,0)]
 
     # Get window
     hap_st = GFF3.seqstart(hap)
@@ -783,19 +783,19 @@ function proc_obs_hap(hap::GFF3.Record,chr::String,chr_size::Int64,bam1::String,
     n = get_ns(cpg_pos[1],g_max,hap_st,hap_end)
     n1 = get_ns(cpg_pos[2],g_max,hap_st,hap_end)
     n2 = get_ns(cpg_pos[3],g_max,hap_st,hap_end)
-    length(n)>0 || return empty_out
+    length(n)>0 || return nan_out
 
     # Get vectors from BAM1/2 overlapping haplotype & compute average coverage
     xobs1 = read_bam(bam1,chr,hap_st,hap_end,cpg_pos[2],chr_size,pe,trim)
-    cov_ths <= mean_cov(xobs1) <= 200 || return empty_out
+    cov_ths <= mean_cov(xobs1) <= 400 || return nan_out
     xobs2 = read_bam(bam2,chr,hap_st,hap_end,cpg_pos[3],chr_size,pe,trim)
-    cov_ths <= mean_cov(xobs2) <= 200 || return empty_out
+    cov_ths <= mean_cov(xobs2) <= 400 || return nan_out
 
     # Estimate each single-allele model and check if on boundary of parameter space
     θ1 = est_theta_sa(n1,xobs1)
-    check_boundary(θ1) && return empty_out
+    check_boundary(θ1) && return nan_out
     θ2 = est_theta_sa(n2,xobs2)
-    check_boundary(θ2) && return empty_out
+    check_boundary(θ2) && return nan_out
 
     # Get binary vector with homozygous CpG sites
     z1 = BitArray([p in cpg_pos[1] ? true : false for p in cpg_pos[2]])
@@ -1118,10 +1118,10 @@ function proc_null_hap(hap::GFF3.Record,ntot::Int64,bam::String,het_gff::String,
                        fa::String,kstar::Int64,out_paths::Vector{String},pe::Bool,g_max::Int64,
                        cov_ths::Int64,cov_a::Float64,cov_b::Float64,trim::NTuple{4,Int64},
                        mc_null::Int64,n_max::Int64,n_subset::Vector{Int64},chr_dic::Dict{String,
-                       Int64})::Vector{Tuple{Int8,Int8,Float64}}
+                       Int64})::Tuple{Float64,Float64,Float64}
 
     # Empty output
-    empty_out = [(0,0,0.0),(0,0,0.0),(0,0,0.0)]
+    nan_out = (NaN,NaN,NaN)
 
     # Get homozygous window
     chr = GFF3.seqid(hap)
@@ -1134,30 +1134,29 @@ function proc_null_hap(hap::GFF3.Record,ntot::Int64,bam::String,het_gff::String,
 
     # Check average coverage is within normal limits (watch for repetitive regions)
     xobs = read_bam(bam,chr,cpg_pos[1],cpg_pos[end],cpg_pos,chr_size,pe,trim)
-    2*cov_ths <= mean_cov(xobs) <= 400 || return empty_out
+    2*cov_ths <= mean_cov(xobs) <= 400 || return nan_out
 
     # Randomly partition observations (sample minimum coverage)
     xobs1,xobs2 = cov_obs_part(xobs,cov_ths,cov_a,cov_b)
-    (length(xobs1)>0) && (length(xobs2)>0) || return empty_out
+    (length(xobs1)>0) && (length(xobs2)>0) || return nan_out
 
     # Estimate each single-allele model and check if on boundary of parameter space
     θ1 = est_theta_sa(n,xobs1)
-    check_boundary(θ1) && return empty_out
+    check_boundary(θ1) && return nan_out
     θ2 = est_theta_sa(n,xobs2)
-    check_boundary(θ2) && return empty_out
+    check_boundary(θ2) && return nan_out
 
     # Estimate moments
     ∇1 = get_grad_logZ(n,θ1)
     ∇2 = get_grad_logZ(n,θ2)
 
     # Estimate output quantities
-    nme1 = comp_nme_∇(n,θ1,∇1)
-    nme2 = comp_nme_∇(n,θ2,∇2)
-    uc = comp_uc(trues(ntot),trues(ntot),n,n,θ1,θ2,nme1,nme2)
+    nme1 = round(comp_nme_∇(n,θ1,∇1);digits=8)
+    nme2 = round(comp_nme_∇(n,θ2,∇2);digits=8)
+    uc = round(comp_uc(trues(ntot),trues(ntot),n,n,θ1,θ2,nme1,nme2);digits=8)
 
     # Return output
-    return [(ntot,kstar,round(abs(comp_mml_∇(n,∇1)-comp_mml_∇(n,∇2));digits=8)),
-            (ntot,kstar,round(abs(nme1-nme2);digits=8)),(ntot,kstar,uc)]
+    return (round(abs(comp_mml_∇(n,∇1)-comp_mml_∇(n,∇2));digits=8),abs(nme1-nme2),uc)
 
 end
 """
@@ -1192,7 +1191,7 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
     n_max = min(maximum(keys(kstar_table)),n_max)
 
     # Loop over Ns of interest
-    for ntot in intersect(keys(kstar_table),n_subset)
+    for ntot in sort(collect(intersect(keys(kstar_table),n_subset)))
 
         # Skip if greater than n_max
         ntot>n_max && continue
@@ -1211,24 +1210,22 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
         i = 1
         while length(out_dmml)<mc_null
 
-            # Sample 10% of total mc_null
-            haps_ntot = sample_win_ntot(hom_gff,collect(keys(chr_dic)),ntot,Int(round(0.2*mc_null)))
+            haps_ntot = sample_win_ntot(hom_gff,collect(keys(chr_dic)),ntot,Int(round(0.5*mc_null)))
 
-            # Process them
+            # Process them in parallel
             out_pmap = pmap(hap -> proc_null_hap(hap,ntot,bam,het_gff,hom_gff,fa,kstar,out_paths,
                             pe,g_max,cov_ths,cov_a,cov_b,trim,mc_null,n_max,n_subset,chr_dic),
                             haps_ntot)
 
             # Keep only the ones with data
-            ind = findall(x->x[1][1]!=0,out_pmap)
-            out_pmap = out_pmap[ind]
+            out_pmap = out_pmap[map(stat->!any(isnan.(stat)),out_pmap)]
 
             # Save succesful runs
             if length(out_pmap)>0
                 print_log("Saving $(length(out_pmap)) null stats ...")
-                append!(out_dmml,[x[1] for x in out_pmap])
-                append!(out_dnme,[x[2] for x in out_pmap])
-                append!(out_uc,[x[3] for x in out_pmap])
+                append!(out_dmml,map(stat->(ntot,kstar,stat[1]),out_pmap))
+                append!(out_dnme,map(stat->(ntot,kstar,stat[2]),out_pmap))
+                append!(out_uc,map(stat->(ntot,kstar,stat[3]),out_pmap))
             end
 
             # Break if run for too long
