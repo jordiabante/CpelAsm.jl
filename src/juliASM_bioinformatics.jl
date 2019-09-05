@@ -1122,7 +1122,7 @@ function proc_null_hap(hap::GFF3.Record,ntot::Int64,bam::String,het_gff::String,
                        fa::String,kstar::Int64,out_paths::Vector{String},pe::Bool,g_max::Int64,
                        cov_ths::Int64,cov_a::Float64,cov_b::Float64,trim::NTuple{4,Int64},
                        mc_null::Int64,n_max::Int64,n_subset::Vector{Int64},chr_dic::Dict{String,
-                       Int64})::Tuple{Float64,Float64,Float64}
+                       Int64})::Vector{Tuple{Float64,Float64,Float64}}
 
     # Empty output
     nan_out = (NaN,NaN,NaN)
@@ -1139,27 +1139,35 @@ function proc_null_hap(hap::GFF3.Record,ntot::Int64,bam::String,het_gff::String,
     xobs = read_bam(bam,chr,cpg_pos[1],cpg_pos[end],cpg_pos,chr_size,pe,trim)
     2*cov_ths <= mean_cov(xobs) <= 400 || return nan_out
 
-    # Randomly partition observations (sample minimum coverage)
-    xobs1,xobs2 = cov_obs_part(xobs,cov_ths,cov_a,cov_b)
-    (length(xobs1)>0) && (length(xobs2)>0) || return nan_out
+    # Obtain a number of null statistics with different permutations
+    stats = Vector{Tuple{Float64,Float64,Float64}}()
+    for i=1:5
+        # Randomly partition observations (sample minimum coverage)
+        xobs1,xobs2 = cov_obs_part(xobs,cov_ths,cov_a,cov_b)
+        (length(xobs1)>0) && (length(xobs2)>0) || continue
 
-    # Estimate each single-allele model and check if on boundary of parameter space
-    θ1 = est_theta_sa(n,xobs1)
-    check_boundary(θ1) && return nan_out
-    θ2 = est_theta_sa(n,xobs2)
-    check_boundary(θ2) && return nan_out
+        # Estimate each single-allele model and check if on boundary of parameter space
+        θ1 = est_theta_sa(n,xobs1)
+        check_boundary(θ1) && continue
+        θ2 = est_theta_sa(n,xobs2)
+        check_boundary(θ2) && continue
 
-    # Estimate moments
-    ∇1 = get_grad_logZ(n,θ1)
-    ∇2 = get_grad_logZ(n,θ2)
+        # Estimate moments
+        ∇1 = get_grad_logZ(n,θ1)
+        ∇2 = get_grad_logZ(n,θ2)
 
-    # Estimate output quantities
-    nme1 = round(comp_nme_∇(n,θ1,∇1);digits=8)
-    nme2 = round(comp_nme_∇(n,θ2,∇2);digits=8)
-    uc = round(comp_uc(trues(ntot),trues(ntot),n,n,θ1,θ2,nme1,nme2);digits=8)
+        # Estimate output quantities
+        nme1 = round(comp_nme_∇(n,θ1,∇1);digits=8)
+        nme2 = round(comp_nme_∇(n,θ2,∇2);digits=8)
+        uc = round(comp_uc(trues(ntot),trues(ntot),n,n,θ1,θ2,nme1,nme2);digits=8)
+
+        # Append stats
+        push!(stats,(round(abs(comp_mml_∇(n,∇1)-comp_mml_∇(n,∇2));digits=8),abs(nme1-nme2),uc))
+
+    end
 
     # Return output
-    return (round(abs(comp_mml_∇(n,∇1)-comp_mml_∇(n,∇2));digits=8),abs(nme1-nme2),uc)
+    return stats
 
 end
 """
@@ -1223,8 +1231,8 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
         while length(out_dmml)<mc_null
 
             # Process them in parallel
-            out_pmap = pmap(hap -> proc_null_hap(hap,ntot,bam,het_gff,hom_gff,fa,kstar,out_paths,
-                            pe,g_max,cov_ths,cov_a,cov_b,trim,mc_null,n_max,n_subset,chr_dic),haps)
+            out_pmap = vcat(pmap(hap -> proc_null_hap(hap,ntot,bam,het_gff,hom_gff,fa,kstar,out_paths,
+                            pe,g_max,cov_ths,cov_a,cov_b,trim,mc_null,n_max,n_subset,chr_dic),haps)...)
 
             # Keep only the ones with data
             out_pmap = out_pmap[map(stat->!any(isnan.(stat)),out_pmap)]
