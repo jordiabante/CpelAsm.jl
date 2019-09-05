@@ -949,29 +949,62 @@ function get_kstar_table(gff::String,chr_names::Vector{String},g_max::Int64)::Di
 
 end # end get_kstar_table
 """
-    `sample_win_n(GFF_PATH,CHR_NAMES,NTOT,MC_NULL)`
+    `subset_haps_cov(GFF,BAM,FA,PE,COV_THS,NTOT,TRIM,CHR_DIC)`
 
-Function that returns a set of size MC_NULL of homozygous genomic windows with at least NTOT CpG
-sites.
+Function that returns a set of haplotypes with N=Ntot and satisfying the coverage requirements.
 
 # Examples
 ```julia-repl
-julia> JuliASM.sample_win_n(GFF_PATH,CHR_NAMES,NTOT,MC_NULL)
+julia> JuliASM.subset_haps_cov(gff,bam,fa,pe,cov_ths,ntot,trim,chr_dic)
 ```
 """
-function sample_win_ntot(gff::String,chr_names::Vector{String},ntot::Int64,
-                         mc_null::Int64)::Vector{GFF3.Record}
+function subset_haps_cov(gff::String,bam::String,fa::String,pe::Bool,cov_ths::Int64,ntot::Int64,
+                         trim::NTuple{4,Int64},chr_dic::Dict{String,Int64})::Vector{GFF3.Record}
 
     # Load genomic features from a GFF3 file
-    features = open(collect,GFF3.Reader,gff)
+    hom_haps = open(collect,GFF3.Reader,gff)
 
     # Filter based on N and chromosomes
-    filter!(x -> (GFF3.score(x)>=ntot) && (GFF3.seqid(x) in chr_names),features)
+    chr_names = collect(keys(chr_dic))
+    filter!(x -> (GFF3.score(x)>=ntot) && (GFF3.seqid(x) in chr_names),hom_haps)
+
+    # Loop over homozygous blocks
+    out_haps = Vector{GFF3.Record}()
+    for hap in hom_haps
+
+        # All CpG sites in haplotype
+        cpg_pos = get_cpg_pos(Dict(GFF3.attributes(hap)))[1]
+
+        # Loop over all possible sets of Ntot CpG sites
+        i = 1
+        while i<=(length(cpg_pos)-ntot+1)
+
+            # Obtain Ntot CpG sites
+            cpgs = cpg_pos[i:(i+ntot-1)]
+
+            # Get homozygous window
+            chr = GFF3.seqid(hap)
+            chr_size = chr_dic[chr]
+
+            # Check average coverage is within normal limits (watch for repetitive regions)
+            xobs = read_bam(bam,chr,cpgs[1],cpgs[end],cpgs,chr_size,pe,trim)
+
+            # Append to output if coverage is okay
+            if 2*cov_ths <= mean_cov(xobs) <= 400
+                out_str = "$(chr)\t.\t.\t$(cpgs[1])\t$(cpgs[end])\t$(ntot)\t.\t.\tCpGs=$(cpgs)"
+                push!(out_haps,GFF3.Record(out_str))
+            end
+
+            # Increase counter
+            i += ntot
+
+        end
+    end
 
     # Return
-    return features[sample(1:length(features),mc_null;replace=true)]
+    return out_haps
 
-end # end sample_win_n
+end # end subset_haps_cov
 """
     `sample_ntot_cpgs(NTOT,CPG_POS)`
 
@@ -1205,12 +1238,16 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
         out_dnme = Vector{Tuple{Int64,Int64,Float64}}()
         out_uc = Vector{Tuple{Int64,Int64,Float64}}()
 
+        # Store all haplotypes with enough coverage
+        haps_ntot = subset_haps_cov(hom_gff,bam,fa,pe,cov_ths,ntot,trim,chr_dic)
+
         # Sample windows with N=ntot
         print_log("Sampling $(mc_null) windows ...")
         i = 1
         while length(out_dmml)<mc_null
 
-            haps_ntot = sample_win_ntot(hom_gff,collect(keys(chr_dic)),ntot,Int(round(0.5*mc_null)))
+            # Subsample haplotypes with enough coverage
+            sample_haps_ntot = haps_ntot[sample(1:length(haps_ntot),mc_null)]
 
             # Process them in parallel
             out_pmap = pmap(hap -> proc_null_hap(hap,ntot,bam,het_gff,hom_gff,fa,kstar,out_paths,
@@ -1229,8 +1266,8 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
             end
 
             # Break if run for too long
-            if i>150
-                print_log("Exceeded $(i) iterations in comp_tnull ...")
+            if i>200
+                print_log("Exceeded $(i-1) iterations in comp_tnull ...")
                 break
             end
 
