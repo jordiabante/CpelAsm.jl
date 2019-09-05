@@ -959,14 +959,13 @@ julia> JuliASM.subset_haps_cov(gff,bam,fa,pe,cov_ths,ntot,trim,chr_dic)
 ```
 """
 function subset_haps_cov(gff::String,bam::String,fa::String,pe::Bool,cov_ths::Int64,ntot::Int64,
-                         trim::NTuple{4,Int64},chr_dic::Dict{String,Int64})::Vector{GFF3.Record}
+                         trim::NTuple{4,Int64},chr::String,chr_size::Int64)::Vector{GFF3.Record}
 
     # Load genomic features from a GFF3 file
     hom_haps = open(collect,GFF3.Reader,gff)
 
     # Filter based on N and chromosomes
-    chr_names = collect(keys(chr_dic))
-    filter!(x -> (GFF3.score(x)>=ntot) && (GFF3.seqid(x) in chr_names),hom_haps)
+    filter!(x -> (GFF3.score(x)>=ntot) && (GFF3.seqid(x) == chr),hom_haps)
 
     # Loop over homozygous blocks
     out_haps = Vector{GFF3.Record}()
@@ -981,10 +980,6 @@ function subset_haps_cov(gff::String,bam::String,fa::String,pe::Bool,cov_ths::In
 
             # Obtain Ntot CpG sites
             cpgs = cpg_pos[i:(i+ntot-1)]
-
-            # Get homozygous window
-            chr = GFF3.seqid(hap)
-            chr_size = chr_dic[chr]
 
             # Check average coverage is within normal limits (watch for repetitive regions)
             xobs = read_bam(bam,chr,cpgs[1],cpgs[end],cpgs,chr_size,pe,trim)
@@ -1138,7 +1133,6 @@ function proc_null_hap(hap::GFF3.Record,ntot::Int64,bam::String,het_gff::String,
 
     # Sample ntot contiguous CpG sites and partition into Kstar
     cpg_pos = get_cpg_pos(Dict(GFF3.attributes(hap)))[1]
-    print_log("Found null haplotype with N>Ntot. CpG=$(cpg_pos); Ntot=$(ntot).")
     n = get_nvec_kstar(ntot,kstar)
 
     # Check average coverage is within normal limits (watch for repetitive regions)
@@ -1190,6 +1184,7 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
     # Find relevant chromosomes and sizes
     reader_fa = open(FASTA.Reader,fa,index=fa*".fai")
     chr_dic = Dict(zip(reader_fa.index.names,reader_fa.index.lengths))
+    chr_names = collect(keys(chr_dic))
     close(reader_fa)
 
     # Obtain Kstar for every N & maximum N to analyze
@@ -1215,7 +1210,13 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
         out_uc = Vector{Tuple{Int64,Int64,Float64}}()
 
         # Store all haplotypes with enough coverage
-        haps_ntot = subset_haps_cov(hom_gff,bam,fa,pe,cov_ths,ntot,trim,chr_dic)
+        haps_ntot = pmap(chr -> subset_haps_cov(hom_gff,bam,fa,pe,cov_ths,ntot,trim,chr,
+                         chr_dic[chr]),chr_names)
+        haps_ntot = vcat(haps_ntot...)
+
+        # Keep in memory mc_null only for memory efficiency
+        haps_ntot = length(haps_ntot)>mc_null ? haps_ntot[sample(1:length(haps_ntot),mc_null)] :
+            haps_ntot
 
         # Sample windows with N=ntot
         print_log("Sampling $(mc_null) windows ...")
