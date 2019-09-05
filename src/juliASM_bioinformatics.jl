@@ -974,31 +974,26 @@ function subset_haps_cov(gff::String,bam::String,fa::String,pe::Bool,cov_ths::In
         # All CpG sites in haplotype
         cpg_pos = get_cpg_pos(Dict(GFF3.attributes(hap)))[1]
 
-        # Loop over all possible sets of Ntot CpG sites
-        i = 1
-        while i<=(length(cpg_pos)-ntot+1)
+        # Get ntot contiguous CpG sites at random
+        ind = sample(1:(length(cpg_pos)-ntot+1))
+        cpgs = cpg_pos[ind:(ind+ntot-1)]
 
-            # Obtain Ntot CpG sites
-            cpgs = cpg_pos[i:(i+ntot-1)]
+        # Check average coverage is within normal limits (watch for repetitive regions)
+        xobs = read_bam(bam,chr,cpgs[1],cpgs[end],cpgs,chr_size,pe,trim)
 
-            # Check average coverage is within normal limits (watch for repetitive regions)
-            xobs = read_bam(bam,chr,cpgs[1],cpgs[end],cpgs,chr_size,pe,trim)
-
-            # Append to output if coverage is okay
-            if 2*cov_ths <= mean_cov(xobs) <= 400
-                new_hap = "$(chr)\t.\t.\t$(cpgs[1])\t$(cpgs[end])\t$(ntot)\t.\t.\tCpGs=$(cpgs)"
-                push!(out_haps,GFF3.Record(new_hap))
-            end
-
-            # Increase counter
-            i += ntot
-
+        # Append to output if coverage is okay
+        if 2*cov_ths <= mean_cov(xobs) <= 400
+            new_hap = "$(chr)\t.\t.\t$(cpgs[1])\t$(cpgs[end])\t$(ntot)\t.\t.\tCpGs=$(cpgs)"
+            push!(out_haps,GFF3.Record(new_hap))
         end
 
         # Break if enough haps
         length(out_haps)>500 && break
 
     end
+
+    # Print
+    print_log("Done scanning chromosome $(chr) ...")
 
     # Return
     return out_haps
@@ -1205,15 +1200,16 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
         ntot>n_max && continue
 
         # Get kstar
+        println("Getting Kmax for each N ...")
         kstar = kstar_table[ntot]
 
         # Print current N
-        print_log("Generating null statistics for N=$(ntot) with K*=$(kstar) ...")
         out_dmml = Vector{Tuple{Int64,Int64,Float64}}()
         out_dnme = Vector{Tuple{Int64,Int64,Float64}}()
         out_uc = Vector{Tuple{Int64,Int64,Float64}}()
 
         # Store all haplotypes with enough coverage
+        print_log("Scanning haplotypes ...")
         haps = vcat(pmap(chr -> subset_haps_cov(hom_gff,bam,fa,pe,cov_ths,ntot,trim,chr,chr_dic[chr]),
                          chr_names)...)
 
