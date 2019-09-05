@@ -949,13 +949,13 @@ function get_kstar_table(gff::String,chr_names::Vector{String},g_max::Int64)::Di
 
 end # end get_kstar_table
 """
-    `subset_haps_cov(GFF,BAM,FA,PE,COV_THS,NTOT,TRIM,CHR_DIC)`
+    `subset_haps_cov(GFF,BAM,FA,PE,COV_THS,NTOT,TRIM,CHRmCHR_SIZE)`
 
 Function that returns a set of haplotypes with N=Ntot and satisfying the coverage requirements.
 
 # Examples
 ```julia-repl
-julia> JuliASM.subset_haps_cov(gff,bam,fa,pe,cov_ths,ntot,trim,chr_dic)
+julia> JuliASM.subset_haps_cov(gff,bam,fa,pe,cov_ths,ntot,trim,chr,chr_size)
 ```
 """
 function subset_haps_cov(gff::String,bam::String,fa::String,pe::Bool,cov_ths::Int64,ntot::Int64,
@@ -994,6 +994,10 @@ function subset_haps_cov(gff::String,bam::String,fa::String,pe::Bool,cov_ths::In
             i += ntot
 
         end
+
+        # Break if enough haps
+        length(out_haps)>500 && break
+
     end
 
     # Return
