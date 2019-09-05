@@ -1235,7 +1235,7 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
 
             # Process them in parallel
             out_pmap = vcat(pmap(hap -> proc_null_hap(hap,ntot,bam,het_gff,hom_gff,fa,kstar,out_paths,
-                            pe,g_max,cov_ths,cov_a,cov_b,trim,mc_null,n_max,n_subset,chr_dic),haps)...)
+                            pe,g_max,cov_ths,cov_a,cov_b,trim,mc_null,n_max,n_subset,chr_dic),haps_subset)...)
 
             # Keep only the ones with data
             out_pmap = out_pmap[map(stat->!any(isnan.(stat)),out_pmap)]
