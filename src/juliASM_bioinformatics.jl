@@ -962,13 +962,14 @@ function subset_haps_cov(gff::String,bam::String,fa::String,pe::Bool,cov_ths::In
                          trim::NTuple{4,Int64},chr::String,chr_size::Int64)::Vector{GFF3.Record}
 
     # Load genomic features from a GFF3 file
+    out_haps = Vector{GFF3.Record}()
     hom_haps = open(collect,GFF3.Reader,gff)
 
     # Filter based on N and chromosomes
     filter!(x -> (GFF3.score(x)>=ntot) && (GFF3.seqid(x) == chr),hom_haps)
+    length(hom_haps)>0 || return out_haps
 
     # Loop over homozygous blocks
-    out_haps = Vector{GFF3.Record}()
     for hap in hom_haps
 
         # All CpG sites in haplotype
@@ -1200,7 +1201,6 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
         ntot>n_max && continue
 
         # Get kstar
-        println("Getting Kmax for each N ...")
         kstar = kstar_table[ntot]
 
         # Print current N

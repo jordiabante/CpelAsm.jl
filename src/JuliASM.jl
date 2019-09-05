@@ -13,7 +13,6 @@ using Calculus                  # For Hessian estimation
 using LinearAlgebra             # For Eigendecomposition of Σ
 using Dates                     # For showing time
 using Distributions             # For sampling RVs
-using Plots                     # For plots
 using LaTeXStrings              # For labels in plots
 using ForwardDiff               # For auto-differentiation
 using Optim                     # For Simulated annealing
