@@ -1210,26 +1210,21 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
         out_uc = Vector{Tuple{Int64,Int64,Float64}}()
 
         # Store all haplotypes with enough coverage
-        haps_ntot = pmap(chr -> subset_haps_cov(hom_gff,bam,fa,pe,cov_ths,ntot,trim,chr,
-                         chr_dic[chr]),chr_names)
-        haps_ntot = vcat(haps_ntot...)
+        haps = vcat(pmap(chr -> subset_haps_cov(hom_gff,bam,fa,pe,cov_ths,ntot,trim,chr,chr_dic[chr]),
+                         chr_names)...)
 
         # Keep in memory mc_null only for memory efficiency
-        haps_ntot = length(haps_ntot)>mc_null ? haps_ntot[sample(1:length(haps_ntot),mc_null)] :
-            haps_ntot
+        haps = length(haps)>mc_null ? haps[sample(1:length(haps),mc_null)] : haps
 
         # Sample windows with N=ntot
-        print_log("Sampling $(mc_null) windows ...")
+        print_log("Sampling a total of $(mc_null) null statistics ...")
+        print_log("Candidate haplotypes with N=$(ntot) are $(length(haps)) ...")
         i = 1
         while length(out_dmml)<mc_null
 
-            # Subsample haplotypes with enough coverage
-            sample_haps_ntot = haps_ntot[sample(1:length(haps_ntot),mc_null)]
-
             # Process them in parallel
             out_pmap = pmap(hap -> proc_null_hap(hap,ntot,bam,het_gff,hom_gff,fa,kstar,out_paths,
-                            pe,g_max,cov_ths,cov_a,cov_b,trim,mc_null,n_max,n_subset,chr_dic),
-                            haps_ntot)
+                            pe,g_max,cov_ths,cov_a,cov_b,trim,mc_null,n_max,n_subset,chr_dic),haps)
 
             # Keep only the ones with data
             out_pmap = out_pmap[map(stat->!any(isnan.(stat)),out_pmap)]
@@ -1263,7 +1258,7 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
     sort_bedgraphs([dmml_path,dnme_path,uc_path])
 
     # Print message
-    print_log("Done with null statistic ...")
+    print_log("Done with null statistics ...")
 
     # Return nothing
     return nothing
