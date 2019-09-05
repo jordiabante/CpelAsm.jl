@@ -991,8 +991,8 @@ function subset_haps_cov(gff::String,bam::String,fa::String,pe::Bool,cov_ths::In
 
             # Append to output if coverage is okay
             if 2*cov_ths <= mean_cov(xobs) <= 400
-                out_str = "$(chr)\t.\t.\t$(cpgs[1])\t$(cpgs[end])\t$(ntot)\t.\t.\tCpGs=$(cpgs)"
-                push!(out_haps,GFF3.Record(out_str))
+                new_hap = "$(chr)\t.\t.\t$(cpgs[1])\t$(cpgs[end])\t$(ntot)\t.\t.\tCpGs=$(cpgs)"
+                push!(out_haps,GFF3.Record(new_hap))
             end
 
             # Increase counter
@@ -1005,30 +1005,6 @@ function subset_haps_cov(gff::String,bam::String,fa::String,pe::Bool,cov_ths::In
     return out_haps
 
 end # end subset_haps_cov
-"""
-    `sample_ntot_cpgs(NTOT,CPG_POS)`
-
-Function that samples NTOT contiguous CpG sites from CPG_POS.
-
-# Examples
-```julia-repl
-julia> JuliASM.sample_ntot_cpgs(4,[10,15,20,25,30,35,40])
-4-element Array{Int64,1}:
- 10
- 15
- 20
- 25
-```
-"""
-function sample_ntot_cpgs(ntot::Int64,cpg_pos::Vector{Int64})::Vector{Int64}
-
-    # Get start index
-    st_ind = length(cpg_pos)>ntot ? sample(1:(length(cpg_pos)-(ntot-1))) : 1
-
-    # Return n
-    return cpg_pos[st_ind:(st_ind+ntot-1)]
-
-end # end sample_ntot_cpgs
 """
     `get_nvec_kstar(NTOT,KSTAR)`
 
@@ -1162,7 +1138,7 @@ function proc_null_hap(hap::GFF3.Record,ntot::Int64,bam::String,het_gff::String,
 
     # Sample ntot contiguous CpG sites and partition into Kstar
     cpg_pos = get_cpg_pos(Dict(GFF3.attributes(hap)))[1]
-    cpg_pos = sample_ntot_cpgs(ntot,cpg_pos)
+    print_log("Found null haplotype with N>Ntot. CpG=$(cpg_pos); Ntot=$(ntot).")
     n = get_nvec_kstar(ntot,kstar)
 
     # Check average coverage is within normal limits (watch for repetitive regions)
@@ -1285,6 +1261,9 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
     # Sort files
     sort_bedgraphs([dmml_path,dnme_path,uc_path])
 
+    # Print message
+    print_log("Done with null statistic ...")
+
     # Return nothing
     return nothing
 
@@ -1355,13 +1334,13 @@ function comp_pvals(tobs_path::Vector{String},tnull_path::Vector{String},p_path:
                     n_max::Int64)
 
     # Compute three sets of pvalues
-    print_log("Computing p-values dMML...")
+    print_log("Computing p-values dMML ...")
     comp_pvals_stat(tobs_path[1:2],tnull_path[1],p_path[1],n_max)
-    print_log("Computing p-values dNME...")
+    print_log("Computing p-values dNME ...")
     comp_pvals_stat(tobs_path[3:4],tnull_path[2],p_path[2],n_max)
-    print_log("Computing p-values UC...")
+    print_log("Computing p-values UC ...")
     comp_pvals_stat([tobs_path[5]],tnull_path[3],p_path[3],n_max)
-    print_log("Done with p-values...")
+    print_log("Done with p-values ...")
 
     # Return
     return nothing
