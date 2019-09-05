@@ -1141,7 +1141,7 @@ function proc_null_hap(hap::GFF3.Record,ntot::Int64,bam::String,het_gff::String,
 
     # Obtain a number of null statistics with different permutations
     stats = Vector{Tuple{Float64,Float64,Float64}}()
-    for i=1:5
+    for i=1:10
         # Randomly partition observations (sample minimum coverage)
         xobs1,xobs2 = cov_obs_part(xobs,cov_ths,cov_a,cov_b)
         (length(xobs1)>0) && (length(xobs2)>0) || continue
