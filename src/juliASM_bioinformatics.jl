@@ -1230,6 +1230,9 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
         i = 1
         while length(out_dmml)<mc_null
 
+            # Subsample
+            haps_subset = length(haps)>1000 ? haps[sample(1:length(haps),1000)] : haps
+
             # Process them in parallel
             out_pmap = vcat(pmap(hap -> proc_null_hap(hap,ntot,bam,het_gff,hom_gff,fa,kstar,out_paths,
                             pe,g_max,cov_ths,cov_a,cov_b,trim,mc_null,n_max,n_subset,chr_dic),haps)...)
