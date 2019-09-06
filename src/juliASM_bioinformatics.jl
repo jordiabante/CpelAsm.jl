@@ -1145,7 +1145,7 @@ function proc_null_hap(hap::GFF3.Record,ntot::Int64,bam::String,het_gff::String,
 
     # Obtain a number of null statistics with different permutations
     stats = Vector{Tuple{Float64,Float64,Float64}}()
-    # for i=1:5
+    for i=1:2
 
         # print_log("Trying partition $(i) for $(cpg_pos)")
         # Randomly partition observations (sample minimum coverage)
@@ -1184,7 +1184,7 @@ function proc_null_hap(hap::GFF3.Record,ntot::Int64,bam::String,het_gff::String,
         # Append stats
         push!(stats,(round(abs(comp_mml_∇(n,∇1)-comp_mml_∇(n,∇2));digits=8),abs(nme1-nme2),uc))
 
-    # end
+    end
 
     # Return output
     return stats
@@ -1251,9 +1251,10 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
         while length(out_dmml)<mc_null
 
             # Process them in parallel
-            out_pmap = vcat(pmap(hap -> proc_null_hap(hap,ntot,bam,het_gff,hom_gff,fa,kstar,
-                            out_paths,pe,g_max,cov_ths,cov_a,cov_b,trim,mc_null,n_max,n_subset,
-                            chr_dic),haps)...)
+            out_pmap = vcat(pmap(hap -> proc_null_hap(hap,ntot,bam,het_gff,hom_gff,
+                                   fa,kstar,out_paths,pe,g_max,
+                                   cov_ths,cov_a,cov_b,trim,
+                                   mc_null,n_max,n_subset,chr_dic),haps)...)
 
             # Keep only the ones with data
             out_pmap = out_pmap[map(stat->!any(isnan.(stat)),out_pmap)]
