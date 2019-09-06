@@ -1135,32 +1135,36 @@ function proc_null_hap(hap::GFF3.Record,ntot::Int64,bam::String,het_gff::String,
     cpg_pos = get_cpg_pos(Dict(GFF3.attributes(hap)))[1]
     n = get_nvec_kstar(ntot,kstar)
 
-    print_log("Checking coverage for $(cpg_pos) ...")
+    print_log("Checking coverage for $(cpg_pos)")
 
     # Check average coverage is within normal limits (watch for repetitive regions)
     xobs = read_bam(bam,chr,cpg_pos[1],cpg_pos[end],cpg_pos,chr_size,pe,trim)
     2*cov_ths <= mean_cov(xobs) <= 400 || return nan_out
 
-    print_log("Succesful coverage for $(cpg_pos) ...")
+    print_log("Succesful coverage for $(cpg_pos)")
 
     # Obtain a number of null statistics with different permutations
     stats = Vector{Tuple{Float64,Float64,Float64}}()
     for i=1:10
 
-        print_log("Trying partition $(i) for $(cpg_pos) ...")
+        print_log("Trying partition $(i) for $(cpg_pos)")
         # Randomly partition observations (sample minimum coverage)
         xobs1,xobs2 = cov_obs_part(xobs,cov_ths,cov_a,cov_b)
         (length(xobs1)>0) && (length(xobs2)>0) || continue
 
-        print_log("Reads partition OK in $(i) partition for $(cpg_pos) ...")
+        print_log("Reads partition OK in $(i) partition for $(cpg_pos)")
+        print_log("R1:$(xobs1); R2:$(xobs2)")
 
         # Estimate each single-allele model and check if on boundary of parameter space
         θ1 = est_theta_sa(n,xobs1)
         check_boundary(θ1) && continue
+
+        print_log("Parameter estimate 1 OK in $(i) partition for $(cpg_pos)")
+
         θ2 = est_theta_sa(n,xobs2)
         check_boundary(θ2) && continue
 
-        print_log("Parameter estimates OK in $(i) partition for $(cpg_pos) ...")
+        print_log("Parameter estimate 2 OK in $(i) partition for $(cpg_pos)")
 
         # Estimate moments
         ∇1 = get_grad_logZ(n,θ1)
