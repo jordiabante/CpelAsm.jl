@@ -1135,42 +1135,42 @@ function proc_null_hap(hap::GFF3.Record,ntot::Int64,bam::String,het_gff::String,
     cpg_pos = get_cpg_pos(Dict(GFF3.attributes(hap)))[1]
     n = get_nvec_kstar(ntot,kstar)
 
-    print_log("Checking coverage for $(cpg_pos)")
+    # print_log("Checking coverage for $(cpg_pos)")
 
     # Check average coverage is within normal limits (watch for repetitive regions)
     xobs = read_bam(bam,chr,cpg_pos[1],cpg_pos[end],cpg_pos,chr_size,pe,trim)
     2*cov_ths <= mean_cov(xobs) <= 400 || return nan_out
 
-    print_log("Succesful coverage for $(cpg_pos)")
+    # print_log("Succesful coverage for $(cpg_pos)")
 
     # Obtain a number of null statistics with different permutations
     stats = Vector{Tuple{Float64,Float64,Float64}}()
-    for i=1:10
+    # for i=1:5
 
-        print_log("Trying partition $(i) for $(cpg_pos)")
+        # print_log("Trying partition $(i) for $(cpg_pos)")
         # Randomly partition observations (sample minimum coverage)
         xobs1,xobs2 = cov_obs_part(xobs,cov_ths,cov_a,cov_b)
         (length(xobs1)>0) && (length(xobs2)>0) || continue
 
-        print_log("Reads partition OK in $(i) partition for $(cpg_pos)")
-        print_log("R1:$(xobs1); R2:$(xobs2)")
+        # print_log("Reads partition OK in $(i) partition for $(cpg_pos)")
+        # print_log("R1:$(xobs1); R2:$(xobs2)")
 
         # Estimate each single-allele model and check if on boundary of parameter space
         θ1 = est_theta_sa(n,xobs1)
 
-        print_log("Parameter estimate 1 is $(θ1) for $(cpg_pos)")
+        # print_log("Parameter estimate 1 is $(θ1) for $(cpg_pos)")
 
-        check_boundary(θ1) && continue
+        # check_boundary(θ1) && continue
 
-        print_log("Parameter estimate 1 OK in $(i) partition for $(cpg_pos)")
+        # print_log("Parameter estimate 1 OK in $(i) partition for $(cpg_pos)")
 
         θ2 = est_theta_sa(n,xobs2)
 
-        print_log("Parameter estimate 2 is $(θ2) for $(cpg_pos)")
+        # print_log("Parameter estimate 2 is $(θ2) for $(cpg_pos)")
 
-        check_boundary(θ2) && continue
+        # check_boundary(θ2) && continue
 
-        print_log("Parameter estimate 2 OK in $(i) partition for $(cpg_pos)")
+        # print_log("Parameter estimate 2 OK in $(i) partition for $(cpg_pos)")
 
         # Estimate moments
         ∇1 = get_grad_logZ(n,θ1)
@@ -1184,7 +1184,7 @@ function proc_null_hap(hap::GFF3.Record,ntot::Int64,bam::String,het_gff::String,
         # Append stats
         push!(stats,(round(abs(comp_mml_∇(n,∇1)-comp_mml_∇(n,∇2));digits=8),abs(nme1-nme2),uc))
 
-    end
+    # end
 
     # Return output
     return stats
@@ -1250,13 +1250,10 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
         i = 1
         while length(out_dmml)<mc_null
 
-            # Subsample
-            haps_subset = length(haps)>1000 ? haps[sample(1:length(haps),1000)] : haps
-
             # Process them in parallel
             out_pmap = vcat(pmap(hap -> proc_null_hap(hap,ntot,bam,het_gff,hom_gff,fa,kstar,
                             out_paths,pe,g_max,cov_ths,cov_a,cov_b,trim,mc_null,n_max,n_subset,
-                            chr_dic),haps_subset)...)
+                            chr_dic),haps)...)
 
             # Keep only the ones with data
             out_pmap = out_pmap[map(stat->!any(isnan.(stat)),out_pmap)]
