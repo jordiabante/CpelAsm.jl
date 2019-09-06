@@ -1145,7 +1145,7 @@ function proc_null_hap(hap::GFF3.Record,ntot::Int64,bam::String,het_gff::String,
 
     # Obtain a number of null statistics with different permutations
     stats = Vector{Tuple{Float64,Float64,Float64}}()
-    for i=1:2
+    for i=1:10
 
         # print_log("Trying partition $(i) for $(cpg_pos)")
         # Randomly partition observations (sample minimum coverage)
@@ -1160,7 +1160,7 @@ function proc_null_hap(hap::GFF3.Record,ntot::Int64,bam::String,het_gff::String,
 
         # print_log("Parameter estimate 1 is $(θ1) for $(cpg_pos)")
 
-        # check_boundary(θ1) && continue
+        check_boundary(θ1) && continue
 
         # print_log("Parameter estimate 1 OK in $(i) partition for $(cpg_pos)")
 
@@ -1168,7 +1168,7 @@ function proc_null_hap(hap::GFF3.Record,ntot::Int64,bam::String,het_gff::String,
 
         # print_log("Parameter estimate 2 is $(θ2) for $(cpg_pos)")
 
-        # check_boundary(θ2) && continue
+        check_boundary(θ2) && continue
 
         # print_log("Parameter estimate 2 OK in $(i) partition for $(cpg_pos)")
 
@@ -1250,11 +1250,13 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
         i = 1
         while length(out_dmml)<mc_null
 
+            # Subsample
+            haps_subset = length(haps)>1000 ? haps[sample(1:length(haps),1000)] : haps
+
             # Process them in parallel
             out_pmap = vcat(pmap(hap -> proc_null_hap(hap,ntot,bam,het_gff,hom_gff,
-                                   fa,kstar,out_paths,pe,g_max,
-                                   cov_ths,cov_a,cov_b,trim,
-                                   mc_null,n_max,n_subset,chr_dic),haps)...)
+                                   fa,kstar,out_paths,pe,g_max,cov_ths,cov_a,cov_b,trim,
+                                   mc_null,n_max,n_subset,chr_dic),haps_subset)...)
 
             # Keep only the ones with data
             out_pmap = out_pmap[map(stat->!any(isnan.(stat)),out_pmap)]
