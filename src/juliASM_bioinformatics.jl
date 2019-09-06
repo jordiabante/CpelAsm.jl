@@ -1157,11 +1157,17 @@ function proc_null_hap(hap::GFF3.Record,ntot::Int64,bam::String,het_gff::String,
 
         # Estimate each single-allele model and check if on boundary of parameter space
         θ1 = est_theta_sa(n,xobs1)
+
+        print_log("Parameter estimate 1 is $(θ1) for $(cpg_pos)")
+
         check_boundary(θ1) && continue
 
         print_log("Parameter estimate 1 OK in $(i) partition for $(cpg_pos)")
 
         θ2 = est_theta_sa(n,xobs2)
+
+        print_log("Parameter estimate 2 is $(θ2) for $(cpg_pos)")
+
         check_boundary(θ2) && continue
 
         print_log("Parameter estimate 2 OK in $(i) partition for $(cpg_pos)")
