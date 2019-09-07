@@ -1170,7 +1170,7 @@ function proc_null_hap(hap::GFF3.Record,ntot::Int64,bam::String,het_gff::String,
 
         check_boundary(θ2) && continue
 
-        # print_log("Parameter estimate 2 OK in $(i) partition for $(cpg_pos)")
+        print_log("OK in $(i) partition for $(cpg_pos)")
 
         # Estimate moments
         ∇1 = get_grad_logZ(n,θ1)
@@ -1238,8 +1238,8 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
 
         # Store all haplotypes with enough coverage
         print_log("Scanning haplotypes ...")
-        haps = vcat(pmap(chr -> subset_haps_cov(hom_gff,bam,fa,pe,cov_ths,ntot,trim,chr,chr_dic[chr]),
-                         chr_names)...)
+        haps = vcat(pmap(chr -> subset_haps_cov(hom_gff,bam,fa,pe,cov_ths,ntot,trim,chr,
+                         chr_dic[chr]),chr_names)...)
 
         # Keep in memory mc_null only for memory efficiency
         haps = length(haps)>mc_null ? haps[sample(1:length(haps),mc_null)] : haps
@@ -1254,9 +1254,9 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
             haps_subset = length(haps)>1000 ? haps[sample(1:length(haps),1000)] : haps
 
             # Process them in parallel
-            out_pmap = vcat(pmap(hap -> proc_null_hap(hap,ntot,bam,het_gff,hom_gff,
-                                   fa,kstar,out_paths,pe,g_max,cov_ths,cov_a,cov_b,trim,
-                                   mc_null,n_max,n_subset,chr_dic),haps_subset)...)
+            out_pmap = vcat(pmap(hap -> proc_null_hap(hap,ntot,bam,het_gff,hom_gff,fa,kstar,
+                                 out_paths,pe,g_max,cov_ths,cov_a,cov_b,trim,mc_null,n_max,
+                                 n_subset,chr_dic),haps_subset)...)
 
             # Keep only the ones with data
             out_pmap = out_pmap[map(stat->!any(isnan.(stat)),out_pmap)]
@@ -1270,7 +1270,7 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
             end
 
             # Break if run for too long
-            if i>200
+            if i>10
                 print_log("Exceeded $(i-1) iterations in comp_tnull ...")
                 break
             end
