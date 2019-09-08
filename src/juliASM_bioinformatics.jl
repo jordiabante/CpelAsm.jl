@@ -711,7 +711,8 @@ function mean_cov_sr(xobs::Array{Vector{Int64},1},n::Vector{Int64})::Vector{Floa
     pushfirst!(rows,1:n[1])
 
     # Return 0 if no observations
-    return length(xobs)>0 ? [norm(hcat(xobs...)[rows[i],:],1)/n[i] for i=1:length(rows)] : 0.0
+    return length(xobs)>0 ? [norm(hcat(xobs...)[rows[i],:],1)/n[i] for i=1:length(rows)] :
+        zeros(Float64,length(n))
 
 end # end mean_cov_sr
 """
