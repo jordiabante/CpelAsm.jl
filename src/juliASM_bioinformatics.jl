@@ -982,8 +982,8 @@ function subset_haps_cov(gff::String,bam::String,fa::String,pe::Bool,cov_ths::In
         # Check average coverage is within normal limits (watch for repetitive regions)
         xobs = read_bam(bam,chr,cpgs[1],cpgs[end],cpgs,chr_size,pe,trim)
 
-        # Append to output if coverage is okay
-        if 2*cov_ths <= mean_cov(xobs) <= 400
+        # Append to output if coverage is okay (get twice to ensure good partitions)
+        if 4*cov_ths <= mean_cov(xobs) <= 400
             new_hap = "$(chr)\t.\t.\t$(cpgs[1])\t$(cpgs[end])\t$(ntot)\t.\t.\tCpGs=$(cpgs)"
             push!(out_haps,GFF3.Record(new_hap))
         end
