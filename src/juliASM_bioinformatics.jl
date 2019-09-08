@@ -994,7 +994,7 @@ function subset_haps_cov(gff::String,bam::String,fa::String,pe::Bool,cov_ths::In
     end
 
     # Print
-    print_log("Done scanning chromosome $(chr) ...")
+    # print_log("Done scanning chromosome $(chr) ...")
 
     # Return
     return out_haps
