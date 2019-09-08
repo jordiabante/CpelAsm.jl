@@ -693,6 +693,28 @@ function mean_cov(xobs::Array{Vector{Int64},1})::Float64
 
 end # end mean_cov
 """
+    `mean_cov_sr(XOBS)`
+
+Function returns the average coverage per CpG given some observations `XOBS` per subregion.
+
+# Examples
+```julia-repl
+julia> n=[1,1]; xobs=[[1,-1] for i=1:10]; append!(xobs,[[1,0] for i=1:10]);
+julia> JuliASM.mean_cov_sr(xobs,n)
+15.0
+```
+"""
+function mean_cov_sr(xobs::Array{Vector{Int64},1},n::Vector{Int64})::Vector{Float64}
+
+    # Obtain columns
+    rows = [(sum(n[1:(i-1)])+1):sum(n[1:i]) for i=2:length(n)]
+    pushfirst!(rows,1:n[1])
+
+    # Return 0 if no observations
+    return length(xobs)>0 ? [norm(hcat(xobs...)[rows[i],:],1)/n[i] for i=1:length(rows)] : 0.0
+
+end # end mean_cov_sr
+"""
     `get_outpaths(OUTDIR,PREFIX)`
 
 Function that given outdir and prefix returns paths.
@@ -958,8 +980,12 @@ Function that returns a set of haplotypes with N=Ntot and satisfying the coverag
 julia> JuliASM.subset_haps_cov(gff,bam,fa,pe,cov_ths,ntot,trim,chr,chr_size)
 ```
 """
-function subset_haps_cov(gff::String,bam::String,fa::String,pe::Bool,cov_ths::Int64,ntot::Int64,
-                         trim::NTuple{4,Int64},chr::String,chr_size::Int64)::Vector{GFF3.Record}
+function subset_haps_cov(gff::String,bam::String,fa::String,pe::Bool,cov_ths::Int64,
+                         n::Vector{Int64},trim::NTuple{4,Int64},chr::String,
+                         chr_size::Int64)::Vector{GFF3.Record}
+
+    # Ntot
+    ntot = sum(n)
 
     # Load genomic features from a GFF3 file
     out_haps = Vector{GFF3.Record}()
@@ -979,22 +1005,20 @@ function subset_haps_cov(gff::String,bam::String,fa::String,pe::Bool,cov_ths::In
         ind = sample(1:(length(cpg_pos)-ntot+1))
         cpgs = cpg_pos[ind:(ind+ntot-1)]
 
-        # Check average coverage is within normal limits (watch for repetitive regions)
+        # Obtain observations overlapping with CpG sites
         xobs = read_bam(bam,chr,cpgs[1],cpgs[end],cpgs,chr_size,pe,trim)
 
-        # Append to output if coverage is okay (get twice to ensure good partitions)
-        if 4*cov_ths <= mean_cov(xobs) <= 400
+        # Accept candidate haplotype if coverage is OK  in all subregions
+            # if 4*cov_ths <= mean_cov(xobs) <= 400
+        if all(2*cov_ths .<= mean_cov_sr(xobs,n) .<= 400)
             new_hap = "$(chr)\t.\t.\t$(cpgs[1])\t$(cpgs[end])\t$(ntot)\t.\t.\tCpGs=$(cpgs)"
             push!(out_haps,GFF3.Record(new_hap))
         end
 
-        # Break if enough haps
+        # Break if enough haps for chromosome
         length(out_haps)>500 && break
 
     end
-
-    # Print
-    # print_log("Done scanning chromosome $(chr) ...")
 
     # Return
     return out_haps
@@ -1029,18 +1053,18 @@ function get_nvec_kstar(ntot::Int64,kstar::Int64)::Vector{Int64}
 
 end # end get_nvec_kstar
 """
-    `cov_obs_part(XOBS,COV_THS,COV_A,COV_B)`
+    `cov_obs_part(XOBS,N,COV_THS,COV_A,COV_B)`
 
 Function that partitions observations into two sets of observations that satisfy a minimum
-coverage within [COV_THS-COV_A,COV_THS+COV_B]. If not partition is found that satisfies it,
-then two empty vectors are returned.
+coverage within [COV_THS-COV_A,COV_THS+COV_B] for each subregion. If not partition is found that
+satisfies it, then two empty vectors are returned.
 
 # Examples
 ```julia-repl
-julia> JuliASM.cov_obs_part(xobs,cov_ths,cov_a,cov_b)
+julia> JuliASM.cov_obs_part(xobs,n,cov_ths,cov_a,cov_b)
 ```
 """
-function cov_obs_part(xobs::Vector{Vector{Int64}},cov_ths::Int64,cov_a::Float64,
+function cov_obs_part(xobs::Vector{Vector{Int64}},n::Vector{Int64},cov_ths::Int64,cov_a::Float64,
                       cov_b::Float64)::Tuple{Vector{Vector{Int64}},Vector{Vector{Int64}}}
 
     ## Part that takes care of minimum coverage. After this step an allele can have
@@ -1058,7 +1082,8 @@ function cov_obs_part(xobs::Vector{Vector{Int64}},cov_ths::Int64,cov_a::Float64,
         xobs2 = xobs[setdiff(1:length(xobs),ind)]
         # If coverage okay break loop
         (mean_cov(xobs1)>=cov_ths) && (mean_cov(xobs2)>=cov_ths) && break
-        # Check we haven't exceeded the maximum number of permutations
+            # all(mean_cov_sr(xobs1,n).>=cov_ths) && all(mean_cov_sr(xobs2,n).>=cov_ths) &&  break
+            # Check we haven't exceeded the maximum number of permutations
         if ct>20
             # We failed and break
             fail=true
@@ -1081,12 +1106,15 @@ function cov_obs_part(xobs::Vector{Vector{Int64}},cov_ths::Int64,cov_a::Float64,
     while true
         # Check if we can keep decreasing number
         less_ok = mean_cov(xobs1[2:end])>=(cov_ths-cov_a) && mean_cov(xobs1)>=(cov_ths+cov_b)
+            # less_ok = all(mean_cov_sr(xobs1[2:end],n).>=(cov_ths-cov_a)) &&
+            # all(mean_cov_sr(xobs1,n).>=(cov_ths+cov_b))
         xobs1 = less_ok ? xobs1=xobs1[2:end] : xobs1
         less_ok || break
     end
 
     # Check if resulting observations meet b-bound as well
     fail = mean_cov(xobs1)<=(cov_ths+cov_b) ? false : true
+        # fail = all(mean_cov_sr(xobs1,n).<=(cov_ths+cov_b)) ? false : true
     fail==false || return [],[]
         # println("Second OK: $(mean_cov(xobs1))")
 
@@ -1095,12 +1123,15 @@ function cov_obs_part(xobs::Vector{Vector{Int64}},cov_ths::Int64,cov_a::Float64,
     while true
         # Check if we can keep decreasing number
         less_ok = mean_cov(xobs2[2:end])>=(cov_ths-cov_a) && mean_cov(xobs2)>=(cov_ths+cov_b)
+            # less_ok = all(mean_cov_sr(xobs2[2:end],n).>=(cov_ths-cov_a)) &&
+            #     all(mean_cov_sr(xobs2,n).>=(cov_ths+cov_b))
         xobs2 = less_ok ? xobs2=xobs2[2:end] : xobs2
         less_ok || break
     end
 
     # Check if resulting observations meet b-bound as well
     fail = mean_cov(xobs2)<=(cov_ths+cov_b) ? false : true
+        # fail = all(mean_cov_sr(xobs2,n).<=(cov_ths+cov_b)) ? false : true
     fail==false || return [],[]
         # println("Third OK: $(mean_cov(xobs2))")
 
@@ -1135,42 +1166,24 @@ function proc_null_hap(hap::GFF3.Record,ntot::Int64,bam::String,het_gff::String,
     cpg_pos = get_cpg_pos(Dict(GFF3.attributes(hap)))[1]
     n = get_nvec_kstar(ntot,kstar)
 
-    # print_log("Checking coverage for $(cpg_pos)")
-
     # Check average coverage is within normal limits (watch for repetitive regions)
     xobs = read_bam(bam,chr,cpg_pos[1],cpg_pos[end],cpg_pos,chr_size,pe,trim)
-    2*cov_ths <= mean_cov(xobs) <= 400 || return nan_out
-
-    # print_log("Succesful coverage for $(cpg_pos)")
+    all(2*cov_ths .<= mean_cov_sr(xobs,n) .<= 400) || return nan_out
+        # 2*cov_ths <= mean_cov(xobs) <= 400 || return nan_out
 
     # Obtain a number of null statistics with different permutations
     stats = Vector{Tuple{Float64,Float64,Float64}}()
     for i=1:10
 
-        # print_log("Trying partition $(i) for $(cpg_pos)")
         # Randomly partition observations (sample minimum coverage)
-        xobs1,xobs2 = cov_obs_part(xobs,cov_ths,cov_a,cov_b)
+        xobs1,xobs2 = cov_obs_part(xobs,n,cov_ths,cov_a,cov_b)
         (length(xobs1)>0) && (length(xobs2)>0) || continue
-
-        # print_log("Reads partition OK in $(i) partition for $(cpg_pos)")
-        # print_log("R1:$(xobs1); R2:$(xobs2)")
 
         # Estimate each single-allele model and check if on boundary of parameter space
         θ1 = est_theta_sa(n,xobs1)
-
-        # print_log("Parameter estimate 1 is $(θ1) for $(cpg_pos)")
-
         check_boundary(θ1) && continue
-
-        # print_log("Parameter estimate 1 OK in $(i) partition for $(cpg_pos)")
-
         θ2 = est_theta_sa(n,xobs2)
-
-        # print_log("Parameter estimate 2 is $(θ2) for $(cpg_pos)")
-
         check_boundary(θ2) && continue
-
-        print_log("OK in $(i) partition for $(cpg_pos)")
 
         # Estimate moments
         ∇1 = get_grad_logZ(n,θ1)
@@ -1231,6 +1244,9 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
         # Get kstar
         kstar = kstar_table[ntot]
 
+        # Get n vector
+        n = get_nvec_kstar(ntot,kstar)
+
         # Print current N
         out_dmml = Vector{Tuple{Int64,Int64,Float64}}()
         out_dnme = Vector{Tuple{Int64,Int64,Float64}}()
@@ -1238,8 +1254,8 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
 
         # Store all haplotypes with enough coverage
         print_log("Scanning haplotypes ...")
-        haps = vcat(pmap(chr -> subset_haps_cov(hom_gff,bam,fa,pe,cov_ths,ntot,trim,chr,
-                         chr_dic[chr]),chr_names)...)
+        haps = vcat(pmap(chr -> subset_haps_cov(hom_gff,bam,fa,pe,cov_ths,n,trim,chr,chr_dic[chr]),
+                         chr_names)...)
 
         # Keep in memory mc_null only for memory efficiency
         haps = length(haps)>mc_null ? haps[sample(1:length(haps),mc_null)] : haps
@@ -1270,7 +1286,7 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
             end
 
             # Break if run for too long
-            if i>10
+            if i>20
                 print_log("Exceeded $(i-1) iterations in comp_tnull ...")
                 break
             end
