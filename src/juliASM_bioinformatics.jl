@@ -1157,7 +1157,7 @@ function proc_null_hap(hap::GFF3.Record,ntot::Int64,bam::String,het_gff::String,
                        Int64})::Vector{Tuple{Float64,Float64,Float64}}
 
     # Empty output
-    nan_out = (NaN,NaN,NaN)
+    nan_out = [(NaN,NaN,NaN)]
 
     # Get homozygous window
     chr = GFF3.seqid(hap)
