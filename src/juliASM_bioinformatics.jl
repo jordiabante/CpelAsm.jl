@@ -1010,8 +1010,8 @@ function subset_haps_cov(gff::String,bam::String,fa::String,pe::Bool,cov_ths::In
         xobs = read_bam(bam,chr,cpgs[1],cpgs[end],cpgs,chr_size,pe,trim)
 
         # Accept candidate haplotype if coverage is OK  in all subregions
-        # if 4*cov_ths <= mean_cov(xobs) <= 400
-        if all(2*cov_ths .<= mean_cov_sr(xobs,n) .<= 400)
+        if 6*cov_ths <= mean_cov(xobs) <= 400
+            # if all(2*cov_ths .<= mean_cov_sr(xobs,n) .<= 400)
             new_hap = "$(chr)\t.\t.\t$(cpgs[1])\t$(cpgs[end])\t$(ntot)\t.\t.\tCpGs=$(cpgs)"
             push!(out_haps,GFF3.Record(new_hap))
         end
@@ -1082,8 +1082,8 @@ function cov_obs_part(xobs::Vector{Vector{Int64}},n::Vector{Int64},cov_ths::Int6
         xobs1 = xobs[ind]
         xobs2 = xobs[setdiff(1:length(xobs),ind)]
         # If coverage okay break loop
-        # (mean_cov(xobs1)>=cov_ths) && (mean_cov(xobs2)>=cov_ths) && break
-        all(mean_cov_sr(xobs1,n).>=cov_ths) && all(mean_cov_sr(xobs2,n).>=cov_ths) &&  break
+        (mean_cov(xobs1)>=cov_ths) && (mean_cov(xobs2)>=cov_ths) && break
+            # all(mean_cov_sr(xobs1,n).>=cov_ths) && all(mean_cov_sr(xobs2,n).>=cov_ths) &&  break
         # Check we haven't exceeded the maximum number of permutations
         if ct>20
             # We failed and break
@@ -1106,16 +1106,16 @@ function cov_obs_part(xobs::Vector{Vector{Int64}},n::Vector{Int64},cov_ths::Int6
     less_ok = false
     while true
         # Check if we can keep decreasing number
-        # less_ok = mean_cov(xobs1[2:end])>=(cov_ths-cov_a) && mean_cov(xobs1)>=(cov_ths+cov_b)
-        less_ok = all(mean_cov_sr(xobs1[2:end],n).>=(cov_ths-cov_a)) &&
-            all(mean_cov_sr(xobs1,n).>=(cov_ths+cov_b))
+        less_ok = mean_cov(xobs1[2:end])>=(cov_ths-cov_a) && mean_cov(xobs1)>=(cov_ths+cov_b)
+            # less_ok = all(mean_cov_sr(xobs1[2:end],n).>=(cov_ths-cov_a)) &&
+            #     all(mean_cov_sr(xobs1,n).>=(cov_ths+cov_b))
         xobs1 = less_ok ? xobs1=xobs1[2:end] : xobs1
         less_ok || break
     end
 
     # Check if resulting observations meet b-bound as well
-    # fail = mean_cov(xobs1)<=(cov_ths+cov_b) ? false : true
-    fail = all(mean_cov_sr(xobs1,n).<=(cov_ths+cov_b)) ? false : true
+    fail = mean_cov(xobs1)<=(cov_ths+cov_b) ? false : true
+        # fail = all(mean_cov_sr(xobs1,n).<=(cov_ths+cov_b)) ? false : true
     fail==false || return [],[]
         # println("Second OK: $(mean_cov(xobs1))")
 
@@ -1123,16 +1123,16 @@ function cov_obs_part(xobs::Vector{Vector{Int64}},n::Vector{Int64},cov_ths::Int6
     less_ok = false
     while true
         # Check if we can keep decreasing number
-        # less_ok = mean_cov(xobs2[2:end])>=(cov_ths-cov_a) && mean_cov(xobs2)>=(cov_ths+cov_b)
-        less_ok = all(mean_cov_sr(xobs2[2:end],n).>=(cov_ths-cov_a)) &&
-            all(mean_cov_sr(xobs2,n).>=(cov_ths+cov_b))
+        less_ok = mean_cov(xobs2[2:end])>=(cov_ths-cov_a) && mean_cov(xobs2)>=(cov_ths+cov_b)
+            # less_ok = all(mean_cov_sr(xobs2[2:end],n).>=(cov_ths-cov_a)) &&
+            #     all(mean_cov_sr(xobs2,n).>=(cov_ths+cov_b))
         xobs2 = less_ok ? xobs2=xobs2[2:end] : xobs2
         less_ok || break
     end
 
     # Check if resulting observations meet b-bound as well
-    # fail = mean_cov(xobs2)<=(cov_ths+cov_b) ? false : true
-    fail = all(mean_cov_sr(xobs2,n).<=(cov_ths+cov_b)) ? false : true
+    fail = mean_cov(xobs2)<=(cov_ths+cov_b) ? false : true
+        # fail = all(mean_cov_sr(xobs2,n).<=(cov_ths+cov_b)) ? false : true
     fail==false || return [],[]
         # println("Third OK: $(mean_cov(xobs2))")
 
@@ -1169,8 +1169,8 @@ function proc_null_hap(hap::GFF3.Record,ntot::Int64,bam::String,het_gff::String,
 
     # Check average coverage is within normal limits (watch for repetitive regions)
     xobs = read_bam(bam,chr,cpg_pos[1],cpg_pos[end],cpg_pos,chr_size,pe,trim)
-    all(2*cov_ths .<= mean_cov_sr(xobs,n) .<= 400) || return nan_out
-        # 2*cov_ths <= mean_cov(xobs) <= 400 || return nan_out
+    2*cov_ths <= mean_cov(xobs) <= 400 || return nan_out
+        # all(2*cov_ths .<= mean_cov_sr(xobs,n) .<= 400) || return nan_out
 
     # Obtain a number of null statistics with different permutations
     stats = Vector{Tuple{Float64,Float64,Float64}}()
@@ -1217,7 +1217,7 @@ julia> comp_tnull(BAM_PATH,GFF_PATH,FA_PATH,OUT_PATH)
 """
 function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_paths::Vector{String}
                     ;pe::Bool=true,g_max::Int64=300,cov_ths::Int64=5,cov_a::Float64=0.0,
-                    cov_b::Float64=1.0,trim::NTuple{4,Int64}=(0,0,0,0),mc_null::Int64=5000,
+                    cov_b::Float64=1.0,trim::NTuple{4,Int64}=(0,0,0,0),mc_null::Int64=1000,
                     n_max::Int64=20,n_subset::Vector{Int64}=collect(1:n_max))
 
     # BigWig output files
