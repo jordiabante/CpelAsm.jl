@@ -1008,9 +1008,11 @@ function subset_haps_cov(gff::String,bam::String,fa::String,pe::Bool,cov_ths::In
 
         # Obtain observations overlapping with CpG sites
         xobs = read_bam(bam,chr,cpgs[1],cpgs[end],cpgs,chr_size,pe,trim)
+        obs_per_cpg = sum(abs.(hcat(xobs...)),dims=2)
 
         # Accept candidate haplotype if coverage is OK  in all subregions
-        if 6*cov_ths <= mean_cov(xobs) <= 400
+        if (6*cov_ths<=mean_cov(xobs)<=400) && (sum(obs_per_cpg.==0)<1.0/3.0*ntot)
+            # if 6*cov_ths <= mean_cov(xobs) <= 400
             # if all(2*cov_ths .<= mean_cov_sr(xobs,n) .<= 400)
             new_hap = "$(chr)\t.\t.\t$(cpgs[1])\t$(cpgs[end])\t$(ntot)\t.\t.\tCpGs=$(cpgs)"
             push!(out_haps,GFF3.Record(new_hap))
@@ -1074,6 +1076,7 @@ function cov_obs_part(xobs::Vector{Vector{Int64}},n::Vector{Int64},cov_ths::Int6
     # Divide into two sets of equal size while checking bot have at least cov_ths
     ct = 1
     fail = false
+    ntot = sum(n)
     xobs1 = Vector{Int64}()
     xobs2 = Vector{Int64}()
     while true
@@ -1081,9 +1084,15 @@ function cov_obs_part(xobs::Vector{Vector{Int64}},n::Vector{Int64},cov_ths::Int6
         ind = sample(1:length(xobs),div(length(xobs),2),replace=false)
         xobs1 = xobs[ind]
         xobs2 = xobs[setdiff(1:length(xobs),ind)]
+        obs_per_cpg_1 = sum(abs.(hcat(xobs1...)),dims=2)
+        obs_per_cpg_2 = sum(abs.(hcat(xobs2...)),dims=2)
         # If coverage okay break loop
-        (mean_cov(xobs1)>=cov_ths) && (mean_cov(xobs2)>=cov_ths) && break
+        (sum(obs_per_cpg_1.==0)<1.0/3.0*ntot) && (sum(obs_per_cpg_2.==0)<1.0/3.0*ntot) &&
+            (mean_cov(xobs1)>=cov_ths) && (mean_cov(xobs2)>=cov_ths) && break
+
+        # Uncomment for coverage condition at subregion level
             # all(mean_cov_sr(xobs1,n).>=cov_ths) && all(mean_cov_sr(xobs2,n).>=cov_ths) &&  break
+
         # Check we haven't exceeded the maximum number of permutations
         if ct>20
             # We failed and break
@@ -1093,6 +1102,7 @@ function cov_obs_part(xobs::Vector{Vector{Int64}},n::Vector{Int64},cov_ths::Int6
             # Increase counter
             ct += 1
         end
+
     end
 
     # Return empty arrays if fail=true
@@ -1106,9 +1116,15 @@ function cov_obs_part(xobs::Vector{Vector{Int64}},n::Vector{Int64},cov_ths::Int6
     less_ok = false
     while true
         # Check if we can keep decreasing number
-        less_ok = mean_cov(xobs1[2:end])>=(cov_ths-cov_a) && mean_cov(xobs1)>=(cov_ths+cov_b)
+        obs_per_cpg_1 = sum(abs.(hcat(xobs1[2:end]...)),dims=2)
+        less_ok = mean_cov(xobs1[2:end])>=(cov_ths-cov_a) && mean_cov(xobs1)>=(cov_ths+cov_b) &&
+            (sum(obs_per_cpg_1.==0)<1.0/3.0*ntot)
+
+        # Uncomment to apply condition at subregion level
             # less_ok = all(mean_cov_sr(xobs1[2:end],n).>=(cov_ths-cov_a)) &&
             #     all(mean_cov_sr(xobs1,n).>=(cov_ths+cov_b))
+
+        # If less is okay, decrease in one read, otherwise that's it
         xobs1 = less_ok ? xobs1=xobs1[2:end] : xobs1
         less_ok || break
     end
@@ -1123,9 +1139,15 @@ function cov_obs_part(xobs::Vector{Vector{Int64}},n::Vector{Int64},cov_ths::Int6
     less_ok = false
     while true
         # Check if we can keep decreasing number
-        less_ok = mean_cov(xobs2[2:end])>=(cov_ths-cov_a) && mean_cov(xobs2)>=(cov_ths+cov_b)
+        obs_per_cpg_2 = sum(abs.(hcat(xobs2[2:end]...)),dims=2)
+        less_ok = mean_cov(xobs2[2:end])>=(cov_ths-cov_a) && mean_cov(xobs2)>=(cov_ths+cov_b) &&
+            (sum(obs_per_cpg_2.==0)<1.0/3.0*ntot)
+
+        # Uncomment to apply condition at subregion level
             # less_ok = all(mean_cov_sr(xobs2[2:end],n).>=(cov_ths-cov_a)) &&
             #     all(mean_cov_sr(xobs2,n).>=(cov_ths+cov_b))
+
+        # If less is okay, decrease in one read, otherwise that's it
         xobs2 = less_ok ? xobs2=xobs2[2:end] : xobs2
         less_ok || break
     end
