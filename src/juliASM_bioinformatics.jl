@@ -810,9 +810,11 @@ function proc_obs_hap(hap::GFF3.Record,chr::String,chr_size::Int64,bam1::String,
 
     # Get vectors from BAM1/2 overlapping haplotype & compute average coverage
     xobs1 = read_bam(bam1,chr,hap_st,hap_end,cpg_pos[2],chr_size,pe,trim)
-    cov_ths <= mean_cov(xobs1) <= 400 || return nan_out
+    obs_per_cpg1 = get_obs_per_cpg(xobs1)
+    (cov_ths<=mean_cov(xobs1)<=400) && (sum(obs_per_cpg1.==0)<=1.0/3.0*sum(n1)) || return nan_out
     xobs2 = read_bam(bam2,chr,hap_st,hap_end,cpg_pos[3],chr_size,pe,trim)
-    cov_ths <= mean_cov(xobs2) <= 400 || return nan_out
+    obs_per_cpg2 = get_obs_per_cpg(xobs2)
+    (cov_ths<=mean_cov(xobs2)<=400) && (sum(obs_per_cpg2.==0)<=1.0/3.0*sum(n2)) || return nan_out
 
     # Estimate each single-allele model and check if on boundary of parameter space
     θ1 = est_theta_sa(n1,xobs1)
@@ -972,6 +974,22 @@ function get_kstar_table(gff::String,chr_names::Vector{String},g_max::Int64)::Di
 
 end # end get_kstar_table
 """
+    `get_obs_per_cpg(XOBS)`
+
+Function that returns the number of observations per CpG site as a vector.
+
+# Examples
+```julia-repl
+julia> JuliASM.get_obs_per_cpg(xobs)
+```
+"""
+function get_obs_per_cpg(xobs::Array{Array{Int64,1},1})::Vector{Int64}
+
+    # Return
+    return vcat(sum(abs.(hcat(xobs...)),dims=2)...)
+
+end # end get_kstar_table
+"""
     `subset_haps_cov(GFF,BAM,FA,PE,COV_THS,NTOT,TRIM,CHRmCHR_SIZE)`
 
 Function that returns a set of haplotypes with N=Ntot and satisfying the coverage requirements.
@@ -1011,12 +1029,10 @@ function subset_haps_cov(gff::String,bam::String,fa::String,pe::Bool,cov_ths::In
         length(xobs)>0 || continue
 
         # Obtain observations per CpG site
-        obs_per_cpg = sum(abs.(hcat(xobs...)),dims=2)
+        obs_per_cpg = get_obs_per_cpg(xobs)
 
-        # Accept candidate haplotype if coverage is OK  in all subregions
-        if (4*cov_ths<=mean_cov(xobs)<=400) && (sum(obs_per_cpg.==0)<1.0/3.0*ntot)
-            # if 6*cov_ths <= mean_cov(xobs) <= 400
-            # if all(2*cov_ths .<= mean_cov_sr(xobs,n) .<= 400)
+        # Accept candidate haplotype if coverage is OK  in all subregions (x3 as much per allele)
+        if (6*cov_ths<=mean_cov(xobs)<=400) && (sum(obs_per_cpg.==0)<=1.0/3.0*ntot)
             new_hap = "$(chr)\t.\t.\t$(cpgs[1])\t$(cpgs[end])\t$(ntot)\t.\t.\tCpGs=$(cpgs)"
             push!(out_haps,GFF3.Record(new_hap))
         end
@@ -1087,10 +1103,10 @@ function cov_obs_part(xobs::Vector{Vector{Int64}},n::Vector{Int64},cov_ths::Int6
         ind = sample(1:length(xobs),div(length(xobs),2),replace=false)
         xobs1 = xobs[ind]
         xobs2 = xobs[setdiff(1:length(xobs),ind)]
-        obs_per_cpg_1 = sum(abs.(hcat(xobs1...)),dims=2)
-        obs_per_cpg_2 = sum(abs.(hcat(xobs2...)),dims=2)
+        obs_per_cpg_1 = get_obs_per_cpg(xobs1)
+        obs_per_cpg_2 = get_obs_per_cpg(xobs2)
         # If coverage okay break loop
-        (sum(obs_per_cpg_1.==0)<1.0/3.0*ntot) && (sum(obs_per_cpg_2.==0)<1.0/3.0*ntot) &&
+        (sum(obs_per_cpg_1.==0)<=1.0/3.0*ntot) && (sum(obs_per_cpg_2.==0)<=1.0/3.0*ntot) &&
             (mean_cov(xobs1)>=cov_ths) && (mean_cov(xobs2)>=cov_ths) && break
 
         # Uncomment for coverage condition at subregion level
@@ -1119,9 +1135,9 @@ function cov_obs_part(xobs::Vector{Vector{Int64}},n::Vector{Int64},cov_ths::Int6
     less_ok = false
     while true
         # Check if we can keep decreasing number
-        obs_per_cpg_1 = sum(abs.(hcat(xobs1[2:end]...)),dims=2)
+        obs_per_cpg_1 = get_obs_per_cpg(xobs1[2:end])
         less_ok = mean_cov(xobs1[2:end])>=(cov_ths-cov_a) && mean_cov(xobs1)>=(cov_ths+cov_b) &&
-            (sum(obs_per_cpg_1.==0)<1.0/3.0*ntot)
+            (sum(obs_per_cpg_1.==0)<=1.0/3.0*ntot)
 
         # Uncomment to apply condition at subregion level
             # less_ok = all(mean_cov_sr(xobs1[2:end],n).>=(cov_ths-cov_a)) &&
@@ -1142,9 +1158,9 @@ function cov_obs_part(xobs::Vector{Vector{Int64}},n::Vector{Int64},cov_ths::Int6
     less_ok = false
     while true
         # Check if we can keep decreasing number
-        obs_per_cpg_2 = sum(abs.(hcat(xobs2[2:end]...)),dims=2)
+        obs_per_cpg_2 = get_obs_per_cpg(xobs2[2:end])
         less_ok = mean_cov(xobs2[2:end])>=(cov_ths-cov_a) && mean_cov(xobs2)>=(cov_ths+cov_b) &&
-            (sum(obs_per_cpg_2.==0)<1.0/3.0*ntot)
+            (sum(obs_per_cpg_2.==0)<=1.0/3.0*ntot)
 
         # Uncomment to apply condition at subregion level
             # less_ok = all(mean_cov_sr(xobs2[2:end],n).>=(cov_ths-cov_a)) &&
@@ -1194,8 +1210,6 @@ function proc_null_hap(hap::GFF3.Record,ntot::Int64,bam::String,het_gff::String,
 
     # Check average coverage is within normal limits (watch for repetitive regions)
     xobs = read_bam(bam,chr,cpg_pos[1],cpg_pos[end],cpg_pos,chr_size,pe,trim)
-    2*cov_ths <= mean_cov(xobs) <= 400 || return nan_out
-        # all(2*cov_ths .<= mean_cov_sr(xobs,n) .<= 400) || return nan_out
 
     # Obtain a number of null statistics with different permutations
     stats = Vector{Tuple{Float64,Float64,Float64}}()
@@ -1279,7 +1293,7 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
         out_uc = Vector{Tuple{Int64,Int64,Float64}}()
 
         # Store all haplotypes with enough coverage
-        print_log("Sccreening haplotypes ...")
+        print_log("Screening haplotypes ...")
         haps = vcat(pmap(chr -> subset_haps_cov(hom_gff,bam,fa,pe,cov_ths,n,trim,chr,chr_dic[chr]),
                          chr_names)...)
 
@@ -1312,7 +1326,7 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
             end
 
             # Break if run for too long
-            if i>20
+            if i>100
                 print_log("Exceeded $(i-1) iterations in comp_tnull ...")
                 break
             end
