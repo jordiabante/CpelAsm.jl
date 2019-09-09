@@ -1008,6 +1008,9 @@ function subset_haps_cov(gff::String,bam::String,fa::String,pe::Bool,cov_ths::In
 
         # Obtain observations overlapping with CpG sites
         xobs = read_bam(bam,chr,cpgs[1],cpgs[end],cpgs,chr_size,pe,trim)
+        length(xobs)>0 || continue
+
+        # Obtain observations per CpG site
         obs_per_cpg = sum(abs.(hcat(xobs...)),dims=2)
 
         # Accept candidate haplotype if coverage is OK  in all subregions
@@ -1276,7 +1279,7 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
         out_uc = Vector{Tuple{Int64,Int64,Float64}}()
 
         # Store all haplotypes with enough coverage
-        print_log("Scanning haplotypes ...")
+        print_log("Sccreening haplotypes ...")
         haps = vcat(pmap(chr -> subset_haps_cov(hom_gff,bam,fa,pe,cov_ths,n,trim,chr,chr_dic[chr]),
                          chr_names)...)
 
