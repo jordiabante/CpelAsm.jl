@@ -1014,7 +1014,7 @@ function subset_haps_cov(gff::String,bam::String,fa::String,pe::Bool,cov_ths::In
         obs_per_cpg = sum(abs.(hcat(xobs...)),dims=2)
 
         # Accept candidate haplotype if coverage is OK  in all subregions
-        if (6*cov_ths<=mean_cov(xobs)<=400) && (sum(obs_per_cpg.==0)<1.0/3.0*ntot)
+        if (4*cov_ths<=mean_cov(xobs)<=400) && (sum(obs_per_cpg.==0)<1.0/3.0*ntot)
             # if 6*cov_ths <= mean_cov(xobs) <= 400
             # if all(2*cov_ths .<= mean_cov_sr(xobs,n) .<= 400)
             new_hap = "$(chr)\t.\t.\t$(cpgs[1])\t$(cpgs[end])\t$(ntot)\t.\t.\tCpGs=$(cpgs)"
