@@ -990,18 +990,17 @@ function get_obs_per_cpg(xobs::Array{Vector{Int64},1})::Vector{Int64}
 
 end # end get_kstar_table
 """
-    `subset_haps_cov(GFF,BAM,FA,PE,COV_THS,NTOT,TRIM,CHRmCHR_SIZE)`
+    `screen_haps(GFF,BAM,FA,PE,COV_THS,NTOT,TRIM,CHR,CHR_SIZE)`
 
 Function that returns a set of haplotypes with N=Ntot that satisfies the coverage requirements.
 
 # Examples
 ```julia-repl
-julia> JuliASM.subset_haps_cov(gff,bam,fa,pe,cov_ths,ntot,trim,chr,chr_size)
+julia> JuliASM.screen_haps(gff,bam,fa,pe,cov_ths,ntot,trim,chr,chr_size)
 ```
 """
-function subset_haps_cov(gff::String,bam::String,fa::String,pe::Bool,cov_ths::Int64,
-                         n::Vector{Int64},trim::NTuple{4,Int64},chr::String,
-                         chr_size::Int64;fold::Int64=5)::Vector{GFF3.Record}
+function screen_haps(gff::String,bam::String,fa::String,pe::Bool,cov_ths::Int64,n::Vector{Int64},
+                     trim::NTuple{4,Int64},chr::String,chr_size::Int64;fold::Int64=5)::Vector{GFF3.Record}
 
     # Ntot
     ntot = sum(n)
@@ -1031,10 +1030,11 @@ function subset_haps_cov(gff::String,bam::String,fa::String,pe::Bool,cov_ths::In
         # Obtain observations per CpG site
         obs_per_cpg = get_obs_per_cpg(xobs)
 
-        # Accept candidate haplotype if coverage is OK
         # NOTE: we leave xFOLD as much per allele to ensure variety. This determines the rate at
         # which null statistics are produced. However, we might have trouble finding regions
         # that satisfy both conditions. Consider lowering FOLD in that case.
+
+        # Accept candidate haplotype if coverage is OK
         if (2*fold*cov_ths<=mean_cov(xobs)<=400) && (sum(obs_per_cpg.==0)<=1.0/5.0*ntot)
             new_hap = "$(chr)\t.\t.\t$(cpgs[1])\t$(cpgs[end])\t$(ntot)\t.\t.\tCpGs=$(cpgs)"
             push!(out_haps,GFF3.Record(new_hap))
@@ -1048,7 +1048,7 @@ function subset_haps_cov(gff::String,bam::String,fa::String,pe::Bool,cov_ths::In
     # Return
     return out_haps
 
-end # end subset_haps_cov
+end # end screen_haps
 """
     `get_nvec_kstar(NTOT,KSTAR)`
 
@@ -1210,9 +1210,6 @@ function proc_null_hap(hap::GFF3.Record,ntot::Int64,bam::String,het_gff::String,
                        n_null::Int64,n_max::Int64,n_subset::Vector{Int64},chr_dic::Dict{String,
                        Int64})::Vector{Tuple{Float64,Float64,Float64}}
 
-    # Empty output
-    nan_out = [(NaN,NaN,NaN)]
-
     # Get homozygous window
     chr = GFF3.seqid(hap)
     chr_size = chr_dic[chr]
@@ -1277,8 +1274,8 @@ julia> comp_tnull(BAM_PATH,GFF_PATH,FA_PATH,OUT_PATH)
 ```
 """
 function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_paths::Vector{String}
-                    ;pe::Bool=true,g_max::Int64=300,cov_ths::Int64=5,cov_a::Float64=0.0,
-                    cov_b::Float64=1.0,trim::NTuple{4,Int64}=(0,0,0,0),n_null::Int64=1000,
+                    ;pe::Bool=true,g_max::Int64=500,cov_ths::Int64=5,cov_a::Float64=0.0,
+                    cov_b::Float64=2.0,trim::NTuple{4,Int64}=(0,0,0,0),n_null::Int64=1000,
                     n_max::Int64=20,n_subset::Vector{Int64}=collect(1:n_max))
 
     # BigWig output files
@@ -1314,31 +1311,26 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
         out_dnme = Vector{Tuple{Int64,Int64,Float64}}()
         out_uc = Vector{Tuple{Int64,Int64,Float64}}()
 
-        # Store all haplotypes with enough coverage
+        # Screen all haplotypes for those with enough coverage
         print_log("Screening haplotypes ...")
-        haps = vcat(pmap(chr -> subset_haps_cov(hom_gff,bam,fa,pe,cov_ths,n,trim,chr,chr_dic[chr]),
-                         chr_names)...)
+        haps = vcat(pmap(chr->screen_haps(hom_gff,bam,fa,pe,cov_ths,n,trim,chr,chr_dic[chr]),chr_names)...)
 
-        # Keep in memory n_null only for memory efficiency
+        # Keep only n_null for memory efficiency
         haps = length(haps)>n_null ? haps[sample(1:length(haps),n_null)] : haps
 
-        # Sample windows with N=ntot
-        print_log("Sampling a total of $(n_null) null statistics ...")
+        # Sample null stats until desired number is reached or maximum number of attempts
+        print_log("Sampling a total of $(n_null) null statistics for N=$(ntot) & K*=$(kstar) ...")
         print_log("Candidate haplotypes with N=$(ntot) are $(length(haps)) ...")
         i = 1
         while length(out_dmml)<n_null
 
             # Process them in parallel
-            out_pmap = vcat(pmap(hap -> proc_null_hap(hap,ntot,bam,het_gff,hom_gff,fa,kstar,
-                                 out_paths,pe,g_max,cov_ths,cov_a,cov_b,trim,n_null,n_max,
-                                 n_subset,chr_dic),haps)...)
-
-            # Keep only the ones with data
-            out_pmap = out_pmap[map(stat->!any(isnan.(stat)),out_pmap)]
+            out_pmap = vcat(pmap(hap->proc_null_hap(hap,ntot,bam,het_gff,hom_gff,fa,kstar,out_paths,
+                            pe,g_max,cov_ths,cov_a,cov_b,trim,n_null,n_max,n_subset,chr_dic),haps)...)
 
             # Save succesful runs
             if length(out_pmap)>0
-                print_log("Saving $(length(out_pmap)) null stats ...")
+                print_log("Succesfully generated $(length(out_pmap)) null stats ...")
                 append!(out_dmml,map(stat->(ntot,kstar,stat[1]),out_pmap))
                 append!(out_dnme,map(stat->(ntot,kstar,stat[2]),out_pmap))
                 append!(out_uc,map(stat->(ntot,kstar,stat[3]),out_pmap))
@@ -1346,8 +1338,10 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
 
             # Break if run for too long
             if i>250
-                print_log("Exceeded $(i-1) iterations in comp_tnull ...")
+                print_log("Exceeded $(i-1) attempts in comp_tnull ...")
                 break
+            else
+                print_log("No null statistics computed in $(i)-th attempt ...")
             end
 
             # Increase counter
@@ -1436,15 +1430,15 @@ julia> comp_pvals(tobs_path,tnull_path,p_path,n_max)
 ```
 """
 function comp_pvals(tobs_path::Vector{String},tnull_path::Vector{String},p_path::Vector{String},
-                    n_max::Int64)
+                    n_max::Int64,n_null::Int64)
 
     # Compute three sets of pvalues
     print_log("Computing p-values dMML ...")
-    comp_pvals_stat(tobs_path[1:2],tnull_path[1],p_path[1],n_max)
+    comp_pvals_stat(tobs_path[1:2],tnull_path[1],p_path[1],n_max,n_null)
     print_log("Computing p-values dNME ...")
-    comp_pvals_stat(tobs_path[3:4],tnull_path[2],p_path[2],n_max)
+    comp_pvals_stat(tobs_path[3:4],tnull_path[2],p_path[2],n_max,n_null)
     print_log("Computing p-values UC ...")
-    comp_pvals_stat([tobs_path[5]],tnull_path[3],p_path[3],n_max)
+    comp_pvals_stat([tobs_path[5]],tnull_path[3],p_path[3],n_max,n_null)
     print_log("Done with p-values ...")
 
     # Return
@@ -1512,7 +1506,7 @@ function run_analysis(bam1::String,bam2::String,bamu::String,vcf::String,fa::Str
 
     # Compute null statistics from heterozygous loci
     print_log("Computing p-values in heterozygous loci ...")
-    comp_pvals(tobs_path,tnull_path,p_path,n_max)
+    comp_pvals(tobs_path,tnull_path,p_path,n_max,n_null)
 
     # Print number of features interrogated and finished message
     print_log("Done.")

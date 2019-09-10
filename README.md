@@ -38,7 +38,7 @@ Nevertheless, given the symmetry of the problem, both alleles have
 the same Shannon entropy. Thus differential  analysis only identifies
 differences in terms of MML. The output bedGraph files can be found
 in `out_path`. To run the toy example run the following commands in
-a `julia` session:
+a `julia`'s REPL:
 
 ```julia
 using JuliASM
@@ -48,7 +48,7 @@ b2 = "$(dir)/bam/example.a2.bam"
 fa = "$(dir)/fasta/example.fa"
 vcf = "$(dir)/vcf/example.vcf"
 out = "$(dir)/out/"
-run_analysis(b1,b2,b1,vcf,fa,out;g_max=25,cov_ths=3,cov_b=20.0,win_exp=10,mc_null=1000,n_max=10)
+run_analysis(b1,b2,b1,vcf,fa,out;g_max=25,cov_ths=3,cov_b=20.0,win_exp=10,n_null=100,n_max=10)
 ```
 
 ## Authors
