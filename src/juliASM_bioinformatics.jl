@@ -1334,14 +1334,14 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
                 append!(out_dmml,map(stat->(ntot,kstar,stat[1]),out_pmap))
                 append!(out_dnme,map(stat->(ntot,kstar,stat[2]),out_pmap))
                 append!(out_uc,map(stat->(ntot,kstar,stat[3]),out_pmap))
+            else
+                print_log("No null statistics computed in $(i)-th attempt ...")
             end
 
             # Break if run for too long
             if i>250
                 print_log("Exceeded $(i-1) attempts in comp_tnull ...")
                 break
-            else
-                print_log("No null statistics computed in $(i)-th attempt ...")
             end
 
             # Increase counter
