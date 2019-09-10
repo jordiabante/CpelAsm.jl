@@ -1323,7 +1323,7 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
             end
 
             # Break if run for too long
-            if i>100
+            if i>250
                 print_log("Exceeded $(i-1) iterations in comp_tnull ...")
                 break
             end
