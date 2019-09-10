@@ -983,7 +983,7 @@ Function that returns the number of observations per CpG site as a vector.
 julia> JuliASM.get_obs_per_cpg(xobs)
 ```
 """
-function get_obs_per_cpg(xobs::Array{Array{Int64,1},1})::Vector{Int64}
+function get_obs_per_cpg(xobs::Array{Vector{Int64},1})::Vector{Int64}
 
     # Return
     return vcat(sum(abs.(hcat(xobs...)),dims=2)...)
@@ -992,7 +992,7 @@ end # end get_kstar_table
 """
     `subset_haps_cov(GFF,BAM,FA,PE,COV_THS,NTOT,TRIM,CHRmCHR_SIZE)`
 
-Function that returns a set of haplotypes with N=Ntot and satisfying the coverage requirements.
+Function that returns a set of haplotypes with N=Ntot that satisfies the coverage requirements.
 
 # Examples
 ```julia-repl
@@ -1001,7 +1001,7 @@ julia> JuliASM.subset_haps_cov(gff,bam,fa,pe,cov_ths,ntot,trim,chr,chr_size)
 """
 function subset_haps_cov(gff::String,bam::String,fa::String,pe::Bool,cov_ths::Int64,
                          n::Vector{Int64},trim::NTuple{4,Int64},chr::String,
-                         chr_size::Int64)::Vector{GFF3.Record}
+                         chr_size::Int64;fold::Int64=5)::Vector{GFF3.Record}
 
     # Ntot
     ntot = sum(n)
@@ -1031,13 +1031,16 @@ function subset_haps_cov(gff::String,bam::String,fa::String,pe::Bool,cov_ths::In
         # Obtain observations per CpG site
         obs_per_cpg = get_obs_per_cpg(xobs)
 
-        # Accept candidate haplotype if coverage is OK  in all subregions (x3 as much per allele)
-        if (10*cov_ths<=mean_cov(xobs)<=400) && (sum(obs_per_cpg.==0)<=1.0/5.0*ntot)
+        # Accept candidate haplotype if coverage is OK
+        # NOTE: we leave xFOLD as much per allele to ensure variety. This determines the rate at
+        # which null statistics are produced. However, we might have trouble finding regions
+        # that satisfy both conditions. Consider lowering FOLD in that case.
+        if (2*fold*cov_ths<=mean_cov(xobs)<=400) && (sum(obs_per_cpg.==0)<=1.0/5.0*ntot)
             new_hap = "$(chr)\t.\t.\t$(cpgs[1])\t$(cpgs[end])\t$(ntot)\t.\t.\tCpGs=$(cpgs)"
             push!(out_haps,GFF3.Record(new_hap))
         end
 
-        # Break if enough haps for chromosome
+        # Break if enough haps for given chromosome
         length(out_haps)>500 && break
 
     end
@@ -1089,7 +1092,7 @@ julia> JuliASM.cov_obs_part(xobs,n,cov_ths,cov_a,cov_b)
 function cov_obs_part(xobs::Vector{Vector{Int64}},n::Vector{Int64},cov_ths::Int64,cov_a::Float64,
                       cov_b::Float64)::Tuple{Vector{Vector{Int64}},Vector{Vector{Int64}}}
 
-    ## Part that takes care of minimum coverage. After this step an allele can have
+    ## NOTE: Part that takes care of minimum coverage. After this step an allele can have
     ## more than cov_ths+b. Here we just guarantee mean_cov(xobsi)≧cov_ths.
 
     # Divide into two sets of equal size while checking bot have at least cov_ths
@@ -1105,13 +1108,9 @@ function cov_obs_part(xobs::Vector{Vector{Int64}},n::Vector{Int64},cov_ths::Int6
         xobs2 = xobs[setdiff(1:length(xobs),ind)]
         obs_per_cpg_1 = get_obs_per_cpg(xobs1)
         obs_per_cpg_2 = get_obs_per_cpg(xobs2)
-        # If coverage okay break loop
+        # If coverage condition are OK break loop
         (sum(obs_per_cpg_1.==0)<=1.0/5.0*ntot) && (sum(obs_per_cpg_2.==0)<=1.0/5.0*ntot) &&
             (mean_cov(xobs1)>=cov_ths) && (mean_cov(xobs2)>=cov_ths) && break
-
-        # Uncomment for coverage condition at subregion level
-            # all(mean_cov_sr(xobs1,n).>=cov_ths) && all(mean_cov_sr(xobs2,n).>=cov_ths) &&  break
-
         # Check we haven't exceeded the maximum number of permutations
         if ct>20
             # We failed and break
@@ -1126,9 +1125,8 @@ function cov_obs_part(xobs::Vector{Vector{Int64}},n::Vector{Int64},cov_ths::Int6
 
     # Return empty arrays if fail=true
     fail==false || return [],[]
-        # println("First OK: $(mean_cov(xobs1)) & $(mean_cov(xobs2))")
 
-    ## Part extra to limit number of observations used. The goal is to reduce the size of
+    ## NOTE: Part extra to limit number of observations used. The goal is to reduce the size of
     ## xobs1 & xobs2 until both coverages are within [cov_ths-cov_a,cov_ths+cov_b].
 
     # Check for [cov_ths-cov_a,cov_ths+cov_b] for xobs1
@@ -1138,11 +1136,6 @@ function cov_obs_part(xobs::Vector{Vector{Int64}},n::Vector{Int64},cov_ths::Int6
         obs_per_cpg_1 = get_obs_per_cpg(xobs1[2:end])
         less_ok = mean_cov(xobs1[2:end])>=(cov_ths-cov_a) && mean_cov(xobs1)>=(cov_ths+cov_b) &&
             (sum(obs_per_cpg_1.==0)<=1.0/5.0*ntot)
-
-        # Uncomment to apply condition at subregion level
-            # less_ok = all(mean_cov_sr(xobs1[2:end],n).>=(cov_ths-cov_a)) &&
-            #     all(mean_cov_sr(xobs1,n).>=(cov_ths+cov_b))
-
         # If less is okay, decrease in one read, otherwise that's it
         xobs1 = less_ok ? xobs1=xobs1[2:end] : xobs1
         less_ok || break
@@ -1150,9 +1143,7 @@ function cov_obs_part(xobs::Vector{Vector{Int64}},n::Vector{Int64},cov_ths::Int6
 
     # Check if resulting observations meet b-bound as well
     fail = mean_cov(xobs1)<=(cov_ths+cov_b) ? false : true
-        # fail = all(mean_cov_sr(xobs1,n).<=(cov_ths+cov_b)) ? false : true
     fail==false || return [],[]
-        # println("Second OK: $(mean_cov(xobs1))")
 
     # Check for [cov_ths-cov_a,cov_ths+cov_b] for xobs2
     less_ok = false
@@ -1161,11 +1152,6 @@ function cov_obs_part(xobs::Vector{Vector{Int64}},n::Vector{Int64},cov_ths::Int6
         obs_per_cpg_2 = get_obs_per_cpg(xobs2[2:end])
         less_ok = mean_cov(xobs2[2:end])>=(cov_ths-cov_a) && mean_cov(xobs2)>=(cov_ths+cov_b) &&
             (sum(obs_per_cpg_2.==0)<=1.0/5.0*ntot)
-
-        # Uncomment to apply condition at subregion level
-            # less_ok = all(mean_cov_sr(xobs2[2:end],n).>=(cov_ths-cov_a)) &&
-            #     all(mean_cov_sr(xobs2,n).>=(cov_ths+cov_b))
-
         # If less is okay, decrease in one read, otherwise that's it
         xobs2 = less_ok ? xobs2=xobs2[2:end] : xobs2
         less_ok || break
@@ -1173,7 +1159,6 @@ function cov_obs_part(xobs::Vector{Vector{Int64}},n::Vector{Int64},cov_ths::Int6
 
     # Check if resulting observations meet b-bound as well
     fail = mean_cov(xobs2)<=(cov_ths+cov_b) ? false : true
-        # fail = all(mean_cov_sr(xobs2,n).<=(cov_ths+cov_b)) ? false : true
     fail==false || return [],[]
         # println("Third OK: $(mean_cov(xobs2))")
 
@@ -1181,6 +1166,34 @@ function cov_obs_part(xobs::Vector{Vector{Int64}},n::Vector{Int64},cov_ths::Int6
     return xobs1,xobs2
 
 end # end cov_obs_part
+"""
+    `swap_pair(XOBS1,XOBS2)`
+
+Function that swaps a pair of reads between XOBS1 and XOBS2.
+
+# Examples
+```julia-repl
+julia> JuliASM.swap_pair(xobs1,xobs2)
+```
+"""
+function swap_pair(xobs1::Vector{Vector{Int64}},xobs2::Vector{Vector{Int64}})::Tuple{Vector{Vector{Int64}},Vector{Vector{Int64}}}
+
+    # Sample indices to swap
+    ind1 = sample(1:length(xobs1))
+    ind2 = sample(1:length(xobs2))
+
+    # Swap elements
+    push!(xobs1,xobs2[ind2])
+    push!(xobs2,xobs1[ind1])
+
+    # Delete them in their origin
+    deleteat!(xobs1,ind1)
+    deleteat!(xobs2,ind2)
+
+    # Return partition
+    return xobs1,xobs2
+
+end # end swap_pair
 """
     `proc_null_hap()`
 
@@ -1212,12 +1225,18 @@ function proc_null_hap(hap::GFF3.Record,ntot::Int64,bam::String,het_gff::String,
     xobs = read_bam(bam,chr,cpg_pos[1],cpg_pos[end],cpg_pos,chr_size,pe,trim)
 
     # Obtain a number of null statistics with different permutations
+    success = false
+    xobs1 = Vector{Vector{Int64}}()
+    xobs2 = Vector{Vector{Int64}}()
     stats = Vector{Tuple{Float64,Float64,Float64}}()
     for i=1:10
 
-        # Randomly partition observations (sample minimum coverage)
-        xobs1,xobs2 = cov_obs_part(xobs,n,cov_ths,cov_a,cov_b)
+        # If previous partition successful, just swap two reads. Otherwise, re-partition
+        xobs1,xobs2 = success ? swap_pair(xobs1,xobs2) : cov_obs_part(xobs,n,cov_ths,cov_a,cov_b)
         (length(xobs1)>0) && (length(xobs2)>0) || continue
+
+        # Reset success
+        success = false
 
         # Estimate each single-allele model and check if on boundary of parameter space
         θ1 = est_theta_sa(n,xobs1)
@@ -1236,6 +1255,9 @@ function proc_null_hap(hap::GFF3.Record,ntot::Int64,bam::String,het_gff::String,
 
         # Append stats
         push!(stats,(round(abs(comp_mml_∇(n,∇1)-comp_mml_∇(n,∇2));digits=8),abs(nme1-nme2),uc))
+
+        # Update success for next iteration
+        success = true
 
     end
 

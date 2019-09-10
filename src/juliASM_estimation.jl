@@ -19,7 +19,7 @@ julia> Ux_fun([1,1,1,1])
 -7.0
 ```
 """
-function create_Ux(n::Vector{Int64},a::Vector{Float64}, b::Float64)
+function create_Ux(n::Vector{Int64},a::Vector{Float64},b::Float64)
 
     # Define function given n, α, and β
     function Ux(x::Vector{Int64})::Float64
