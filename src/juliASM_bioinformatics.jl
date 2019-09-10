@@ -811,10 +811,10 @@ function proc_obs_hap(hap::GFF3.Record,chr::String,chr_size::Int64,bam1::String,
     # Get vectors from BAM1/2 overlapping haplotype & compute average coverage
     xobs1 = read_bam(bam1,chr,hap_st,hap_end,cpg_pos[2],chr_size,pe,trim)
     obs_per_cpg1 = get_obs_per_cpg(xobs1)
-    (cov_ths<=mean_cov(xobs1)<=400) && (sum(obs_per_cpg1.==0)<=1.0/3.0*sum(n1)) || return nan_out
+    (cov_ths<=mean_cov(xobs1)<=400) && (sum(obs_per_cpg1.==0)<=1.0/5.0*sum(n1)) || return nan_out
     xobs2 = read_bam(bam2,chr,hap_st,hap_end,cpg_pos[3],chr_size,pe,trim)
     obs_per_cpg2 = get_obs_per_cpg(xobs2)
-    (cov_ths<=mean_cov(xobs2)<=400) && (sum(obs_per_cpg2.==0)<=1.0/3.0*sum(n2)) || return nan_out
+    (cov_ths<=mean_cov(xobs2)<=400) && (sum(obs_per_cpg2.==0)<=1.0/5.0*sum(n2)) || return nan_out
 
     # Estimate each single-allele model and check if on boundary of parameter space
     θ1 = est_theta_sa(n1,xobs1)
@@ -1032,7 +1032,7 @@ function subset_haps_cov(gff::String,bam::String,fa::String,pe::Bool,cov_ths::In
         obs_per_cpg = get_obs_per_cpg(xobs)
 
         # Accept candidate haplotype if coverage is OK  in all subregions (x3 as much per allele)
-        if (6*cov_ths<=mean_cov(xobs)<=400) && (sum(obs_per_cpg.==0)<=1.0/3.0*ntot)
+        if (6*cov_ths<=mean_cov(xobs)<=400) && (sum(obs_per_cpg.==0)<=1.0/5.0*ntot)
             new_hap = "$(chr)\t.\t.\t$(cpgs[1])\t$(cpgs[end])\t$(ntot)\t.\t.\tCpGs=$(cpgs)"
             push!(out_haps,GFF3.Record(new_hap))
         end
@@ -1106,7 +1106,7 @@ function cov_obs_part(xobs::Vector{Vector{Int64}},n::Vector{Int64},cov_ths::Int6
         obs_per_cpg_1 = get_obs_per_cpg(xobs1)
         obs_per_cpg_2 = get_obs_per_cpg(xobs2)
         # If coverage okay break loop
-        (sum(obs_per_cpg_1.==0)<=1.0/3.0*ntot) && (sum(obs_per_cpg_2.==0)<=1.0/3.0*ntot) &&
+        (sum(obs_per_cpg_1.==0)<=1.0/5.0*ntot) && (sum(obs_per_cpg_2.==0)<=1.0/5.0*ntot) &&
             (mean_cov(xobs1)>=cov_ths) && (mean_cov(xobs2)>=cov_ths) && break
 
         # Uncomment for coverage condition at subregion level
@@ -1137,7 +1137,7 @@ function cov_obs_part(xobs::Vector{Vector{Int64}},n::Vector{Int64},cov_ths::Int6
         # Check if we can keep decreasing number
         obs_per_cpg_1 = get_obs_per_cpg(xobs1[2:end])
         less_ok = mean_cov(xobs1[2:end])>=(cov_ths-cov_a) && mean_cov(xobs1)>=(cov_ths+cov_b) &&
-            (sum(obs_per_cpg_1.==0)<=1.0/3.0*ntot)
+            (sum(obs_per_cpg_1.==0)<=1.0/5.0*ntot)
 
         # Uncomment to apply condition at subregion level
             # less_ok = all(mean_cov_sr(xobs1[2:end],n).>=(cov_ths-cov_a)) &&
@@ -1160,7 +1160,7 @@ function cov_obs_part(xobs::Vector{Vector{Int64}},n::Vector{Int64},cov_ths::Int6
         # Check if we can keep decreasing number
         obs_per_cpg_2 = get_obs_per_cpg(xobs2[2:end])
         less_ok = mean_cov(xobs2[2:end])>=(cov_ths-cov_a) && mean_cov(xobs2)>=(cov_ths+cov_b) &&
-            (sum(obs_per_cpg_2.==0)<=1.0/3.0*ntot)
+            (sum(obs_per_cpg_2.==0)<=1.0/5.0*ntot)
 
         # Uncomment to apply condition at subregion level
             # less_ok = all(mean_cov_sr(xobs2[2:end],n).>=(cov_ths-cov_a)) &&
@@ -1194,7 +1194,7 @@ julia> proc_null_hap()
 function proc_null_hap(hap::GFF3.Record,ntot::Int64,bam::String,het_gff::String,hom_gff::String,
                        fa::String,kstar::Int64,out_paths::Vector{String},pe::Bool,g_max::Int64,
                        cov_ths::Int64,cov_a::Float64,cov_b::Float64,trim::NTuple{4,Int64},
-                       mc_null::Int64,n_max::Int64,n_subset::Vector{Int64},chr_dic::Dict{String,
+                       n_null::Int64,n_max::Int64,n_subset::Vector{Int64},chr_dic::Dict{String,
                        Int64})::Vector{Tuple{Float64,Float64,Float64}}
 
     # Empty output
@@ -1256,7 +1256,7 @@ julia> comp_tnull(BAM_PATH,GFF_PATH,FA_PATH,OUT_PATH)
 """
 function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_paths::Vector{String}
                     ;pe::Bool=true,g_max::Int64=300,cov_ths::Int64=5,cov_a::Float64=0.0,
-                    cov_b::Float64=1.0,trim::NTuple{4,Int64}=(0,0,0,0),mc_null::Int64=1000,
+                    cov_b::Float64=1.0,trim::NTuple{4,Int64}=(0,0,0,0),n_null::Int64=1000,
                     n_max::Int64=20,n_subset::Vector{Int64}=collect(1:n_max))
 
     # BigWig output files
@@ -1297,22 +1297,19 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
         haps = vcat(pmap(chr -> subset_haps_cov(hom_gff,bam,fa,pe,cov_ths,n,trim,chr,chr_dic[chr]),
                          chr_names)...)
 
-        # Keep in memory mc_null only for memory efficiency
-        haps = length(haps)>mc_null ? haps[sample(1:length(haps),mc_null)] : haps
+        # Keep in memory n_null only for memory efficiency
+        haps = length(haps)>n_null ? haps[sample(1:length(haps),n_null)] : haps
 
         # Sample windows with N=ntot
-        print_log("Sampling a total of $(mc_null) null statistics ...")
+        print_log("Sampling a total of $(n_null) null statistics ...")
         print_log("Candidate haplotypes with N=$(ntot) are $(length(haps)) ...")
         i = 1
-        while length(out_dmml)<mc_null
-
-            # Subsample
-            haps_subset = length(haps)>1000 ? haps[sample(1:length(haps),1000)] : haps
+        while length(out_dmml)<n_null
 
             # Process them in parallel
             out_pmap = vcat(pmap(hap -> proc_null_hap(hap,ntot,bam,het_gff,hom_gff,fa,kstar,
-                                 out_paths,pe,g_max,cov_ths,cov_a,cov_b,trim,mc_null,n_max,
-                                 n_subset,chr_dic),haps_subset)...)
+                                 out_paths,pe,g_max,cov_ths,cov_a,cov_b,trim,n_null,n_max,
+                                 n_subset,chr_dic),haps)...)
 
             # Keep only the ones with data
             out_pmap = out_pmap[map(stat->!any(isnan.(stat)),out_pmap)]
@@ -1365,7 +1362,8 @@ coordinates, the value of the statistic, and the adjusted p-value.
 julia> JuliASM.comp_pvals_stat(tobs_path,tnull_path)
 ```
 """
-function comp_pvals_stat(tobs_path::Vector{String},tnull_path::String,p_path::String,n_max::Int64)
+function comp_pvals_stat(tobs_path::Vector{String},tnull_path::String,p_path::String,n_max::Int64,
+                         n_null::Int64)
 
     # Get null stats
     tnull = readdlm(tnull_path,'\t',Any)
@@ -1387,7 +1385,7 @@ function comp_pvals_stat(tobs_path::Vector{String},tnull_path::String,p_path::St
     # Compute p-values
     for i=1:size(tobs)[1]
         # Check we can compute p-value
-        (tobs[i,5]<=n_max && sum(tnull[:,1].==tobs[i,5])>0) || continue
+        (tobs[i,5]<=n_max && sum(tnull[:,1].==tobs[i,5])>n_null) || continue
         # Compute empirical p-value
         pvals[i,5] = sum(tnull[tnull[:,1].==tobs[i,5],3].>=tobs[i,4]) / sum(tnull[:,1].==tobs[i,5])
     end
@@ -1448,7 +1446,7 @@ julia> run_analysis(BAM1_PATH,BAM2_PATH,BAMU_PATH,VCF_PATH,FA_PATH,OUT_PATH)
 function run_analysis(bam1::String,bam2::String,bamu::String,vcf::String,fa::String,outdir::String;
                       pe::Bool=true,g_max::Int64=300,win_exp::Int64=100,cov_ths::Int64=5,
                       cov_a::Float64=0.0,cov_b::Float64=1.0,trim::NTuple{4,Int64}=(0,0,0,0),
-                      mc_null::Int64=5000,n_max::Int64=25,n_subset::Vector{Int64}=collect(1:n_max))
+                      n_null::Int64=5000,n_max::Int64=25,n_subset::Vector{Int64}=collect(1:n_max))
 
     # Print initialization of juliASM
     print_log("Starting JuliASM analysis ...")
@@ -1488,7 +1486,7 @@ function run_analysis(bam1::String,bam2::String,bamu::String,vcf::String,fa::Str
     # Compute null statistics from homozygous loci
     print_log("Generating null statistics in homozygous loci ...")
     comp_tnull(bamu,het_gff,hom_gff,fa,tnull_path;pe=pe,g_max=g_max,cov_ths=cov_ths,
-               cov_a=cov_a,cov_b=cov_b,trim=trim,mc_null=mc_null,n_max=n_max,n_subset=n_subset)
+               cov_a=cov_a,cov_b=cov_b,trim=trim,n_null=n_null,n_max=n_max,n_subset=n_subset)
 
     # Compute null statistics from heterozygous loci
     print_log("Computing p-values in heterozygous loci ...")
