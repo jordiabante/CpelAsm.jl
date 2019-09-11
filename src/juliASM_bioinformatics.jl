@@ -1016,10 +1016,13 @@ julia> JuliASM.get_obs_per_cpg(xobs)
 """
 function get_obs_per_cpg(xobs::Array{Vector{Int64},1})::Vector{Int64}
 
-    # Return
-    return vcat(sum(abs.(hcat(xobs...)),dims=2)...)
+    # Get observations per CpG site
+    out = length(xobs)>0 ? vcat(sum(abs.(hcat(xobs...)),dims=2)...) : [0]
 
-end # end get_kstar_table_gff
+    # Return
+    return out
+
+end # end get_obs_per_cpg
 """
     `screen_haps(GFF,BAM,FA,PE,COV_THS,NTOT,TRIM,CHR,CHR_SIZE)`
 
