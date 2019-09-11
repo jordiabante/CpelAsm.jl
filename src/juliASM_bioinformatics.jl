@@ -941,16 +941,16 @@ function write_tnull(recs::Vector{Tuple{Int64,Int64,Float64}},path::String)
 
 end # end write_tnull
 """
-    `get_kstar_table(GFF_PATH,CHR_NAMES,BLK_SIZE)`
+    `get_kstar_table_gff(GFF_PATH,CHR_NAMES,BLK_SIZE)`
 
 Function that returns a table with maximum K for each N in GFF_PATH.
 
 # Examples
 ```julia-repl
-julia> JuliASM.get_kstar_table(GFF_PATH,CHR_NAMES,BLK_SIZE)
+julia> JuliASM.get_kstar_table_gff(GFF_PATH,CHR_NAMES,BLK_SIZE)
 ```
 """
-function get_kstar_table(gff::String,chr_names::Vector{String},g_max::Int64)::Dict{Int64,Int64}
+function get_kstar_table_gff(gff::String,chr_names::Vector{String},g_max::Int64)::Dict{Int64,Int64}
 
     # Loop over chromosomes
     table = Dict{Int64,Int64}()
@@ -972,7 +972,38 @@ function get_kstar_table(gff::String,chr_names::Vector{String},g_max::Int64)::Di
     # Return
     return table
 
-end # end get_kstar_table
+end # end get_kstar_table_gff
+"""
+    `get_kstar_table_tobs(TOBS_PATH)`
+
+Function that returns a table with maximum K for each N in TOBS_PATH.
+
+# Examples
+```julia-repl
+julia> JuliASM.get_kstar_table_tobs(TOBS_PATH)
+```
+"""
+function get_kstar_table_tobs(tobs_path::String)::Dict{Int64,Int64}
+
+    # Get (N,K) pairs from Tobs
+    nk_pairs = readdlm(tobs_path,'\t',Any)[:,5:6]
+
+    # Loop over pairs
+    out = Dict{Int64,Int64}()
+    @inbounds for i=1:size(nk_pairs)[1]
+        if haskey(out,nk_pairs[i,1])
+            # If key exists update if necessary
+            out[nk_pairs[i,1]] = nk_pairs[i,2]>out[nk_pairs[i,1]] ? nk_pairs[i,2] : out[nk_pairs[i,1]]
+        else
+            # If key doesn't exist create it
+            out[nk_pairs[i,1]] = nk_pairs[i,2]
+        end
+    end
+
+    # Return
+    return out
+
+end # end get_kstar_table_tobs
 """
     `get_obs_per_cpg(XOBS)`
 
@@ -988,7 +1019,7 @@ function get_obs_per_cpg(xobs::Array{Vector{Int64},1})::Vector{Int64}
     # Return
     return vcat(sum(abs.(hcat(xobs...)),dims=2)...)
 
-end # end get_kstar_table
+end # end get_kstar_table_gff
 """
     `screen_haps(GFF,BAM,FA,PE,COV_THS,NTOT,TRIM,CHR,CHR_SIZE)`
 
@@ -1273,10 +1304,10 @@ contains the windows with not genetic variants and a FASTA file that contains th
 julia> comp_tnull(BAM_PATH,GFF_PATH,FA_PATH,OUT_PATH)
 ```
 """
-function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_paths::Vector{String}
-                    ;pe::Bool=true,g_max::Int64=500,cov_ths::Int64=5,cov_a::Float64=0.0,
-                    cov_b::Float64=2.0,trim::NTuple{4,Int64}=(0,0,0,0),n_null::Int64=1000,
-                    n_max::Int64=20,n_subset::Vector{Int64}=collect(1:n_max))
+function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,tobs_path::Vector{String},
+                    out_paths::Vector{String};pe::Bool=true,g_max::Int64=500,cov_ths::Int64=5,
+                    cov_a::Float64=0.0,cov_b::Float64=2.0,trim::NTuple{4,Int64}=(0,0,0,0),
+                    n_null::Int64=1000,n_max::Int64=20,n_subset::Vector{Int64}=collect(1:n_max))
 
     # BigWig output files
     dmml_path,dnme_path,uc_path = out_paths
@@ -1289,7 +1320,7 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,out_p
 
     # Obtain Kstar for every N & maximum N to analyze
     print_log("Generating Kstar table ...")
-    kstar_table = get_kstar_table(het_gff,collect(keys(chr_dic)),g_max)
+    kstar_table = get_kstar_table_tobs(tobs_path[1])
 
     # Cap Nmax
     n_max = min(maximum(keys(kstar_table)),n_max)
@@ -1401,7 +1432,7 @@ function comp_pvals_stat(tobs_path::Vector{String},tnull_path::String,p_path::St
     # Compute p-values
     for i=1:size(tobs)[1]
         # Check we can compute p-value
-        (tobs[i,5]<=n_max && sum(tnull[:,1].==tobs[i,5])>n_null) || continue
+        (tobs[i,5]<=n_max && sum(tnull[:,1].==tobs[i,5])>=n_null) || continue
         # Compute empirical p-value
         pvals[i,5] = sum(tnull[tnull[:,1].==tobs[i,5],3].>=tobs[i,4]) / sum(tnull[:,1].==tobs[i,5])
     end
@@ -1501,7 +1532,7 @@ function run_analysis(bam1::String,bam2::String,bamu::String,vcf::String,fa::Str
 
     # Compute null statistics from homozygous loci
     print_log("Generating null statistics in homozygous loci ...")
-    comp_tnull(bamu,het_gff,hom_gff,fa,tnull_path;pe=pe,g_max=g_max,cov_ths=cov_ths,
+    comp_tnull(bamu,het_gff,hom_gff,fa,tobs_path,tnull_path;pe=pe,g_max=g_max,cov_ths=cov_ths,
                cov_a=cov_a,cov_b=cov_b,trim=trim,n_null=n_null,n_max=n_max,n_subset=n_subset)
 
     # Compute null statistics from heterozygous loci
