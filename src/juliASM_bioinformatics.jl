@@ -900,6 +900,8 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
         out_pmap = pmap(hap -> proc_obs_hap(hap,chr,chr_size,bam1,bam2,gff,fa,out_paths,pe,g_max,
                         cov_ths,trim),haps_chr)
 
+        length(out_pmap)>0 || continue
+
         # Add last to respective bedGraph file
         write_tobs([x[1] for x in out_pmap],chr,mml1_path)
         write_tobs([x[2] for x in out_pmap],chr,mml2_path)
