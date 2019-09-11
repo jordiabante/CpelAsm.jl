@@ -856,10 +856,10 @@ function proc_obs_hap(hap::GFF3.Record,chr::String,chr_size::Int64,bam1::String,
     bed_end = maximum(maximum.(cpg_pos))
 
     # Return output
-    return [(bed_st,bed_end,mml1,sum(n),length(n1)),
-            (bed_st,bed_end,mml2,sum(n),length(n2)),
-            (bed_st,bed_end,nme1,sum(n),length(n1)),
-            (bed_st,bed_end,nme2,sum(n),length(n2)),
+    return [(bed_st,bed_end,mml1,sum(n),length(n)),
+            (bed_st,bed_end,mml2,sum(n),length(n)),
+            (bed_st,bed_end,nme1,sum(n),length(n)),
+            (bed_st,bed_end,nme2,sum(n),length(n)),
             (bed_st,bed_end,uc,sum(n),length(n))]
 
 end
