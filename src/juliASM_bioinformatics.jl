@@ -889,7 +889,7 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
     close(reader_fa)
 
     # Loop over chromosomes
-    for chr in chr_names
+    for chr in sort(chr_names)
 
         # Get windows pertaining to current chromosome
         print_log("Processing chromosome $(chr) ...")
@@ -1375,7 +1375,7 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,tobs_
             end
 
             # Break if run for too long
-            if i>250
+            if i>1000
                 print_log("Exceeded $(i-1) attempts in comp_tnull ...")
                 break
             end
