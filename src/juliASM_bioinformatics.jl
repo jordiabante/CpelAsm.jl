@@ -852,7 +852,8 @@ function proc_obs_hap(hap::GFF3.Record,chr::String,chr_size::Int64,bam1::String,
     uc = comp_uc(z1,z2,n1,n2,θ1,θ2,nme1,nme2)
 
     # Report positions based on CpG sites not hap_st, hap_end
-    bed_st = minimum(minimum.(cpg_pos))
+    # NOTE: the chromosome coordinates are zero-based
+    bed_st = minimum(minimum.(cpg_pos))-1
     bed_end = maximum(maximum.(cpg_pos))
 
     # Return output
