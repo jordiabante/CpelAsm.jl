@@ -1434,12 +1434,14 @@ function comp_pvals_stat(tobs_path::Vector{String},tnull_path::String,p_path::St
     pvals = tobs[:,1:5]
     pvals[:,5] .= "NO NULL DATA"
 
-    # Compute p-values
-    for i=1:size(tobs)[1]
+    # Compute p-value for each N
+    for n in unique(tobs[:,5])
         # Check we can compute p-value
-        (tobs[i,5]<=n_max && sum(tnull[:,1].==tobs[i,5])>=n_null) || continue
-        # Compute empirical p-value
-        pvals[i,5] = sum(tnull[tnull[:,1].==tobs[i,5],3].>=tobs[i,4]) / sum(tnull[:,1].==tobs[i,5])
+        (n<=n_max) && (sum(tnull[:,1].==n)>=n_null) || continue
+        # Get indexes of Tobs with N=n
+        ind = tobs[:,5].==n
+        # Compute p-values
+        pvals[ind,5] = pmap(t -> sum(tnull[tnull[:,1].==n,3].>=t)/sum(tnull[:,1].==n),tobs[ind,4])
     end
 
     # Multiple hypothesis testing correction. NOTE: should we apply BH on each N independently?
