@@ -14,7 +14,7 @@ parameters [α1,...,αK], and correlation β.
 
 # Examples
 ```julia-repl
-julia> Ux_fun = JuliASM.create_Ux([2,2],[1.0,1.0],1.0)
+julia> Ux_fun = CpelAsm.create_Ux([2,2],[1.0,1.0],1.0)
 julia> Ux_fun([1,1,1,1])
 -7.0
 ```
@@ -42,7 +42,7 @@ assuming α and β.
 
 # Examples
 ```julia-repl
-julia> JuliASM.get_W(4,0.0,0.0)
+julia> CpelAsm.get_W(4,0.0,0.0)
 2×2 Array{Int64,2}:
  4  4
  4  4
@@ -83,7 +83,7 @@ Function that returns V matrix assuming [α1,α2] and β.
 
 # Examples
 ```julia-repl
-julia> JuliASM.get_V([1.0,1.0],1.0)
+julia> CpelAsm.get_V([1.0,1.0],1.0)
 ```
 """
 function get_V(a::Vector{Float64},b::Float64)::Array{Float64,2}
@@ -104,7 +104,7 @@ Function that boundary vector for Z computation.
 
 # Examples
 ```julia-repl
-julia> JuliASM.get_u(0.0)
+julia> CpelAsm.get_u(0.0)
 2-element Vector{Float64}:
  1.0
  1.0
@@ -127,7 +127,7 @@ parameters [α1,...,αK] and β.
 
 # Examples
 ```julia-repl
-julia> JuliASM.comp_Z([1,1,1],[1.0,1.0,1.0],1.0)
+julia> CpelAsm.comp_Z([1,1,1],[1.0,1.0,1.0],1.0)
 155.37102759254836
 ```
 """
@@ -153,7 +153,7 @@ MML where each component is the MML in the respective subregion.
 
 # Examples
 ```julia-repl
-julia> JuliASM.get_grad_logZ([1,1,1],[1.0,-1.0,1.0,0.0])
+julia> CpelAsm.get_grad_logZ([1,1,1],[1.0,-1.0,1.0,0.0])
 3-element Array{Float64,1}:
  0.8807970779851251
  0.11920292201487487
@@ -179,7 +179,7 @@ parameter vector θhat.
 
 # Examples
 ```julia-repl
-julia> JuliASM.get_fim([1,1,1],[1.0,1.0,1.0,1.0])
+julia> CpelAsm.get_fim([1,1,1],[1.0,1.0,1.0,1.0])
 4×4 Array{Float64,2}:
  155.371  148.363  143.026  295.454
  148.363  155.371  148.363  296.727
@@ -206,7 +206,7 @@ estimate vector θhat, from M observations, should be kept for downstream analys
 
 # Examples
 ```julia-repl
-julia> JuliASM.keep_region(10,[1,1,1],[1.0,1.0,1.0,1.0])
+julia> CpelAsm.keep_region(10,[1,1,1],[1.0,1.0,1.0,1.0])
 true
 ```
 """
@@ -228,7 +228,7 @@ boundary of the parameter space in any of its components.
 
 # Examples
 ```julia-repl
-julia> JuliASM.check_boundary([1.0,1.0,1.0,1.0])
+julia> CpelAsm.check_boundary([1.0,1.0,1.0,1.0])
 false
 ```
 """
@@ -248,7 +248,7 @@ respective kind of boundary.
 
 # Examples
 ```julia-repl
-julia> JuliASM.comp_g([1],[1.0],1.0,3.0,3.0)
+julia> CpelAsm.comp_g([1],[1.0],1.0,3.0,3.0)
 20.135323991555527
 ```
 """
@@ -276,7 +276,7 @@ Compute likelihood of a partial/full observation X that can be missing values an
 
 # Examples
 ```julia-repl
-julia> JuliASM.comp_lkhd([1,1,0,1,1],[5],[1.0],1.0)
+julia> CpelAsm.comp_lkhd([1,1,0,1,1],[5],[1.0],1.0)
 0.953646032691218
 ```
 """
@@ -329,8 +329,8 @@ the M partial observations XOBS.
 # Examples
 ```julia-repl
 julia> n=[2,2]
-julia> xobs=JuliASM.gen_ising_full_data(20,n);
-julia> LogLike=JuliASM.create_Llkhd(n,xobs)
+julia> xobs=CpelAsm.gen_ising_full_data(20,n);
+julia> LogLike=CpelAsm.create_Llkhd(n,xobs)
 ```
 """
 function create_Llkhd(n::Vector{Int64},xobs::Array{Vector{Int64},1})
@@ -397,8 +397,8 @@ Estimate parameter α in N=1 case.
 # Examples
 ```julia-repl
 julia> Random.seed!(1234);
-julia> xobs=JuliASM.gen_ising_full_data(100,1);
-julia> JuliASM.est_alpha(xobs)
+julia> xobs=CpelAsm.gen_ising_full_data(100,1);
+julia> CpelAsm.est_alpha(xobs)
 -0.020002667306849575
 ```
 """
@@ -424,8 +424,8 @@ Estimate parameter vector η=[α1,...,αK,β] using simulated annealing.
 ```julia-repl
 julia> Random.seed!(1234);
 julia> n=[4]
-julia> xobs=JuliASM.gen_ising_full_data(100,n);
-julia> JuliASM.est_theta_sa(n,xobs)
+julia> xobs=CpelAsm.gen_ising_full_data(100,n);
+julia> CpelAsm.est_theta_sa(n,xobs)
 3-element Vector{Float64}:
  -0.05232269932606823
   0.009316690953631898
@@ -460,7 +460,7 @@ vector θ.
 
 # Examples
 ```julia-repl
-julia> JuliASM.comp_ES([1,-1,0,-1],[2,2],[0.0,0.0,0.0])
+julia> CpelAsm.comp_ES([1,-1,0,-1],[2,2],[0.0,0.0,0.0])
 3-element Array{Float64,1}:
   0.0
  -1.0
@@ -541,8 +541,8 @@ corresponding observed vector, and θ is the parameter vector the expectation is
 ```julia-repl
 julia> Random.seed!(1234);
 julia> n=[2,2];
-julia> xobs=JuliASM.gen_ising_full_data(100,n);
-julia> JuliASM.comp_ET(xobs,n,[0.0,0.0,0.0])
+julia> xobs=CpelAsm.gen_ising_full_data(100,n);
+julia> CpelAsm.comp_ET(xobs,n,[0.0,0.0,0.0])
 3-element Array{Float64,1}:
    0.0
  -20.0
@@ -565,8 +565,8 @@ Function that runs a single instance of the EM algorithm given observations in X
 ```julia-repl
 julia> Random.seed!(1234);
 julia> n=[2,2];
-julia> xobs=JuliASM.gen_ising_full_data(100,n);
-julia> JuliASM.em_alg(n,xobs)
+julia> xobs=CpelAsm.gen_ising_full_data(100,n);
+julia> CpelAsm.em_alg(n,xobs)
 ([-0.00114078, -0.10281, -0.0235107], true)
 ```
 """
@@ -627,8 +627,8 @@ algorithm has converged.
 ```julia-repl
 julia> Random.seed!(1234);
 julia> n=[2,2];
-julia> xobs=JuliASM.gen_ising_full_data(100,n);
-julia> JuliASM.est_theta_em(n,xobs)
+julia> xobs=CpelAsm.gen_ising_full_data(100,n);
+julia> CpelAsm.est_theta_em(n,xobs)
 ([-0.00114078, -0.10281, -0.0235107], true)
 ```
 """
@@ -678,8 +678,8 @@ Estimate parameter vector p=[p_1,...,p_{2^N}] based on a multinomial model and f
 # Examples
 ```julia-repl
 julia> Random.seed!(1234);
-julia> xobs=JuliASM.gen_mult_full_data(100);
-julia> JuliASM.mle_mult(xobs)
+julia> xobs=CpelAsm.gen_mult_full_data(100);
+julia> CpelAsm.mle_mult(xobs)
 16-element Vector{Float64}:
  0.07
  0.08
@@ -726,8 +726,8 @@ in a semi-parametric model that grows in size proportionally to the number of Cp
 # Examples
 ```julia-repl
 julia> Random.seed!(1234);
-julia> xobs=JuliASM.gen_mult_full_data(100);
-julia> JuliASM.mle_bin_semi(xobs)
+julia> xobs=CpelAsm.gen_mult_full_data(100);
+julia> CpelAsm.mle_bin_semi(xobs)
 ```
 """
 function mle_bin_semi(xobs::Array{Vector{Int64},1})::Vector{Float64}
@@ -754,8 +754,8 @@ not grow with the number of CpG sites considered.
 # Examples
 ```julia-repl
 julia> Random.seed!(1234);
-julia> xobs=JuliASM.gen_mult_full_data(100);
-julia> JuliASM.mle_bin_param(xobs)
+julia> xobs=CpelAsm.gen_mult_full_data(100);
+julia> CpelAsm.mle_bin_param(xobs)
 16-element Vector{Float64}:
  0.06765201
  0.06499899

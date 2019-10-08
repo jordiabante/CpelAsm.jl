@@ -1,6 +1,6 @@
 __precompile__()
 
-module JuliASM
+module CpelAsm
 ###################################################################################################
 # DEPENDENCIES
 ###################################################################################################
@@ -26,10 +26,10 @@ using MultipleTesting           # For multiple hypothesis testing
 ###################################################################################################
 # INCLUDES
 ###################################################################################################
-include("juliASM_estimation.jl")
-include("juliASM_simulations.jl")
-include("juliASM_bioinformatics.jl")
-include("juliASM_output.jl")
+include("CpelAsmEstimation.jl")
+include("CpelAsmSimulations.jl")
+include("CpelAsmBioinformatics.jl")
+include("CpelAsmOutput.jl")
 ###################################################################################################
 # EXPORTS
 ###################################################################################################

@@ -39,7 +39,7 @@ This table was extracted from
 
 # Examples
 ```julia-repl
-julia> JuliASM.get_align_strand(true,UInt16(99),UInt16(147))
+julia> CpelAsm.get_align_strand(true,UInt16(99),UInt16(147))
 "OT"
 ```
 """
@@ -86,7 +86,7 @@ with the methylation call strand taken from `get_align_strand`.
 
 # Examples
 ```julia-repl
-julia> JuliASM.order_bams(true,RECORDS)
+julia> CpelAsm.order_bams(true,RECORDS)
 ```
 """
 function order_bams(pe::Bool,records::Vector{BAM.Record})::AlignTemp
@@ -111,7 +111,7 @@ the BAM record that appears before in the forward strand.
 
 # Examples
 ```julia-repl
-julia> JuliASM.clean_records(true,RECORDS)
+julia> CpelAsm.clean_records(true,RECORDS)
 ```
 """
 function clean_records(pe::Bool,records::Vector{BAM.Record})::AllAlignTemps
@@ -147,7 +147,7 @@ Function that tries to find BAM records overlaping with `CHR` at positions `WIND
 
 # Examples
 ```julia-repl
-julia> JuliASM.try_olaps(reader,chr,win)
+julia> CpelAsm.try_olaps(reader,chr,win)
 ```
 """
 function try_olaps(reader::BAM.Reader,chr::String,win::Vector{Int64})::Vector{BAM.Record}
@@ -179,7 +179,7 @@ For info on OT, CTOT, OB, CTOB nomenclature see
 
 # Examples
 ```julia-repl
-julia> JuliASM.read_bam(BAM_PATH,"chr1",30,80,[40,60],false,(0,0,0,0))
+julia> CpelAsm.read_bam(BAM_PATH,"chr1",30,80,[40,60],false,(0,0,0,0))
 ```
 """
 function read_bam(bam::String,chr::String,hap_st::Int64,hap_end::Int64,cpg_pos::Vector{Int64},
@@ -252,7 +252,7 @@ Function that appends `GFF_RECORDS` into `OUT_GFF`.
 
 # Examples
 ```julia-repl
-julia> JuliASM.write_gff!(gff, gff_records)
+julia> CpelAsm.write_gff!(gff, gff_records)
 ```
 """
 function write_gff!(gff::String,gff_records::Vector{GFF3.Record})
@@ -277,7 +277,7 @@ reached its end. This function is only used in `gen_gffs()`.
 
 # Examples
 ```julia-repl
-julia> JuliASM.next_record(reader, chr_names, record)
+julia> CpelAsm.next_record(reader, chr_names, record)
 ```
 """
 function next_record(reader::VCF.Reader,chr_names::Vector{String},record::VCF.Record)::VCF.Record
@@ -304,7 +304,7 @@ Assumes that REF is the one pertaining to genome 1, and ALT is the one pertainin
 
 # Examples
 ```julia-repl
-julia> JuliASM.is_het_cpg!(var,seq,h1,h2)
+julia> CpelAsm.is_het_cpg!(var,seq,h1,h2)
 ```
 """
 function is_het_cpg!(var::VCF.Record,seq::FASTA.Record,h1::Vector{Int64},h2::Vector{Int64})
@@ -350,7 +350,7 @@ function is only used in `gen_gffs()`.
 
 # Examples
 ```julia-repl
-julia> JuliASM.get_records_ps!(reader,seq,record,curr_ps,wEnd,h1,h2)
+julia> CpelAsm.get_records_ps!(reader,seq,record,curr_ps,wEnd,h1,h2)
 ```
 """
 function get_records_ps!(reader::VCF.Reader,seq::FASTA.Record,record::VCF.Record,curr_ps::String,
@@ -389,7 +389,7 @@ nearby CpG sites, and the size of the subregions into which the whole region wil
 
 # Examples
 ```julia-repl
-julia> JuliASM.expand_win(50,80,10,2000)
+julia> CpelAsm.expand_win(50,80,10,2000)
 2-element Array{Int64,1}:
  40
  90
@@ -408,7 +408,7 @@ Function that returns the number of models required so as to avoid joint model w
 
 # Examples
 ```julia-repl
-julia> JuliASM.find_num_models([50,55,60,65],2,1)
+julia> CpelAsm.find_num_models([50,55,60,65],2,1)
 2
 ```
 """
@@ -421,7 +421,7 @@ end # end find_num_models
 """
     `gen_gffs([HET_GFF_PATH,HOM_GFF_PATH],FA_PATH,VCF_PATH,WIN_EXP,NMAX)`
 
-Function that creates a GFF file containing the genomic regions to be analyzed by `JuliASM`. If a
+Function that creates a GFF file containing the genomic regions to be analyzed by `CpelAsm`. If a
 set of SNPs is phased, this function will create a single window for all. In case, the set of SNPs
 is not phased, then an individual window will be created for each SNP. The phasing of the VCF
 records should be specified by means of the standard `PS` tag. In addition, a GFF file containing
@@ -430,7 +430,7 @@ in it.
 
 # Examples
 ```julia-repl
-julia> JuliASM.gen_gffs([HET_GFF_PATH,HOM_GFF_PATH],FA_PATH,VCF_PATH,WIN_EXP,NMAX)
+julia> CpelAsm.gen_gffs([HET_GFF_PATH,HOM_GFF_PATH],FA_PATH,VCF_PATH,WIN_EXP,NMAX)
 ```
 """
 function gen_gffs(gff::Vector{String},fa::String,vcf::String,win_exp::Int64,n_max::Int64)
@@ -575,7 +575,7 @@ https://useast.ensembl.org/info/website/upload/gff3.html.
 
 # Examples
 ```julia-repl
-julia> JuliASM.read_gff_chr(GFF_PATH,"chr1")
+julia> CpelAsm.read_gff_chr(GFF_PATH,"chr1")
 ```
 """
 function read_gff_chr(gff::String,chr::String)::Vector{GFF3.Record}
@@ -597,7 +597,7 @@ Function that writes records in `RECORDS` into `PATH`.
 
 # Examples
 ```julia-repl
-julia> JuliASM.write_tobs(RECORDS,CHR,PATH)
+julia> CpelAsm.write_tobs(RECORDS,CHR,PATH)
 ```
 """
 function write_tobs(recs::Vector{Tuple{Int64,Int64,Float64,Int64,Int64}},chr::String,path::String)
@@ -622,7 +622,7 @@ sites in it.
 
 # Examples
 ```julia-repl
-julia> JuliASM.get_cpg_pos(feat_atts)
+julia> CpelAsm.get_cpg_pos(feat_atts)
 ```
 """
 function get_cpg_pos(atts::Dict{String,Vector{String}})::Array{Vector{Int64},1}
@@ -650,7 +650,7 @@ Functions that returns [N1,...,NK] given the position of the CpG sites & maximum
 
 # Examples
 ```julia-repl
-julia> JuliASM.get_ns([100,200,300,350],200,90,400)
+julia> CpelAsm.get_ns([100,200,300,350],200,90,400)
 2-element Array{Int64,1}:
  2
  2
@@ -682,7 +682,7 @@ Function returns the average coverage per CpG given some observations `XOBS`.
 # Examples
 ```julia-repl
 julia> xobs=[[1,-1] for i=1:10]; append!(xobs,[[1,0] for i=1:10]);
-julia> JuliASM.mean_cov(xobs)
+julia> CpelAsm.mean_cov(xobs)
 15.0
 ```
 """
@@ -700,7 +700,7 @@ Function returns the average coverage per CpG given some observations `XOBS` per
 # Examples
 ```julia-repl
 julia> n=[1,1]; xobs=[[1,-1] for i=1:10]; append!(xobs,[[1,0] for i=1:10]);
-julia> JuliASM.mean_cov_sr(xobs,n)
+julia> CpelAsm.mean_cov_sr(xobs,n)
 15.0
 ```
 """
@@ -722,7 +722,7 @@ Function that given outdir and prefix returns paths.
 
 # Examples
 ```julia-repl
-julia> JuliASM.get_outpaths(outdir,prefix)
+julia> CpelAsm.get_outpaths(outdir,prefix)
 ```
 """
 function get_outpaths(outdir::String,prefix::String)
@@ -743,7 +743,7 @@ Function that sorts bedGraph files in vector BEDGRAPH_FILES.
 
 # Examples
 ```julia-repl
-julia> JuliASM.sort_bedgraphs(bg_files)
+julia> CpelAsm.sort_bedgraphs(bg_files)
 ```
 """
 function sort_bedgraphs(bg_files::Vector{String})
@@ -764,7 +764,7 @@ Function that prints MESSAGE to stderr.
 
 # Examples
 ```julia-repl
-julia> JuliASM.print_log("Hello")
+julia> CpelAsm.print_log("Hello")
 Hello
 ```
 """
@@ -926,7 +926,7 @@ Function that writes null records in `RECORDS` into `PATH`.
 
 # Examples
 ```julia-repl
-julia> JuliASM.write_tnull(RECORDS,PATH)
+julia> CpelAsm.write_tnull(RECORDS,PATH)
 ```
 """
 function write_tnull(recs::Vector{Tuple{Int64,Int64,Float64}},path::String)
@@ -950,7 +950,7 @@ Function that returns a table with maximum K for each N in GFF_PATH.
 
 # Examples
 ```julia-repl
-julia> JuliASM.get_kstar_table_gff(GFF_PATH,CHR_NAMES,BLK_SIZE)
+julia> CpelAsm.get_kstar_table_gff(GFF_PATH,CHR_NAMES,BLK_SIZE)
 ```
 """
 function get_kstar_table_gff(gff::String,chr_names::Vector{String},g_max::Int64)::Dict{Int64,Int64}
@@ -983,7 +983,7 @@ Function that returns a table with maximum K for each N in TOBS_PATH.
 
 # Examples
 ```julia-repl
-julia> JuliASM.get_kstar_table_tobs(TOBS_PATH)
+julia> CpelAsm.get_kstar_table_tobs(TOBS_PATH)
 ```
 """
 function get_kstar_table_tobs(tobs_path::String)::Dict{Int64,Int64}
@@ -1014,7 +1014,7 @@ Function that returns the number of observations per CpG site as a vector.
 
 # Examples
 ```julia-repl
-julia> JuliASM.get_obs_per_cpg(xobs)
+julia> CpelAsm.get_obs_per_cpg(xobs)
 ```
 """
 function get_obs_per_cpg(xobs::Array{Vector{Int64},1})::Vector{Int64}
@@ -1033,7 +1033,7 @@ Function that returns a set of haplotypes with N=Ntot that satisfies the coverag
 
 # Examples
 ```julia-repl
-julia> JuliASM.screen_haps(gff,bam,fa,pe,cov_ths,ntot,trim,chr,chr_size)
+julia> CpelAsm.screen_haps(gff,bam,fa,pe,cov_ths,ntot,trim,chr,chr_size)
 ```
 """
 function screen_haps(gff::String,bam::String,fa::String,pe::Bool,cov_ths::Int64,n::Vector{Int64},
@@ -1093,7 +1093,7 @@ Function that returns vector n with Ntot CpG sites divided into Kstar subregions
 
 # Examples
 ```julia-repl
-julia> JuliASM.get_nvec_kstar(10,4)
+julia> CpelAsm.get_nvec_kstar(10,4)
 4-element Array{Int64,1}:
  3
  2
@@ -1123,7 +1123,7 @@ satisfies it, then two empty vectors are returned.
 
 # Examples
 ```julia-repl
-julia> JuliASM.cov_obs_part(xobs,n,cov_ths,cov_a,cov_b)
+julia> CpelAsm.cov_obs_part(xobs,n,cov_ths,cov_a,cov_b)
 ```
 """
 function cov_obs_part(xobs::Vector{Vector{Int64}},n::Vector{Int64},cov_ths::Int64,cov_a::Float64,
@@ -1210,7 +1210,7 @@ Function that swaps a pair of reads between XOBS1 and XOBS2.
 
 # Examples
 ```julia-repl
-julia> JuliASM.swap_pair(xobs1,xobs2)
+julia> CpelAsm.swap_pair(xobs1,xobs2)
 ```
 """
 function swap_pair(xobs1::Vector{Vector{Int64}},xobs2::Vector{Vector{Int64}})::Tuple{Vector{Vector{Int64}},Vector{Vector{Int64}}}
@@ -1412,13 +1412,14 @@ coordinates, the value of the statistic, and the adjusted p-value.
 
 # Examples
 ```julia-repl
-julia> JuliASM.comp_pvals_stat(tobs_path,tnull_path)
+julia> CpelAsm.comp_pvals_stat(tobs_path,tnull_path)
 ```
 """
 function comp_pvals_stat(tobs_path::Vector{String},tnull_path::String,p_path::String,n_max::Int64,
                          n_null::Int64)
 
     # Get null stats
+    filesize(tnull_path)>0 || return nothing
     tnull = readdlm(tnull_path,'\t',Any)
 
     # Consider case dMML/dNME VS UC
@@ -1504,7 +1505,7 @@ function run_analysis(bam1::String,bam2::String,bamu::String,vcf::String,fa::Str
                       n_null::Int64=5000,n_max::Int64=25,n_subset::Vector{Int64}=collect(1:n_max))
 
     # Print initialization of juliASM
-    print_log("Starting JuliASM analysis ...")
+    print_log("Starting CpelAsm analysis ...")
 
     # Check index files exist
     if !(isfile.(bam1*".bai",bam1*".bai",fa*".fai"))
@@ -1527,10 +1528,10 @@ function run_analysis(bam1::String,bam2::String,bamu::String,vcf::String,fa::Str
 
     # Create gff file with heterozygous loci
     print_log("Reading in VCF & FASTA files ...")
-    het_gff = outdir * split(basename(vcf),".")[1] * "_het.juliasm.gff"
-    hom_gff = outdir * split(basename(vcf),".")[1] * "_hom.juliasm.gff"
+    het_gff = outdir * split(basename(vcf),".")[1] * "_het.cpelasm.gff"
+    hom_gff = outdir * split(basename(vcf),".")[1] * "_hom.cpelasm.gff"
     if !(isfile(het_gff))
-        print_log("Generating JuliASM GFF files ...")
+        print_log("Generating CpelAsm GFF files ...")
         gen_gffs([het_gff,hom_gff],fa,vcf,win_exp,n_max)
     end
 
