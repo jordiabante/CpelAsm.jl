@@ -1,10 +1,10 @@
-# JuliASM
+# CpelAsm
 
 A `julia` package for allele-specific methylation (ASM) analysis.
 
 ## Description
 
-`JuliASM` is based on the method in [CITE], and it draws ideas from
+`CpelAsm` is based on the method in [CITE], and it draws ideas from
 statistical physics and information theory to identify allele-specific
 methylation events at the haplotype level.
 
@@ -17,16 +17,16 @@ methylation events at the haplotype level.
 
 ### Installing
 
-`JuliASM` and dependencies can be installed via the following command:
+`CpelAsm` and dependencies can be installed via the following command:
 ```julia
-julia -e 'using Pkg; Pkg.add(PackageSpec(url="https://github.com/jordiabante/JuliASM.jl.git"))'
+julia -e 'using Pkg; Pkg.add(PackageSpec(url="https://github.com/jordiabante/CpelAsm.jl.git"))'
 ```
 
 ## Running the tests
 
 In a `julia` session run
 ```julia
-(v1.0) pkg> test JuliASM
+(v1.0) pkg> test CpelAsm
 ```
 
 ## Toy Example
@@ -41,8 +41,8 @@ in `out_path`. To run the toy example run the following commands in
 a `julia`'s REPL:
 
 ```julia
-using JuliASM
-dir = "/path/to/JuliASM.jl/test/"
+using CpelAsm
+dir = "/path/to/CpelAsm.jl/test/"
 b1 = "$(dir)/bam/example.a1.bam"
 b2 = "$(dir)/bam/example.a2.bam"
 fa = "$(dir)/fasta/example.fa"

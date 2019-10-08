@@ -8,7 +8,7 @@ Generate state space 𝒳 for the methylation vector with N CpG sites.
 
 # Examples
 ```julia-repl
-julia> xcal=JuliASM.generate_xcal(2)
+julia> xcal=CpelAsm.generate_xcal(2)
 4-element Array{Vector{Int64},1}:
  [-1, -1]
  [1, -1]
@@ -35,7 +35,7 @@ U(X) parametrized by [α1,...,αK] and β.
 # Examples
 ```julia-repl
 julia> Random.seed!(1234);
-julia> xobs=JuliASM.gen_ising_full_data(10,4);
+julia> xobs=CpelAsm.gen_ising_full_data(10,4);
 10-element Array{Vector{Int64},1}:
  [-1, -1, -1, -1]
  [1, -1, -1, -1]

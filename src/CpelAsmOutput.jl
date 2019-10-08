@@ -26,7 +26,7 @@ state vector of size `[N1,...,NK]` and parameters `[α1,...,αK]` and `β`.
 
 # Examples
 ```julia-repl
-julia> JuliASM.comp_ex([4],[0.0],0.0)
+julia> CpelAsm.comp_ex([4],[0.0],0.0)
 4-element Array{Float64,1}:
 0.5
 0.5
@@ -57,7 +57,7 @@ methylation state vector of size `[N1,...,NK]` and parameters `[α1,...,αK]` an
 
 # Examples
 ```julia-repl
-julia> JuliASM.comp_exx([4],[0.0],0.0)
+julia> CpelAsm.comp_exx([4],[0.0],0.0)
 3-element Array{Float64,1}:
  0.0
  2.220446049250313e-16
@@ -88,7 +88,7 @@ homozygous since it can compute MML over a subset of CpG sites.
 
 # Examples
 ```julia-repl
-julia> ex=JuliASM.comp_ex([4],[0.0],0.0); JuliASM.comp_mml(trues(4),ex)
+julia> ex=CpelAsm.comp_ex([4],[0.0],0.0); CpelAsm.comp_mml(trues(4),ex)
 0.5
 ```
 """
@@ -108,8 +108,8 @@ only used when all CpG sites are homozygous.
 # Examples
 ```julia-repl
 julia> n=[1,1,1]; θ=[1.0,-1.0,1.0,0.0];
-julia> ∇logZ = JuliASM.get_grad_logZ(n,θ);
-julia> JuliASM.comp_mml_∇(n,∇logZ)
+julia> ∇logZ = CpelAsm.get_grad_logZ(n,θ);
+julia> CpelAsm.comp_mml_∇(n,∇logZ)
 0.66584246
 ```
 """
@@ -132,7 +132,7 @@ julia> n=[10]
 julia> z=trues(10);z[5]=false
 julia> a=[0.0]
 julia> b=0.0
-julia> JuliASM.comp_exlng(z,n,a,b)
+julia> CpelAsm.comp_exlng(z,n,a,b)
 0.6931471805599452
 ```
 """
@@ -200,7 +200,7 @@ sites are homozygous since it can compute NME over a subset of CpG sites.
 # Examples
 ```julia-repl
 julia> n=[10];z=trues(sum(n));z[5]=false;a=[0.0];b=0.0;θ=vcat([a,b]...);
-julia> JuliASM.comp_nme(z,n,a,b,JuliASM.comp_ex(n,a,b),JuliASM.comp_exx(n,a,b))
+julia> CpelAsm.comp_nme(z,n,a,b,CpelAsm.comp_ex(n,a,b),CpelAsm.comp_exx(n,a,b))
 1.0
 ```
 """
@@ -235,8 +235,8 @@ sites. This function is only used when all CpG sites are homozygous.
 
 # Examples
 ```julia-repl
-julia> n=[4]; a=[0.0]; b=0.0; θ=vcat([a,b]...); ∇logZ=JuliASM.get_grad_logZ(n,θ);
-julia> JuliASM.comp_nme_∇(n,θ,∇logZ)
+julia> n=[4]; a=[0.0]; b=0.0; θ=vcat([a,b]...); ∇logZ=CpelAsm.get_grad_logZ(n,θ);
+julia> CpelAsm.comp_nme_∇(n,θ,∇logZ)
 1.0
 ```
 """
@@ -254,7 +254,7 @@ Function that generates a methylation vector from an Ising model with `[N1,...,N
 
 # Examples
 ```julia-repl
-julia> JuliASM.gen_x_mc([5],[0.0],0.0)
+julia> CpelAsm.gen_x_mc([5],[0.0],0.0)
 ```
 """
 function gen_x_mc(n::Vector{Int64},a::Vector{Float64},b::Float64)::Vector{Int64}
@@ -306,7 +306,7 @@ by binary vector Z (i.e., via Hadamard product Z*X, where * is the Hadamard prod
 julia> n1=[10]; n2=[10];
 julia> z1=trues(sum(n1)); z2=trues(sum(n2));
 julia> a1=[2.0]; b1=1.0; a2=[-2.0]; b2=1.0;
-julia> JuliASM.comp_nme_mix_mc(z1,z2,n1,n2,vcat(a1,b1),vcat(a2,b2))
+julia> CpelAsm.comp_nme_mix_mc(z1,z2,n1,n2,vcat(a1,b1),vcat(a2,b2))
 0.0
 ```
 """
@@ -351,7 +351,7 @@ traversing 𝒳h.
 julia> n1=[10]; n2=[10];
 julia> z1=trues(sum(n1)); z2=trues(sum(n2));
 julia> a1=[2.0]; b1=1.0; a2=[-2.0]; b2=1.0;
-julia> JuliASM.comp_nme_mix_exact(z1,z2,n1,n2,vcat(a1,b1),vcat(a2,b2))
+julia> CpelAsm.comp_nme_mix_exact(z1,z2,n1,n2,vcat(a1,b1),vcat(a2,b2))
 0.1087021260719882
 ```
 """
@@ -393,9 +393,9 @@ is determined by binary vector Z (i.e., via Hadamard product Z*X, where * is the
 julia> n1=[10]; n2=[10]
 julia> z1=trues(sum(n1)); z2=trues(sum(n2))
 julia> a1=[2.0]; a2=[-2.0]; b1=0.0; b2=0.0
-julia> h1=JuliASM.comp_nme(z1,n1,a1,b1,JuliASM.comp_ex(n1,a1,b1),JuliASM.comp_exx(n1,a1,b1))
-julia> h2=JuliASM.comp_nme(z2,n2,a2,b2,JuliASM.comp_ex(n2,a2,b2),JuliASM.comp_exx(n2,a2,b2))
-julia> JuliASM.comp_uc(z1,z2,n1,n2,vcat(a1,b1),vcat(a2,b2),h1,h2)
+julia> h1=CpelAsm.comp_nme(z1,n1,a1,b1,CpelAsm.comp_ex(n1,a1,b1),CpelAsm.comp_exx(n1,a1,b1))
+julia> h2=CpelAsm.comp_nme(z2,n2,a2,b2,CpelAsm.comp_ex(n2,a2,b2),CpelAsm.comp_exx(n2,a2,b2))
+julia> CpelAsm.comp_uc(z1,z2,n1,n2,vcat(a1,b1),vcat(a2,b2),h1,h2)
 1.0
 ```
 """
@@ -423,8 +423,8 @@ and correlations as currently done.
 # Examples
 ```julia-repl
 julia> n=[1,1,1]; θ=[1.0,-1.0,1.0,0.0];
-julia> ∇logZ = JuliASM.get_grad_logZ(n,θ);
-julia> JuliASM.comp_mmlv(n,∇logZ)
+julia> ∇logZ = CpelAsm.get_grad_logZ(n,θ);
+julia> CpelAsm.comp_mmlv(n,∇logZ)
 3-element Array{Float64,1}:
  0.88079708
  0.11920292
@@ -445,7 +445,7 @@ first order moments E[X] and second order moments E[XX].
 
 # Examples
 ```julia-repl
-julia> JuliASM.comp_corr(JuliASM.comp_ex([4],[0.0],0.0),JuliASM.comp_exx([4],[0.0],0.0))
+julia> CpelAsm.comp_corr(CpelAsm.comp_ex([4],[0.0],0.0),CpelAsm.comp_exx([4],[0.0],0.0))
 3-element Array{Float64,1}:
  0.0
  8.881784197001252e-16
@@ -470,9 +470,9 @@ Function that returns the covariance matrix of a methylation vector given the `[
 
 # Examples
 ```julia-repl
-julia> ex = JuliASM.comp_ex([4],[0.0],0.0)
-julia> exx = JuliASM.comp_exx([4],[0.0],0.0)
-julia> JuliASM.comp_cov([4],[0.0],0.0,ex,exx)
+julia> ex = CpelAsm.comp_ex([4],[0.0],0.0)
+julia> exx = CpelAsm.comp_exx([4],[0.0],0.0)
+julia> CpelAsm.comp_cov([4],[0.0],0.0,ex,exx)
 4×4 Array{Float64,2}:
  1.0          0.0          2.22045e-16  0.0
  0.0          1.0          2.22045e-16  2.22045e-16
@@ -516,10 +516,10 @@ matrix Σ.
 
 # Examples
 ```julia-repl
-julia> ex = JuliASM.comp_ex([4],[0.0],0.0);
-julia> exx = JuliASM.comp_exx([4],[0.0],0.0);
-julia> cov = JuliASM.comp_cov([4],[0.0],0.0,ex,exx);
-julia> JuliASM.comp_evec(cov)
+julia> ex = CpelAsm.comp_ex([4],[0.0],0.0);
+julia> exx = CpelAsm.comp_exx([4],[0.0],0.0);
+julia> cov = CpelAsm.comp_cov([4],[0.0],0.0,ex,exx);
+julia> CpelAsm.comp_evec(cov)
 4-element Array{Float64,1}:
  0.0
  0.0
@@ -544,7 +544,7 @@ Function that computes the partition function computed recursively over 𝒳.
 # Examples
 ```julia-repl
 julia> n=[4]; a=[0.0]; b=0.0;
-julia> JuliASM.comp_Z_xcal(n,a,b)
+julia> CpelAsm.comp_Z_xcal(n,a,b)
 16.0
 ```
 """
@@ -572,7 +572,7 @@ is determined by binary vector Z (i.e., via Hadamard product Z*X, where * is the
 # Examples
 ```julia-repl
 julia> n=[10]; z=trues(sum(n)); a=[0.0]; b=0.0;
-julia> JuliASM.comp_nme_xcal(z,n,a,b)
+julia> CpelAsm.comp_nme_xcal(z,n,a,b)
 1.0
 ```
 """
@@ -607,7 +607,7 @@ is determined by binary vector Z (i.e., via Hadamard product Z*X, where * is the
 julia> n1=[10]; n2=[10]
 julia> z1=trues(sum(n1)); z2=trues(sum(n2))
 julia> theta1=[2.0,0.0]; theta2=[-2.0,0.0]
-julia> JuliASM.comp_uc_xcal(z1,z2,n1,n2,theta1,theta2)
+julia> CpelAsm.comp_uc_xcal(z1,z2,n1,n2,theta1,theta2)
 1.0
 ```
 """
