@@ -3,11 +3,6 @@ using Test
 using Random
 using CpelAsm
 
-# Get test path
-CpelAsm_path = dirname(pathof(CpelAsm))
-CpelAsm_path = splitdir(CpelAsm_path)[1]
-test_path = CpelAsm_path * "/test/"
-
 # Test set for estimation related functions
 @testset "Estimation" begin
     # Initialize all variables
