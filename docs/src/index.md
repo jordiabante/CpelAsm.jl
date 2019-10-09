@@ -1,5 +1,15 @@
-# Example.jl Documentation
+# CpelAsm.jl Documentation
+
+```@contents
+```
+
+## Functions
 
 ```@docs
-comp_Z(x)
+CpelAsm.comp_Z(x)
+```
+
+## Index
+
+```@index
 ```

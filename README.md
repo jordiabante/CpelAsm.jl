@@ -1,4 +1,4 @@
-# CpelAsm
+# CpelAsm [![Build Status](https://travis-ci.com/jordiabante/CpelAsm.jl.svg?token=XZfbD5CqoU7r1YJmmbNE&branch=master)](https://travis-ci.com/jordiabante/CpelAsm.jl)
 
 A `julia` package for allele-specific methylation (ASM) analysis.
 
