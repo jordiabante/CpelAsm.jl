@@ -4,6 +4,7 @@ module CpelAsm
 ###################################################################################################
 # DEPENDENCIES
 ###################################################################################################
+using Documenter                # For documentation
 using Distributed               # For parallelization
 using SharedArrays              # For parallelization
 using DelimitedFiles            # For delimited files
