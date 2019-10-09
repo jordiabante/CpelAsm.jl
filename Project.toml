@@ -1,4 +1,4 @@
-name = "CpelAsm.jl"
+name = "CpelAsm"
 uuid = "182478e6-e505-11e8-0d37-f3ec3c522fa3"
 authors = ["jordiabante <jabante1@jhu.edu>"]
 version = "0.1.0"
