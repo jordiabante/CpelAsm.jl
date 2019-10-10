@@ -1,13 +1,13 @@
 push!(LOAD_PATH,"../src/")
 using Documenter,CpelAsm
 
-makedocs(format = :html,
-         # format = Documenter.HTML(prettyurls=get(ENV,"CI",nothing)=="true"),
+makedocs(format = Documenter.HTML(prettyurls=get(ENV,"CI",nothing)=="true"),
          sitename = "CpelAsm.jl",
          doctest = false,
          strict = false,
          pages = [
-            "Home" => "index.md"
+            "Home"          => "index.md",
+            "Toy Example"   => "toy_example.md"
          ],
          authors = "Jordi Abante"
 )
