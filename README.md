@@ -1,7 +1,7 @@
 # CpelAsm
 
 [![Build Status](https://travis-ci.com/jordiabante/CpelAsm.jl.svg?token=XZfbD5CqoU7r1YJmmbNE&branch=master)](https://travis-ci.com/jordiabante/CpelAsm.jl)
-[![Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://jordiabante.github.io/CpelAsm.jl/stable)
+[![Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://jordiabante.github.io/CpelAsm.jl/dev/)
 
 ## Description
 
