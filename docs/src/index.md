@@ -1,4 +1,4 @@
-# CpelAsm.jl Documentation
+# CpelAsm
 
 ```@contents
 ```
