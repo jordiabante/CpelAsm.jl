@@ -9,6 +9,9 @@ makedocs(sitename = "CpelAsm.jl",
 
 deploydocs(
     repo = "github.com/jordiabante/CpelAsm.jl.git",
+    branch = "gh-pages",
     deps = nothing,
-    make = nothing
+    make = nothing,
+    devbranch = "master",
+    devurl = "dev"
 )
