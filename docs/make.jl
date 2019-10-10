@@ -1,17 +1,21 @@
 push!(LOAD_PATH,"../src/")
 using Documenter,CpelAsm
 
-makedocs(sitename = "CpelAsm.jl",
-         format = Documenter.HTML(prettyurls=get(ENV,"CI",nothing)=="true"),
-         authors = "Jordi Abante",
-         pages = ["Home" => "index.md"],
+makedocs(format = :html,
+         # format = Documenter.HTML(prettyurls=get(ENV,"CI",nothing)=="true"),
+         sitename = "CpelAsm.jl",
+         doctest = false,
+         strict = false,
+         pages = [
+            "Home" => "index.md"
+         ],
+         authors = "Jordi Abante"
 )
 
 deploydocs(
     repo = "github.com/jordiabante/CpelAsm.jl.git",
-    branch = "gh-pages",
     deps = nothing,
     make = nothing,
-    devbranch = "master",
-    devurl = "dev"
+    branch = "gh-pages",
+    julia = "1.0.3",
 )
