@@ -47,10 +47,10 @@ using CpelAsm
 dir = "/path/to/CpelAsm.jl/test/"
 b1 = "$(dir)/bam/example.a1.bam"
 b2 = "$(dir)/bam/example.a2.bam"
-fa = "$(dir)/fasta/example.fa"
+fa = "$(dir)/fasta/n-masked/example.fa"
 vcf = "$(dir)/vcf/example.vcf"
 out = "$(dir)/out/"
-run_analysis(b1,b2,b1,vcf,fa,out;g_max=25,cov_ths=3,cov_b=20.0,win_exp=10,n_null=100,n_max=10)
+run_analysis(b1,b2,b1,vcf,fa,out;g_max=50,cov_ths=5,cov_b=2.0,win_exp=10,n_null=50,n_max=10)
 ```
 
 ## Authors
