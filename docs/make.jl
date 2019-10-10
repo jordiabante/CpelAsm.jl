@@ -16,6 +16,5 @@ deploydocs(
     repo = "github.com/jordiabante/CpelAsm.jl.git",
     deps = nothing,
     make = nothing,
-    branch = "gh-pages",
-    julia = "1.0.3",
+    branch = "gh-pages"
 )
