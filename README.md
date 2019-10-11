@@ -1,7 +1,8 @@
-# CpelAsm
+# <img src="./docs/src/assets/logo.png" width="30%" align="right" /> CpelAsm
 
 [![Build Status](https://travis-ci.com/jordiabante/CpelAsm.jl.svg?token=XZfbD5CqoU7r1YJmmbNE&branch=master)](https://travis-ci.com/jordiabante/CpelAsm.jl)
-[![Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://jordiabante.github.io/CpelAsm.jl/dev/)
+[![MIT license](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/jordiabante/CpelAsm.jl/blob/master/LICENSE.md)
+[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://jordiabante.github.io/CpelAsm.jl/dev/)
 
 ## Description
 
@@ -35,7 +36,7 @@ In a `julia` session run
 
 The package includes a small toy example for illustrative purposes.
 The example consists of two alleles `a1` and `a2`. The former has a
-mean-methylation level (MML) of 0.4, while that of the later is 0.6.
+mean-methylation level (MML) of 0.8, while that of the later is 0.2.
 Nevertheless, given the symmetry of the problem, both alleles have
 the same Shannon entropy. Thus differential  analysis only identifies
 differences in terms of MML. The output bedGraph files can be found

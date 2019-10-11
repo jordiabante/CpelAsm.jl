@@ -6,7 +6,7 @@
 
 The package includes a small toy example for illustrative purposes.
 The example consists of two alleles `a1` and `a2`. The former has a
-mean-methylation level (MML) of 0.4, while that of the later is 0.6.
+mean-methylation level (MML) of 0.8, while that of the later is 0.2.
 Nevertheless, given the symmetry of the problem, both alleles have
 the same Shannon entropy. Thus differential  analysis only identifies
 differences in terms of MML. The output bedGraph files can be found
