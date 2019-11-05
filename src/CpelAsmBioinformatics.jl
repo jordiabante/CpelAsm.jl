@@ -164,13 +164,13 @@ function try_olaps(reader::BAM.Reader,chr::String,win::Vector{Int64})::Vector{BA
 
 end # try_olaps
 """
-    `read_bam(BAM_PATH,CHR,FEAT_ST,FEAT_END,CPG_POS,PE,TRIM)`
+    `read_bam(BAM_PATH,CHR,FEAT_ST,FEAT_END,CPG_POS,CHR_SIZE,PE,TRIM)`
 
 Function that reads in BAM file in `BAM_PATH` and returns methylation vectors for those records
 that overlap with (1-based) genomic coordinates `chr:chrSt-chrEnd` at `cpg_pos`. A trimming given
 by TRIM=(Rf_5p,Rf_3p,Rr_5p,Rr_3p) is applied to the reads. The information was taken from:
 
-  XS: meth calls (https://github.com/FelixKrueger/Bismark/tree/master/Docs)
+  XM: meth calls (https://github.com/FelixKrueger/Bismark/tree/master/Docs)
   XS: uniqueness (http://bowtie-bio.sourceforge.net/bowtie2/manual.shtml)
 
 For info on OT, CTOT, OB, CTOB nomenclature see
@@ -179,7 +179,7 @@ For info on OT, CTOT, OB, CTOB nomenclature see
 
 # Examples
 ```julia-repl
-julia> CpelAsm.read_bam(BAM_PATH,"chr1",30,80,[40,60],false,(0,0,0,0))
+julia> CpelAsm.read_bam(BAM_PATH,"chr1",30,80,[40,60],1000,false,(0,0,0,0))
 ```
 """
 function read_bam(bam::String,chr::String,hap_st::Int64,hap_end::Int64,cpg_pos::Vector{Int64},
@@ -212,7 +212,7 @@ function read_bam(bam::String,chr::String,hap_st::Int64,hap_end::Int64,cpg_pos::
             # Obtain methylation call from single end ()
             meth_call = record.R1[:"XM"]
             meth_call = SubString(meth_call,(1+trim[1]):(length(meth_call)-trim[2]))
-            OFFSET= record.strand in ["OT","CTOT"] ? 1 : 2
+            OFFSET = record.strand in ["OT","CTOT"] ? 1 : 2
             OFFSET -= BAM.position(record.R1)+trim[1]
         else
             # Obtain methylation call
@@ -223,7 +223,7 @@ function read_bam(bam::String,chr::String,hap_st::Int64,hap_end::Int64,cpg_pos::
             dist_st = abs(BAM.position(record.R2)+trim[4] - BAM.position(record.R1)-trim[1])
             meth_call = R1_call * "."^max(0,dist_st-length(R1_call))
             meth_call *= R2_call[max(1,(length(R1_call)+1-dist_st)):end]
-            OFFSET= record.strand in ["OT","CTOT"] ? 1 : 2
+            OFFSET = record.strand in ["OT","CTOT"] ? 1 : 2
             OFFSET -= BAM.position(record.R1)+trim[1]
         end
 
@@ -516,6 +516,12 @@ function gen_gffs(gff::Vector{String},fa::String,vcf::String,win_exp::Int64,n_ma
                 # Get heterozygous CpG sites in current submodel
                 het1_mod = het1[findall(x-> inf_bound <= x <= sup_bound,het1)]
                 het2_mod = het2[findall(x-> inf_bound <= x <= sup_bound,het2)]
+                # Check there is no overlap between homozygous and heterozygous CpG sites
+                if !isempty(intersect(union(het1_mod,het2_mod),hom_mod))
+                    print_log("Found overlap between homozygous and heterozygous CpG sites.")
+                    print_log("Check FASTA file is masked. Exiting julia ...")
+                    exit(1)
+                end
                 # Make submodel window a multiple of G (no new CpGs included)
                 win_mod = expand_win(inf_bound,sup_bound,0,chr_size)
                 # Push output string
