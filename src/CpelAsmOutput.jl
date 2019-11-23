@@ -381,12 +381,12 @@ function comp_nme_mix_exact(z1::BitArray{1},z2::BitArray{1},n1::Vector{Int64},n2
 
 end # end comp_nme_mix_exact
 """
-    `comp_uc(Z1,Z2,N1,N2,theta1,theta2,h1,h2)`
+    `comp_pdm(Z1,Z2,N1,N2,theta1,theta2,h1,h2)`
 
-Function that exactly computes uncertainty coefficient (UC) over the homozygous CpG sites. This is
-done by assuming an Ising model for the allele-specific methylation state vector of size
-`[N1,...,NK]`, parameters `[α1,...,αK]` and `β`. The homozygous part of the allele-specific vector
-is determined by binary vector Z (i.e., via Hadamard product Z*X, where * is the Hadamard product).
+Function that exactly computes PDM over the homozygous CpG sites. This is done by assuming an Ising
+model for the allele-specific methylation state vector of size `[N1,...,NK]`, parameters
+`[α1,...,αK]` and `β`. The homozygous part of the allele-specific vector is determined by binary
+vector Z (i.e., via Hadamard product Z*X, where * is the Hadamard product).
 
 # Examples
 ```julia-repl
@@ -395,11 +395,11 @@ julia> z1=trues(sum(n1)); z2=trues(sum(n2))
 julia> a1=[2.0]; a2=[-2.0]; b1=0.0; b2=0.0
 julia> h1=CpelAsm.comp_nme(z1,n1,a1,b1,CpelAsm.comp_ex(n1,a1,b1),CpelAsm.comp_exx(n1,a1,b1))
 julia> h2=CpelAsm.comp_nme(z2,n2,a2,b2,CpelAsm.comp_ex(n2,a2,b2),CpelAsm.comp_exx(n2,a2,b2))
-julia> CpelAsm.comp_uc(z1,z2,n1,n2,vcat(a1,b1),vcat(a2,b2),h1,h2)
+julia> CpelAsm.comp_pdm(z1,z2,n1,n2,vcat(a1,b1),vcat(a2,b2),h1,h2)
 1.0
 ```
 """
-function comp_uc(z1::BitArray{1},z2::BitArray{1},n1::Vector{Int64},n2::Vector{Int64},
+function comp_pdm(z1::BitArray{1},z2::BitArray{1},n1::Vector{Int64},n2::Vector{Int64},
                  t1::Vector{Float64},t2::Vector{Float64},h1::Float64,h2::Float64)::Float64
 
     # Compute h(x)
@@ -408,7 +408,7 @@ function comp_uc(z1::BitArray{1},z2::BitArray{1},n1::Vector{Int64},n2::Vector{In
     # Return
     return round(min(1.0,max(0.0,1.0-0.5*(h1+h2)/h));digits=8)
 
-end # end comp_uc
+end # end comp_pdm
 ###################################################################################################
 # DEV FUNCTIONS
 ###################################################################################################
@@ -595,23 +595,23 @@ function comp_nme_xcal(z::BitArray{1},n::Vector{Int64},a::Vector{Float64},b::Flo
 
 end # end comp_nme_xcal
 """
-    `comp_uc_xcal(Z1,Z2,N1,N2,theta1,theta2)`
+    `comp_pdm_xcal(Z1,Z2,N1,N2,theta1,theta2)`
 
-Function that exactly computes uncertainty coefficient (UC) over the homozygous CpG sites. This is
-done by assuming an Ising model for the allele-specific methylation state vector of size
-`[N1,...,NK]`, parameters `[α1,...,αK]` and `β`. The homozygous part of the allele-specific vector
-is determined by binary vector Z (i.e., via Hadamard product Z*X, where * is the Hadamard product).
+Function that exactly computes the PDM over the homozygous CpG sites. This is done by assuming an
+Ising model for the allele-specific methylation state vector of size `[N1,...,NK]`, parameters
+`[α1,...,αK]` and `β`. The homozygous part of the allele-specific vector is determined by binary
+vector Z (i.e., via Hadamard product Z*X, where * is the Hadamard product).
 
 # Examples
 ```julia-repl
 julia> n1=[10]; n2=[10]
 julia> z1=trues(sum(n1)); z2=trues(sum(n2))
 julia> theta1=[2.0,0.0]; theta2=[-2.0,0.0]
-julia> CpelAsm.comp_uc_xcal(z1,z2,n1,n2,theta1,theta2)
+julia> CpelAsm.comp_pdm_xcal(z1,z2,n1,n2,theta1,theta2)
 1.0
 ```
 """
-function comp_uc_xcal(z1::BitArray{1},z2::BitArray{1},n1::Vector{Int64},n2::Vector{Int64},
+function comp_pdm_xcal(z1::BitArray{1},z2::BitArray{1},n1::Vector{Int64},n2::Vector{Int64},
                       theta1::Vector{Float64},theta2::Vector{Float64})::Float64
 
     # Loop over 𝒳h
@@ -640,7 +640,7 @@ function comp_uc_xcal(z1::BitArray{1},z2::BitArray{1},n1::Vector{Int64},n2::Vect
     # Return
     return 1-0.5*num/den
 
-end # end comp_uc_xcal
+end # end comp_pdm_xcal
 ###################################################################################################
 # COMPETING MODELS
 ###################################################################################################

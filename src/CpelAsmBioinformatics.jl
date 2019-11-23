@@ -734,9 +734,9 @@ julia> CpelAsm.get_outpaths(outdir,prefix)
 function get_outpaths(outdir::String,prefix::String)
 
     # Paths
-    tobs_path = "$(outdir)/$(prefix)" .* ["_mml1","_mml2","_nme1","_nme2","_uc"] .* ".bedGraph"
-    tnull_path = "$(outdir)/$(prefix)" .* ["_dmml_null","_dnme_null","_uc_null"] .* ".bedGraph"
-    p_path = "$(outdir)/$(prefix)" .* ["_dmml_pvals","_dnme_pvals","_uc_pvals"] .* ".bedGraph"
+    tobs_path = "$(outdir)/$(prefix)" .* ["_mml1","_mml2","_nme1","_nme2","_pdm"] .* ".bedGraph"
+    tnull_path = "$(outdir)/$(prefix)" .* ["_dmml_null","_dnme_null","_pdm_null"] .* ".bedGraph"
+    p_path = "$(outdir)/$(prefix)" .* ["_dmml_pvals","_dnme_pvals","_pdm_pvals"] .* ".bedGraph"
 
     # Return path for Tobs and Tnull
     return tobs_path,tnull_path,p_path
@@ -788,7 +788,7 @@ end # end print_log
 """
     `proc_obs_hap()`
 
-Function that computes an observed dMML, dNME, and UC given a homozygous haplotype.
+Function that computes an observed dMML, dNME, and PDM given a homozygous haplotype.
 
 # Examples
 ```julia-repl
@@ -855,7 +855,7 @@ function proc_obs_hap(hap::GFF3.Record,chr::String,chr_size::Int64,bam1::String,
     mml2 = all(z2) ? comp_mml_∇(n2,∇2) : comp_mml(z2,ex2)
     nme1 = all(z1) ? comp_nme_∇(n1,θ1,∇1) : comp_nme(z1,n1,θ1[1:(end-1)],θ1[end],ex1,exx1)
     nme2 = all(z2) ? comp_nme_∇(n2,θ2,∇2) : comp_nme(z2,n2,θ2[1:(end-1)],θ2[end],ex2,exx2)
-    uc = comp_uc(z1,z2,n1,n2,θ1,θ2,nme1,nme2)
+    pdm = comp_pdm(z1,z2,n1,n2,θ1,θ2,nme1,nme2)
 
     # Report positions based on CpG sites not hap_st, hap_end
     # NOTE: the chromosome coordinates are zero-based
@@ -867,13 +867,13 @@ function proc_obs_hap(hap::GFF3.Record,chr::String,chr_size::Int64,bam1::String,
             (bed_st,bed_end,mml2,sum(n),length(n)),
             (bed_st,bed_end,nme1,sum(n),length(n)),
             (bed_st,bed_end,nme2,sum(n),length(n)),
-            (bed_st,bed_end,uc,sum(n),length(n))]
+            (bed_st,bed_end,pdm,sum(n),length(n))]
 
 end
 """
     `comp_tobs(BAM1_PATH,BAM2_PATH,GFF_PATH,FA_PATH,OUT_PATHS)`
 
-Function that computes MML1/2, NME1/2, and UC on a pair of BAM files (allele 1, allele 2) given a
+Function that computes MML1/2, NME1/2, and PDM on a pair of BAM files (allele 1, allele 2) given a
 (phased) VCF file that contains the heterozygous SNPs and a FASTA file that contains the reference
 genome.
 
@@ -887,7 +887,7 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
                    (0,0,0,0))
 
     # BigWig output files
-    mml1_path,mml2_path,nme1_path,nme2_path,uc_path = out_paths
+    mml1_path,mml2_path,nme1_path,nme2_path,pdm_path = out_paths
 
     # Find chromosomes
     reader_fa = open(FASTA.Reader,fa,index=fa*".fai")
@@ -914,12 +914,12 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
         write_tobs([x[2] for x in out_pmap],chr,mml2_path)
         write_tobs([x[3] for x in out_pmap],chr,nme1_path)
         write_tobs([x[4] for x in out_pmap],chr,nme2_path)
-        write_tobs([x[5] for x in out_pmap],chr,uc_path)
+        write_tobs([x[5] for x in out_pmap],chr,pdm_path)
 
     end
 
     # Sort
-    sort_bedgraphs([mml1_path,mml2_path,nme1_path,nme2_path,uc_path])
+    sort_bedgraphs([mml1_path,mml2_path,nme1_path,nme2_path,pdm_path])
 
     # Return
     return nothing
@@ -1240,7 +1240,7 @@ end # end swap_pair
 """
     `proc_null_hap()`
 
-Function that computes a null dMML, dNME, and UC given a homozygous haplotype.
+Function that computes a null Tmml, Tnme, and Tpdm given a homozygous haplotype.
 
 # Examples
 ```julia-repl
@@ -1291,10 +1291,10 @@ function proc_null_hap(hap::GFF3.Record,ntot::Int64,bam::String,het_gff::String,
         # Estimate output quantities
         nme1 = round(comp_nme_∇(n,θ1,∇1);digits=8)
         nme2 = round(comp_nme_∇(n,θ2,∇2);digits=8)
-        uc = round(comp_uc(trues(ntot),trues(ntot),n,n,θ1,θ2,nme1,nme2);digits=8)
+        pdm = round(comp_pdm(trues(ntot),trues(ntot),n,n,θ1,θ2,nme1,nme2);digits=8)
 
         # Append stats
-        push!(stats,(round(abs(comp_mml_∇(n,∇1)-comp_mml_∇(n,∇2));digits=8),abs(nme1-nme2),uc))
+        push!(stats,(round(abs(comp_mml_∇(n,∇1)-comp_mml_∇(n,∇2));digits=8),abs(nme1-nme2),pdm))
 
         # Update success for next iteration
         success = true
@@ -1308,7 +1308,7 @@ end
 """
     `comp_tnull(BAM_PATH,GFF_PATH,FA_PATH,OUT_PATH)`
 
-Function that computes null dMMLs, dNME, and UC from a BAM files at locations given by GFF that
+Function that computes null Tmml, Tnme, and Tpdm from a BAM files at locations given by GFF that
 contains the windows with not genetic variants and a FASTA file that contains the reference genome.
 
 # Examples
@@ -1322,7 +1322,7 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,tobs_
                     n_null::Int64=1000,n_max::Int64=20,n_subset::Vector{Int64}=collect(1:n_max))
 
     # BigWig output files
-    dmml_path,dnme_path,uc_path = out_paths
+    dmml_path,dnme_path,pdm_path = out_paths
 
     # Find relevant chromosomes and sizes
     reader_fa = open(FASTA.Reader,fa,index=fa*".fai")
@@ -1352,7 +1352,7 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,tobs_
         # Print current N
         out_dmml = Vector{Tuple{Int64,Int64,Float64}}()
         out_dnme = Vector{Tuple{Int64,Int64,Float64}}()
-        out_uc = Vector{Tuple{Int64,Int64,Float64}}()
+        out_pdm = Vector{Tuple{Int64,Int64,Float64}}()
 
         # Screen all haplotypes for those with enough coverage
         print_log("Screening haplotypes ...")
@@ -1376,7 +1376,7 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,tobs_
                 print_log("Succesfully generated $(length(out_pmap)) null stats ...")
                 append!(out_dmml,map(stat->(ntot,kstar,stat[1]),out_pmap))
                 append!(out_dnme,map(stat->(ntot,kstar,stat[2]),out_pmap))
-                append!(out_uc,map(stat->(ntot,kstar,stat[3]),out_pmap))
+                append!(out_pdm,map(stat->(ntot,kstar,stat[3]),out_pmap))
             else
                 print_log("No null statistics computed in $(i)-th attempt ...")
             end
@@ -1395,12 +1395,12 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,tobs_
         # Add last to respective bedGraph file
         write_tnull(out_dmml,dmml_path)
         write_tnull(out_dnme,dnme_path)
-        write_tnull(out_uc,uc_path)
+        write_tnull(out_pdm,pdm_path)
 
     end # end N for loop
 
     # Sort files
-    sort_bedgraphs([dmml_path,dnme_path,uc_path])
+    sort_bedgraphs([dmml_path,dnme_path,pdm_path])
 
     # Print message
     print_log("Done with null statistics ...")
@@ -1428,13 +1428,13 @@ function comp_pvals_stat(tobs_path::Vector{String},tnull_path::String,p_path::St
     filesize(tnull_path)>0 || return nothing
     tnull = readdlm(tnull_path,'\t',Any)
 
-    # Consider case dMML/dNME VS UC
+    # Consider case Tmml/Tnme VS Tpdm
     if length(tobs_path)>1
-        # dMML/dNME. NOTE: both files need to have the same order of haplotypes!
+        # Tmml/Tnme. NOTE: both files need to have the same order of haplotypes!
         tobs = readdlm(tobs_path[1],'\t',Any)
         tobs[:,4] = abs.(tobs[:,4]-readdlm(tobs_path[2],'\t',Any)[:,4])
     else
-        # UC
+        # Tpdm
         tobs = readdlm(tobs_path[1],'\t',Any)
     end
 
@@ -1479,11 +1479,11 @@ function comp_pvals(tobs_path::Vector{String},tnull_path::Vector{String},p_path:
                     n_max::Int64,n_null::Int64)
 
     # Compute three sets of pvalues
-    print_log("Computing p-values dMML ...")
+    print_log("Computing p-values Tmml ...")
     comp_pvals_stat(tobs_path[1:2],tnull_path[1],p_path[1],n_max,n_null)
-    print_log("Computing p-values dNME ...")
+    print_log("Computing p-values Tnme ...")
     comp_pvals_stat(tobs_path[3:4],tnull_path[2],p_path[2],n_max,n_null)
-    print_log("Computing p-values UC ...")
+    print_log("Computing p-values Tpdm ...")
     comp_pvals_stat([tobs_path[5]],tnull_path[3],p_path[3],n_max,n_null)
     print_log("Done with p-values ...")
 
