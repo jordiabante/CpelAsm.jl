@@ -735,8 +735,8 @@ function get_outpaths(outdir::String,prefix::String)
 
     # Paths
     tobs_path = "$(outdir)/$(prefix)" .* ["_mml1","_mml2","_nme1","_nme2","_pdm"] .* ".bedGraph"
-    tnull_path = "$(outdir)/$(prefix)" .* ["_dmml_null","_dnme_null","_pdm_null"] .* ".bedGraph"
-    p_path = "$(outdir)/$(prefix)" .* ["_dmml_pvals","_dnme_pvals","_pdm_pvals"] .* ".bedGraph"
+    tnull_path = "$(outdir)/$(prefix)" .* ["_tmml_null","_tnme_null","_tpdm_null"] .* ".bedGraph"
+    p_path = "$(outdir)/$(prefix)" .* ["_tmml_pvals","_tnme_pvals","_tpdm_pvals"] .* ".bedGraph"
 
     # Return path for Tobs and Tnull
     return tobs_path,tnull_path,p_path
