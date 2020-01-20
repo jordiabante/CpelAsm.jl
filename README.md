@@ -1,6 +1,6 @@
 # <img src="./docs/src/assets/logo.png" width="30%" align="right" /> CpelAsm
 
-[![Build Status](https://github.com/jordiabante/CpelAsm.jl/workflows/CI/badge.svg)
+![Build Status](https://github.com/jordiabante/CpelAsm.jl/workflows/CI/badge.svg)
 [![MIT license](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/jordiabante/CpelAsm.jl/blob/master/LICENSE.md)
 [![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://jordiabante.github.io/CpelAsm.jl/dev/)
 
