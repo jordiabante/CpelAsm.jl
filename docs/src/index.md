@@ -1,6 +1,8 @@
 # CpelAsm
 
-[![Build Status](https://travis-ci.com/jordiabante/CpelAsm.jl.svg?token=XZfbD5CqoU7r1YJmmbNE&branch=master)](https://travis-ci.com/jordiabante/CpelAsm.jl)
+![Build Status](https://github.com/jordiabante/CpelAsm.jl/workflows/CI/badge.svg)
+[![MIT license](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/jordiabante/CpelAsm.jl/blob/master/LICENSE.md)
+[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://jordiabante.github.io/CpelAsm.jl/dev/)
 
 ## Description
 
