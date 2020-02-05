@@ -11,11 +11,15 @@ on the method in [CITE], that draws ideas from statistical physics and
 information theory to identify allele-specific methylation events at the
 haplotype level.
 
+## Testing
+
+CpelAsm is tested against Julia `1.3.0` on the latest versions of Linux, macOS and Windows.
+
 ## Getting Started
 
 ### Prerequisites
 
-* julia > v1.0.0
+* julia v1.3.0
 * git.
 
 ### Installing
@@ -29,7 +33,7 @@ julia -e 'using Pkg; Pkg.add(PackageSpec(url="https://github.com/jordiabante/Cpe
 
 In a `julia` session run
 ```julia
-(v1.0) pkg> test CpelAsm
+(v1.3) pkg> test CpelAsm
 ```
 
 ## Toy Example

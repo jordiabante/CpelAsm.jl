@@ -11,13 +11,13 @@ haplotype level.
 
 ## Testing
 
-CpelAsm is tested against Julia `1.X` on Linux and OS X.
+CpelAsm is tested against Julia `1.3.0` on the latest versions of Linux, macOS and Windows.
 
 ## Installation
 
 ### Prerequisites
 
-* julia > v1.0.0
+* julia v1.3.0
 * git.
 
 ### Command
@@ -31,7 +31,7 @@ julia -e 'using Pkg; Pkg.add(PackageSpec(url="https://github.com/jordiabante/Cpe
 
 In a `julia` session run
 ```julia
-(v1.0) pkg> test CpelAsm
+(v1.3) pkg> test CpelAsm
 ```
 
 ## Authors
