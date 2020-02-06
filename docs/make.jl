@@ -1,7 +1,14 @@
 using Documenter,CpelAsm
 
-makedocs(sitename="CpelAsm")
+makedocs(
+    sitename="CpelAsm",
+    pages = [
+        "Home"          => "index.md",
+        "Toy Example"   => "toy_example.md"
+    ],
+    authors = "Jordi Abante"
+)
 
 deploydocs(
-    repo = "github.com/USER_NAME/PACKAGE_NAME.jl.git",
+    repo = "github.com/jordiabante/CpelAsm.jl.git",
 )
