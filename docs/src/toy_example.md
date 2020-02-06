@@ -1,7 +1,5 @@
 # CpelAsm
 
-[![Build Status](https://travis-ci.com/jordiabante/CpelAsm.jl.svg?token=XZfbD5CqoU7r1YJmmbNE&branch=master)](https://travis-ci.com/jordiabante/CpelAsm.jl)
-
 ## Toy Example
 
 The package includes a small toy example for illustrative purposes.
