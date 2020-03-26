@@ -40,11 +40,6 @@ In a `julia` session run
 
 * **Jordi Abante**
 
-## License
-
-This project is licensed under the MIT License - see the [LICENSE.md](../../LICENSE.md)
-file for details.
-
 ## References
 [1] Abante, J., Fang, Y., Feinberg, A.P., Goutsias, J., Detection of haplotype-dependent 
 allele-speciﬁc DNA methylation in WGBS data, *Nature Communications* 2020 XYZ.
