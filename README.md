@@ -1,15 +1,15 @@
 # <img src="./docs/src/assets/logo.png" width="30%" align="right" /> CpelAsm
 
-![Build Status](https://github.com/jordiabante/CpelAsm.jl/workflows/CI/badge.svg)
+![CI](https://github.com/jordiabante/CpelAsm.jl/workflows/CI/badge.svg)
+![Docs](https://github.com/jordiabante/CpelAsm.jl/workflows/Docs/badge.svg)
 [![MIT license](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/jordiabante/CpelAsm.jl/blob/master/LICENSE.md)
-[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://jordiabante.github.io/CpelAsm.jl/dev/)
 
 ## Description
 
-CpelAsm is a julia package for haplotype allele-specific methylation, based
-on the method in [CITE], that draws ideas from statistical physics and
-information theory to identify allele-specific methylation events at the
-haplotype level.
+CpelAsm is a julia package especifically desgined for haplotype allele-specific 
+methylation based on the method in [1]. CpelAsm draws ideas from statistical 
+physics and information theory to detect allele-specific methylation imbalances 
+at the haplotype level.
 
 ## Testing
 
@@ -68,4 +68,5 @@ This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md
 file for details.
 
 ## References
-[CITE]
+[1] Abante, J., Fang, Y., Feinberg, A.P., Goutsias, J., Detection of haplotype-dependent 
+allele-speciﬁc DNA methylation in WGBS data, *Nature Communications* 2020 XYZ.

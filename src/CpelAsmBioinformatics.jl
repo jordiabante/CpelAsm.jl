@@ -788,7 +788,7 @@ end # end print_log
 """
     `proc_obs_hap()`
 
-Function that computes an observed dMML, dNME, and PDM given a homozygous haplotype.
+Function that computes observed MML, NME, and PDM for given a haplotype.
 
 # Examples
 ```julia-repl
@@ -1494,7 +1494,7 @@ end # end comp_pvals
 """
     `run_analysis(BAM1_PATH,BAM2_PATH,BAMU_PATH,VCF_PATH,FA_PATH,OUT_PATH)`
 
-Function that estimates MML1/2, NME1/2, and NMI on a pair of BAM files (allele 1, allele 2) given a
+Function that estimates MML1/2, NME1/2, and PDM on a pair of BAM files (allele 1, allele 2) given a
 (phased) VCF file that contains the heterozygous SNPs and a FASTA file that contains the reference
 genome. An empirical null distribution for each quantity is estimated from a set of representative
 homozygous regions from unassigned BAM records in BAMU_PATH. A p-value is computed for each
