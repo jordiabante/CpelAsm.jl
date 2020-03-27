@@ -308,6 +308,7 @@ julia> CpelAsm.is_het_cpg!(var,seq,h1,h2)
 ```
 """
 function is_het_cpg!(var::VCF.Record,seq::FASTA.Record,h1::Vector{Int64},h2::Vector{Int64})
+    
     # Initialize
     ref_var = join(VCF.ref(var))
     alt_var = join(VCF.alt(var))
@@ -1322,7 +1323,7 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,tobs_
                     n_null::Int64=1000,n_max::Int64=20,n_subset::Vector{Int64}=collect(1:n_max))
 
     # BigWig output files
-    dmml_path,dnme_path,pdm_path = out_paths
+    tmml_path,tnme_path,pdm_path = out_paths
 
     # Find relevant chromosomes and sizes
     reader_fa = open(FASTA.Reader,fa,index=fa*".fai")
@@ -1350,8 +1351,8 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,tobs_
         n = get_nvec_kstar(ntot,kstar)
 
         # Print current N
-        out_dmml = Vector{Tuple{Int64,Int64,Float64}}()
-        out_dnme = Vector{Tuple{Int64,Int64,Float64}}()
+        out_tmml = Vector{Tuple{Int64,Int64,Float64}}()
+        out_tnme = Vector{Tuple{Int64,Int64,Float64}}()
         out_pdm = Vector{Tuple{Int64,Int64,Float64}}()
 
         # Screen all haplotypes for those with enough coverage
@@ -1365,7 +1366,7 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,tobs_
         print_log("Sampling a total of $(n_null) null statistics for N=$(ntot) & K*=$(kstar) ...")
         print_log("Candidate haplotypes with N=$(ntot) are $(length(haps)) ...")
         i = 1
-        while length(out_dmml)<n_null
+        while length(out_tmml)<n_null
 
             # Process them in parallel
             out_pmap = vcat(pmap(hap->proc_null_hap(hap,ntot,bam,het_gff,hom_gff,fa,kstar,out_paths,
@@ -1374,8 +1375,8 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,tobs_
             # Save succesful runs
             if length(out_pmap)>0
                 print_log("Succesfully generated $(length(out_pmap)) null stats ...")
-                append!(out_dmml,map(stat->(ntot,kstar,stat[1]),out_pmap))
-                append!(out_dnme,map(stat->(ntot,kstar,stat[2]),out_pmap))
+                append!(out_tmml,map(stat->(ntot,kstar,stat[1]),out_pmap))
+                append!(out_tnme,map(stat->(ntot,kstar,stat[2]),out_pmap))
                 append!(out_pdm,map(stat->(ntot,kstar,stat[3]),out_pmap))
             else
                 print_log("No null statistics computed in $(i)-th attempt ...")
@@ -1393,14 +1394,14 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,tobs_
         end
 
         # Add last to respective bedGraph file
-        write_tnull(out_dmml,dmml_path)
-        write_tnull(out_dnme,dnme_path)
+        write_tnull(out_tmml,tmml_path)
+        write_tnull(out_tnme,tnme_path)
         write_tnull(out_pdm,pdm_path)
 
     end # end N for loop
 
     # Sort files
-    sort_bedgraphs([dmml_path,dnme_path,pdm_path])
+    sort_bedgraphs([tmml_path,tnme_path,pdm_path])
 
     # Print message
     print_log("Done with null statistics ...")
