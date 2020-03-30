@@ -28,10 +28,10 @@ state vector of size `[N1,...,NK]` and parameters `[α1,...,αK]` and `β`.
 ```julia-repl
 julia> CpelAsm.comp_ex([4],[0.0],0.0)
 4-element Array{Float64,1}:
-0.5
-0.5
-0.5
-0.5
+ 0.0
+ 0.0
+ 0.0
+ 0.0
 ```
 """
 function comp_ex(n::Vector{Int64},a::Vector{Float64},b::Float64)::Vector{Float64}
@@ -88,7 +88,8 @@ homozygous since it can compute MML over a subset of CpG sites.
 
 # Examples
 ```julia-repl
-julia> ex=CpelAsm.comp_ex([4],[0.0],0.0); CpelAsm.comp_mml(trues(4),ex)
+julia> ex=CpelAsm.comp_ex([4],[0.0],0.0); 
+julia> CpelAsm.comp_mml(trues(4),ex)
 0.5
 ```
 """
@@ -110,7 +111,7 @@ only used when all CpG sites are homozygous.
 julia> n=[1,1,1]; θ=[1.0,-1.0,1.0,0.0];
 julia> ∇logZ = CpelAsm.get_grad_logZ(n,θ);
 julia> CpelAsm.comp_mml_∇(n,∇logZ)
-0.66584246
+0.62693236
 ```
 """
 function comp_mml_∇(n::Vector{Int64},∇logZ::Vector{Float64})::Float64
@@ -128,11 +129,8 @@ allele-specific vector with [N1,...,NK] CpG sites, with parameters [α1,...,αK]
 
 # Examples
 ```julia-repl
-julia> n=[10]
-julia> z=trues(10);z[5]=false
-julia> a=[0.0]
-julia> b=0.0
-julia> CpelAsm.comp_exlng(z,n,a,b)
+julia> n=[10]; z=trues(10); z[5]=false; α=[0.0]; β=0.0;
+julia> CpelAsm.comp_exlng(z,n,α,β)
 0.6931471805599452
 ```
 """
@@ -199,8 +197,8 @@ sites are homozygous since it can compute NME over a subset of CpG sites.
 
 # Examples
 ```julia-repl
-julia> n=[10];z=trues(sum(n));z[5]=false;a=[0.0];b=0.0;θ=vcat([a,b]...);
-julia> CpelAsm.comp_nme(z,n,a,b,CpelAsm.comp_ex(n,a,b),CpelAsm.comp_exx(n,a,b))
+julia> n=[10]; z=trues(sum(n)); z[5]=false; α=[0.0]; β=0.0;
+julia> CpelAsm.comp_nme(z,n,α,β,CpelAsm.comp_ex(n,α,β),CpelAsm.comp_exx(n,α,β))
 1.0
 ```
 """
@@ -235,7 +233,7 @@ sites. This function is only used when all CpG sites are homozygous.
 
 # Examples
 ```julia-repl
-julia> n=[4]; a=[0.0]; b=0.0; θ=vcat([a,b]...); ∇logZ=CpelAsm.get_grad_logZ(n,θ);
+julia> n=[4]; α=[0.0]; β=0.0; θ=vcat([α,β]...); ∇logZ=CpelAsm.get_grad_logZ(n,θ);
 julia> CpelAsm.comp_nme_∇(n,θ,∇logZ)
 1.0
 ```
@@ -254,7 +252,14 @@ Function that generates a methylation vector from an Ising model with `[N1,...,N
 
 # Examples
 ```julia-repl
+julia> Random.seed!(1234);
 julia> CpelAsm.gen_x_mc([5],[0.0],0.0)
+5-element Array{Int64,1}:
+  1
+  1
+  1
+ -1
+  1
 ```
 """
 function gen_x_mc(n::Vector{Int64},a::Vector{Float64},b::Float64)::Vector{Int64}
@@ -303,11 +308,11 @@ by binary vector Z (i.e., via Hadamard product Z*X, where * is the Hadamard prod
 
 # Examples
 ```julia-repl
-julia> n1=[10]; n2=[10];
-julia> z1=trues(sum(n1)); z2=trues(sum(n2));
-julia> a1=[2.0]; b1=1.0; a2=[-2.0]; b2=1.0;
-julia> CpelAsm.comp_nme_mix_mc(z1,z2,n1,n2,vcat(a1,b1),vcat(a2,b2))
-0.0
+julia> Random.seed!(1234);
+julia> α1=[0.0]; β1=0.0; α2=[1.0]; β2=1.0;
+julia> n1=[10]; n2=[10]; z1=trues(sum(n1)); z2=trues(sum(n2));
+julia> CpelAsm.comp_nme_mix_mc(z1,z2,n1,n2,vcat(α1,β1),vcat(α2,β2))
+0.6278665195419888
 ```
 """
 function comp_nme_mix_mc(z1::BitArray{1},z2::BitArray{1},n1::Vector{Int64},n2::Vector{Int64},
@@ -349,10 +354,10 @@ traversing 𝒳h.
 # Examples
 ```julia-repl
 julia> n1=[10]; n2=[10];
+julia> α1=[0.0]; β1=0.0; α2=[1.0]; β2=1.0;
 julia> z1=trues(sum(n1)); z2=trues(sum(n2));
-julia> a1=[2.0]; b1=1.0; a2=[-2.0]; b2=1.0;
-julia> CpelAsm.comp_nme_mix_exact(z1,z2,n1,n2,vcat(a1,b1),vcat(a2,b2))
-0.1087021260719882
+julia> CpelAsm.comp_nme_mix_exact(z1,z2,n1,n2,vcat(α1,β1),vcat(α2,β2))
+0.6239489595165986
 ```
 """
 function comp_nme_mix_exact(z1::BitArray{1},z2::BitArray{1},n1::Vector{Int64},n2::Vector{Int64},
@@ -390,13 +395,13 @@ vector Z (i.e., via Hadamard product Z*X, where * is the Hadamard product).
 
 # Examples
 ```julia-repl
-julia> n1=[10]; n2=[10]
-julia> z1=trues(sum(n1)); z2=trues(sum(n2))
-julia> a1=[2.0]; a2=[-2.0]; b1=0.0; b2=0.0
-julia> h1=CpelAsm.comp_nme(z1,n1,a1,b1,CpelAsm.comp_ex(n1,a1,b1),CpelAsm.comp_exx(n1,a1,b1))
-julia> h2=CpelAsm.comp_nme(z2,n2,a2,b2,CpelAsm.comp_ex(n2,a2,b2),CpelAsm.comp_exx(n2,a2,b2))
-julia> CpelAsm.comp_pdm(z1,z2,n1,n2,vcat(a1,b1),vcat(a2,b2),h1,h2)
-1.0
+julia> n1=[10]; n2=[10];
+julia> z1=trues(sum(n1)); z2=trues(sum(n2));
+julia> α1=[2.5]; α2=[-2.5]; β1=0.0; β2=0.0;
+julia> h1=CpelAsm.comp_nme(z1,n1,α1,β1,CpelAsm.comp_ex(n1,α1,β1),CpelAsm.comp_exx(n1,α1,β1));
+julia> h2=CpelAsm.comp_nme(z2,n2,α2,β2,CpelAsm.comp_ex(n2,α2,β2),CpelAsm.comp_exx(n2,α2,β2));
+julia> CpelAsm.comp_pdm(z1,z2,n1,n2,vcat(α1,β1),vcat(α2,β2),h1,h2)
+0.63304398
 ```
 """
 function comp_pdm(z1::BitArray{1},z2::BitArray{1},n1::Vector{Int64},n2::Vector{Int64},
@@ -448,7 +453,7 @@ first order moments E[X] and second order moments E[XX].
 julia> CpelAsm.comp_corr(CpelAsm.comp_ex([4],[0.0],0.0),CpelAsm.comp_exx([4],[0.0],0.0))
 3-element Array{Float64,1}:
  0.0
- 8.881784197001252e-16
+ 0.0
  0.0
 ```
 """
@@ -470,14 +475,15 @@ Function that returns the covariance matrix of a methylation vector given the `[
 
 # Examples
 ```julia-repl
-julia> ex = CpelAsm.comp_ex([4],[0.0],0.0)
-julia> exx = CpelAsm.comp_exx([4],[0.0],0.0)
-julia> CpelAsm.comp_cov([4],[0.0],0.0,ex,exx)
+julia> n=[4]; α=[1.0]; β=1.0;
+julia> ex = CpelAsm.comp_ex(n,α,β);
+julia> exx = CpelAsm.comp_exx(n,α,β);
+julia> CpelAsm.comp_cov(n,α,β,ex,exx)
 4×4 Array{Float64,2}:
- 1.0          0.0          2.22045e-16  0.0
- 0.0          1.0          2.22045e-16  2.22045e-16
- 2.22045e-16  2.22045e-16  1.0          0.0
- 0.0          2.22045e-16  0.0          1.0
+ 0.419974     0.0          4.44089e-16  3.33067e-16
+ 0.0          0.419974     1.11022e-16  4.44089e-16
+ 4.44089e-16  1.11022e-16  0.419974     0.0
+ 3.33067e-16  4.44089e-16  0.0          0.419974
 ```
 """
 function comp_cov(n::Vector{Int64},a::Vector{Float64},b::Float64,ex::Vector{Float64},
@@ -512,19 +518,21 @@ end # end comp_cov
     `comp_evec(Σ)`
 
 Function that returns the eigenvector associated with the largest eigenvalue of the covariance
-matrix Σ.
+matrix Σ. The components of the vector with the largest magnitude highlight the CpG sites in the
+region with the largest amount of variability.
 
 # Examples
 ```julia-repl
-julia> ex = CpelAsm.comp_ex([4],[0.0],0.0);
-julia> exx = CpelAsm.comp_exx([4],[0.0],0.0);
-julia> cov = CpelAsm.comp_cov([4],[0.0],0.0,ex,exx);
-julia> CpelAsm.comp_evec(cov)
+julia> n=[4]; α=[1.0]; β=1.0;
+julia> ex = CpelAsm.comp_ex(n,α,β);
+julia> exx = CpelAsm.comp_exx(n,α,β);
+julia> Σ = CpelAsm.comp_cov(n,α,β,ex,exx);
+julia> CpelAsm.comp_evec(Σ)
 4-element Array{Float64,1}:
- 0.0
- 0.0
- 0.0
- 1.0
+ 0.6867257391267225
+ 0.16854601514378278
+ 0.16854601514379314
+ 0.6867257391267322
 ```
 """
 function comp_evec(cov::Array{Float64,2})::Vector{Float64}
@@ -534,33 +542,8 @@ function comp_evec(cov::Array{Float64,2})::Vector{Float64}
 
 end # end comp_evec
 ###################################################################################################
-# VERIFICATION FUNCTIONS (UNUSED)
+# VERIFICATION FUNCTIONS (NOT USED)
 ###################################################################################################
-"""
-    `comp_Z_xcal([N1,...,NK],[α1,...,αK],β)`
-
-Function that computes the partition function computed recursively over 𝒳.
-
-# Examples
-```julia-repl
-julia> n=[4]; a=[0.0]; b=0.0;
-julia> CpelAsm.comp_Z_xcal(n,a,b)
-16.0
-```
-"""
-function comp_Z_xcal(n::Vector{Int64},a::Vector{Float64},b::Float64)::Float64
-
-    # Loop over 𝒳h
-    Z = 0.0
-    xcal = generate_xcal(sum(n))
-    @inbounds for x in xcal
-        Z += exp(-)
-    end
-
-    # Return
-    return Z
-
-end # end comp_Z_xcal
 """
     `comp_nme_xcal(Z,[N1,...,NK],[α1,...,αK],β,EX,EXX)`
 
@@ -571,8 +554,8 @@ is determined by binary vector Z (i.e., via Hadamard product Z*X, where * is the
 
 # Examples
 ```julia-repl
-julia> n=[10]; z=trues(sum(n)); a=[0.0]; b=0.0;
-julia> CpelAsm.comp_nme_xcal(z,n,a,b)
+julia> n=[10]; z=trues(sum(n)); α=[0.0]; β=0.0;
+julia> CpelAsm.comp_nme_xcal(z,n,α,β)
 1.0
 ```
 """
@@ -604,11 +587,11 @@ vector Z (i.e., via Hadamard product Z*X, where * is the Hadamard product).
 
 # Examples
 ```julia-repl
-julia> n1=[10]; n2=[10]
-julia> z1=trues(sum(n1)); z2=trues(sum(n2))
-julia> theta1=[2.0,0.0]; theta2=[-2.0,0.0]
-julia> CpelAsm.comp_pdm_xcal(z1,z2,n1,n2,theta1,theta2)
-1.0
+julia> n1=[10]; n2=[10];
+julia> z1=trues(sum(n1)); z2=trues(sum(n2));
+julia> θ1=[2.0,0.0]; θ2=[-2.0,0.0];
+julia> CpelAsm.comp_pdm_xcal(z1,z2,n1,n2,θ1,θ2)
+0.43482166257188215
 ```
 """
 function comp_pdm_xcal(z1::BitArray{1},z2::BitArray{1},n1::Vector{Int64},n2::Vector{Int64},
@@ -650,10 +633,6 @@ end # end comp_pdm_xcal
 Function that returns likelihood vector of XOBS, potentially partial, given parameter vector θ for
 the non-parametric independent model (binomial).
 
-# Examples
-```julia-repl
-julia>
-```
 """
 function comp_lkhd_bin(xobs::Array{Vector{Int64},1},θ::Vector{Float64})::Vector{Float64}
 
@@ -667,10 +646,6 @@ end # end comp_lkhd_bin
 Function that returns likelihood vector of XOBS, assuming full data, given parameter vector θ for
 the non-parametric dependent model (multinomial).
 
-# Examples
-```julia-repl
-julia>
-```
 """
 function comp_lkhd_mult(xobs::Array{Vector{Int64},1},θ::Vector{Float64})::Vector{Float64}
 

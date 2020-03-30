@@ -708,7 +708,9 @@ Function returns the average coverage per CpG given some observations `XOBS` per
 ```julia-repl
 julia> n=[1,1]; xobs=[[1,-1] for i=1:10]; append!(xobs,[[1,0] for i=1:10]);
 julia> CpelAsm.mean_cov_sr(xobs,n)
-15.0
+2-element Array{Float64,1}:
+ 20.0
+ 10.0
 ```
 """
 function mean_cov_sr(xobs::Array{Vector{Int64},1},n::Vector{Int64})::Vector{Float64}
@@ -772,7 +774,7 @@ Function that prints MESSAGE to stderr.
 # Examples
 ```julia-repl
 julia> CpelAsm.print_log("Hello")
-Hello
+[2020-03-30 16:24:18]: Hello
 ```
 """
 function print_log(mess::String)
@@ -787,13 +789,12 @@ function print_log(mess::String)
 
 end # end print_log
 """
-    `proc_obs_hap()`
+    `proc_obs_hap(HAP,CHR,CHR_SIZE,BAM1,BAM2,GFF,FA,OUT_PATHS,PE,GMAX,COV_THS,TRIM)`
 
 Function that computes observed MML, NME, and PDM for given a haplotype.
 
-# Examples
 ```julia-repl
-julia> proc_obs_hap()
+julia> proc_obs_hap(HAP,CHR,CHR_SIZE,BAM1,BAM2,GFF,FA,OUT_PATHS,PE,GMAX,COV_THS,TRIM)
 ```
 """
 function proc_obs_hap(hap::GFF3.Record,chr::String,chr_size::Int64,bam1::String,bam2::String,
@@ -1100,6 +1101,7 @@ Function that returns vector n with Ntot CpG sites divided into Kstar subregions
 
 # Examples
 ```julia-repl
+julia> Random.seed!(1234)
 julia> CpelAsm.get_nvec_kstar(10,4)
 4-element Array{Int64,1}:
  3
@@ -1239,13 +1241,13 @@ function swap_pair(xobs1::Vector{Vector{Int64}},xobs2::Vector{Vector{Int64}})::T
 
 end # end swap_pair
 """
-    `proc_null_hap()`
+    `proc_null_hap(HAP,NTOT,BAM,HET_GFF,HOM_GFF,FA,KSTAR,OUT_PATHS,PE,GMAX,COV_THS,COV_A,COV_B,TRIM,NNULL,NMAX,NSUBSET,CHR_DICT)`
 
 Function that computes a null Tmml, Tnme, and Tpdm given a homozygous haplotype.
 
 # Examples
 ```julia-repl
-julia> proc_null_hap()
+julia> proc_null_hap(HAP,NTOT,BAM,HET_GFF,HOM_GFF,FA,KSTAR,OUT_PATHS,PE,GMAX,COV_THS,COV_A,COV_B,TRIM,NNULL,NMAX,NSUBSET,CHR_DICT)
 ```
 """
 function proc_null_hap(hap::GFF3.Record,ntot::Int64,bam::String,het_gff::String,hom_gff::String,
@@ -1509,13 +1511,13 @@ julia> run_analysis(BAM1_PATH,BAM2_PATH,BAMU_PATH,VCF_PATH,FA_PATH,OUT_PATH)
 function run_analysis(bam1::String,bam2::String,bamu::String,vcf::String,fa::String,outdir::String;
                       pe::Bool=true,g_max::Int64=300,win_exp::Int64=100,cov_ths::Int64=5,
                       cov_a::Float64=0.0,cov_b::Float64=1.0,trim::NTuple{4,Int64}=(0,0,0,0),
-                      n_null::Int64=5000,n_max::Int64=25,n_subset::Vector{Int64}=collect(1:n_max))
+                      n_null::Int64=1000,n_max::Int64=25,n_subset::Vector{Int64}=collect(1:n_max))
 
     # Print initialization of juliASM
     print_log("Starting CpelAsm analysis ...")
 
     # Check index files exist
-    if !(isfile.(bam1*".bai",bam1*".bai",fa*".fai"))
+    if !(isfile.(bam1*".bai",bam2*".bai",bamu*".bai",fa*".fai"))
         print_log("Index files for BAM or FASTA missing. Exiting julia ...")
         exit(1)
     end

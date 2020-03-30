@@ -14,7 +14,7 @@ parameters [α1,...,αK], and correlation β.
 
 # Examples
 ```julia-repl
-julia> Ux_fun = CpelAsm.create_Ux([2,2],[1.0,1.0],1.0)
+julia> Ux_fun = CpelAsm.create_Ux([2,2],[1.0,1.0],1.0);
 julia> Ux_fun([1,1,1,1])
 -7.0
 ```
@@ -43,9 +43,9 @@ assuming α and β.
 # Examples
 ```julia-repl
 julia> CpelAsm.get_W(4,0.0,0.0)
-2×2 Array{Int64,2}:
- 4  4
- 4  4
+2×2 Array{Float64,2}:
+ 4.0  4.0
+ 4.0  4.0
 ```
 """
 function get_W(n::Int64, a::Float64, b::Float64)::Array{Float64,2}
@@ -84,6 +84,9 @@ Function that returns V matrix assuming [α1,α2] and β.
 # Examples
 ```julia-repl
 julia> CpelAsm.get_V([1.0,1.0],1.0)
+2×2 Array{Float64,2}:
+ 1.0       0.367879
+ 0.367879  7.38906
 ```
 """
 function get_V(a::Vector{Float64},b::Float64)::Array{Float64,2}
@@ -147,17 +150,18 @@ end
 """
     `get_grad_logZ([N1,...,NK],θhat)`
 
-Computes expected value of sufficient statistis (SS) of a model with [N1,...,NK] CpG cites and
-estimated parameter vector θhat, and normalizes it so as to be ∈[0,1]. In other words, vector of
-MML where each component is the MML in the respective subregion.
+Numerically computes the gradient of the log partition function of a model with [N1,...,NK] 
+CpG cites and estimated parameter vector θhat. This is equivalent to computing the expected 
+value of sufficient statistis (SS).
 
 # Examples
 ```julia-repl
 julia> CpelAsm.get_grad_logZ([1,1,1],[1.0,-1.0,1.0,0.0])
-3-element Array{Float64,1}:
- 0.8807970779851251
- 0.11920292201487487
- 0.8807970779667909
+4-element Array{Float64,1}:
+  0.7615941559702503
+ -0.7615941559702503
+  0.7615941559335818
+ -1.1600513167692226
 ```
 """
 function get_grad_logZ(n::Vector{Int64},θhat::Vector{Float64})::Vector{Float64}
@@ -172,55 +176,6 @@ function get_grad_logZ(n::Vector{Int64},θhat::Vector{Float64})::Vector{Float64}
 
 end
 """
-    `get_fim([N1,...,NK],θhat)`
-
-Estimate Fisher information matrix of a model with [N1,...,NK] CpG cites and evaluated at estimated
-parameter vector θhat.
-
-# Examples
-```julia-repl
-julia> CpelAsm.get_fim([1,1,1],[1.0,1.0,1.0,1.0])
-4×4 Array{Float64,2}:
- 155.371  148.363  143.026  295.454
- 148.363  155.371  148.363  296.727
- 143.026  148.363  155.371  295.454
- 295.454  296.727  295.454  596.795
-```
-"""
-function get_fim(n::Vector{Int64},θhat::Vector{Float64})::Array{Float64,2}
-
-    # Define function
-    function f(θ::Vector{Float64})
-        log(comp_Z(n,θ[1:(end-1)],θ[end]))
-    end
-
-    # Return I(θ)
-    return Calculus.hessian(f,θhat)
-
-end
-"""
-    `keep_region(M,[N1,...,NK],θhat)`
-
-Function that returns a bool indicating whether model with [N1,...,NK] CpG cites and with parameter
-estimate vector θhat, from M observations, should be kept for downstream analysis.
-
-# Examples
-```julia-repl
-julia> CpelAsm.keep_region(10,[1,1,1],[1.0,1.0,1.0,1.0])
-true
-```
-"""
-function keep_region(m::Int64,n::Vector{Int64},θhat::Vector{Float64})::Bool
-
-    # Compute FIM considering special case N=1
-    fim = sum(n)==1 ? 1-(tanh(θhat[1]))^2 : get_fim(n,θhat)
-    sum(n)==1 && return 4.0/sqrt(fim*m)<=CI_THRESH
-
-    # Return true if all CIs are below threshold width
-    return det(fim)!=0 ? all(4*sqrt.(max.(0.0,diag(inv(fim)))/m).<=CI_THRESH) : false
-
-end
-"""
     `check_boundary(θhat)`
 
 Function that returns a bool indicating whether model with parameter estimate vector θhat is on the
@@ -230,6 +185,8 @@ boundary of the parameter space in any of its components.
 ```julia-repl
 julia> CpelAsm.check_boundary([1.0,1.0,1.0,1.0])
 false
+julia> CpelAsm.check_boundary([1.0,5.0,1.0,1.0])
+true
 ```
 """
 function check_boundary(θhat::Vector{Float64})::Bool
@@ -328,9 +285,11 @@ the M partial observations XOBS.
 
 # Examples
 ```julia-repl
-julia> n=[2,2]
+julia> n=[2,2];
 julia> xobs=CpelAsm.gen_ising_full_data(20,n);
-julia> LogLike=CpelAsm.create_Llkhd(n,xobs)
+julia> LogLike=CpelAsm.create_Llkhd(n,xobs);
+julia> LogLike([0.0,0.0,0.0])
+55.45177444479562
 ```
 """
 function create_Llkhd(n::Vector{Int64},xobs::Array{Vector{Int64},1})
@@ -392,14 +351,17 @@ end # end create_Llkhd
 """
     `est_alpha(XOBS)`
 
-Estimate parameter α in N=1 case.
+Estimate parameter α in N=1 case (first entry in returned vector).
 
 # Examples
 ```julia-repl
 julia> Random.seed!(1234);
-julia> xobs=CpelAsm.gen_ising_full_data(100,1);
+julia> n=[1];
+julia> xobs=CpelAsm.gen_ising_full_data(100,n);
 julia> CpelAsm.est_alpha(xobs)
--0.020002667306849575
+2-element Array{Float64,1}:
+ -0.020002667306849575
+  0.0
 ```
 """
 function est_alpha(xobs::Array{Vector{Int64},1})::Vector{Float64}
@@ -418,7 +380,7 @@ end # end est_alpha
 """
     `est_theta_sa([N1,...,NK],XOBS)`
 
-Estimate parameter vector η=[α1,...,αK,β] using simulated annealing.
+Estimate parameter vector [α1,...,αK,β] using simulated annealing.
 
 # Examples
 ```julia-repl
@@ -426,10 +388,9 @@ julia> Random.seed!(1234);
 julia> n=[4]
 julia> xobs=CpelAsm.gen_ising_full_data(100,n);
 julia> CpelAsm.est_theta_sa(n,xobs)
-3-element Vector{Float64}:
- -0.05232269932606823
-  0.009316690953631898
- -0.047507839311720854
+2-element Vector{Float64}:
+ -0.051768715945913854
+ -0.022598858872278995
 ```
 """
 function est_theta_sa(n::Vector{Int64},xobs::Array{Vector{Int64},1})::Vector{Float64}
@@ -451,6 +412,195 @@ function est_theta_sa(n::Vector{Int64},xobs::Array{Vector{Int64},1})::Vector{Flo
     return optim.minimizer
 
 end # end est_theta_sa
+###################################################################################################
+# COMPETING MODELS
+###################################################################################################
+"""
+    `mle_mult(XOBS)`
+
+Estimate parameter vector p=[p_1,...,p_{2^N}] based on a multinomial model and full observations.
+
+# Examples
+```julia-repl
+julia> Random.seed!(1234);
+julia> xobs=CpelAsm.gen_mult_full_data(100);
+julia> CpelAsm.mle_mult(xobs)
+16-element Vector{Float64}:
+ 0.07
+ 0.08
+ 0.06
+ 0.06
+ 0.08
+ 0.08
+ 0.04
+ 0.05
+ 0.04
+ 0.07
+ 0.07
+ 0.02
+ 0.04
+ 0.12
+ 0.07
+ 0.05
+```
+"""
+function mle_mult(xobs::Array{Vector{Int64},1})::Vector{Float64}
+
+    # Get xcal
+    N = size(xobs[1])[1]
+    xcal = generate_xcal(N)
+
+    # Get empirical estimates
+    phat = zeros(Float64,2^N)
+    for x in xobs
+        phat[findfirst(y-> x==y, xcal)] += 1
+    end
+    phat = phat ./ sum(phat)
+
+    # Return phat
+    return phat
+
+end # end mle_mult
+"""
+    `mle_bin_semi(XOBS)`
+
+Estimate parameter vector `p=[p_1,...,p_{N}]`, based on a binomial model that assumes a different
+probability of methylation at each CpG site, from potentially partial observations. This results
+in a semi-parametric model that grows in size proportionally to the number of CpG sites.
+
+# Examples
+```julia-repl
+julia> Random.seed!(1234);
+julia> xobs=CpelAsm.gen_mult_full_data(100);
+julia> CpelAsm.mle_bin_semi(xobs)
+4-element Array{Float64,1}:
+ 0.49
+ 0.51
+ 0.46
+ 0.44
+```
+"""
+function mle_bin_semi(xobs::Array{Vector{Int64},1})::Vector{Float64}
+
+    # Get xcal
+    N = size(xobs[1])[1]
+
+    # Get empirical estimate
+    θ = [length(findall(x->x[i]==1,xobs)) / (length(findall(x->x[i]==1,xobs))+
+         length(findall(x->x[i]==-1,xobs))) for i in 1:N]
+
+    # Return phat
+    return θ
+
+end # end mle_bin_semi
+"""
+    `mle_bin_param(XOBS)`
+
+Estimate parameter vector `p=[p_1,...,p_{2^N}]` based on a binomial model
+that assumes that each CpG site has the same probability of being methylated,
+as well as fully observed vectors. This results in a parametric model that does
+not grow with the number of CpG sites considered.
+
+# Examples
+```julia-repl
+julia> Random.seed!(1234);
+julia> xobs=CpelAsm.gen_mult_full_data(100);
+julia> CpelAsm.mle_bin_param(xobs)
+16-element Array{Float64,1}:
+ 0.07596914062500001
+ 0.068733984375
+ 0.068733984375
+ 0.062187890625
+ 0.068733984375
+ 0.062187890625
+ 0.062187890625
+ 0.056265234374999994
+ 0.068733984375
+ 0.062187890625
+ 0.062187890625
+ 0.056265234374999994
+ 0.062187890625
+ 0.056265234374999994
+ 0.056265234374999994
+ 0.05090664062499999
+```
+"""
+function mle_bin_param(xobs::Array{Vector{Int64},1})::Vector{Float64}
+
+    # Get xcal
+    N = size(xobs[1])[1]
+    M = length(xobs)
+    xcal = generate_xcal(N)
+
+    # Get empirical estimates θ=[θ_1,...,θ_N]
+    θ = sum([length(findall(x->x==1,x)) / N for x in xobs]) / M
+
+    # Compute probabilities of each pattern
+    i = 1
+    phat = zeros(Float64,2^N)
+    for x in xcal
+        k = length(findall(y->y==1,x))
+        phat[i] = θ^(k) * (1-θ)^(N-k)
+        i+=1
+    end
+
+    # Return phat
+    return phat
+
+end # end mle_bin_param
+###################################################################################################
+# NOT CURRENTLY USED (EM Algorithm)
+###################################################################################################
+"""
+    `keep_region(M,[N1,...,NK],θhat)`
+
+Function that returns a bool indicating whether model with [N1,...,NK] CpG cites and with parameter
+estimate vector θhat, from M observations, should be kept for downstream analysis. Not currently 
+used.
+
+# Examples
+```julia-repl
+julia> CpelAsm.keep_region(10,[1,1,1],[1.0,1.0,1.0,1.0])
+false
+```
+"""
+function keep_region(m::Int64,n::Vector{Int64},θhat::Vector{Float64})::Bool
+
+    # Compute FIM considering special case N=1
+    fim = sum(n)==1 ? 1-(tanh(θhat[1]))^2 : get_fim(n,θhat)
+    sum(n)==1 && return 4.0/sqrt(fim*m)<=CI_THRESH
+
+    # Return true if all CIs are below threshold width
+    return det(fim)!=0 ? all(4*sqrt.(max.(0.0,diag(inv(fim)))/m).<=CI_THRESH) : false
+
+end
+"""
+    `get_fim([N1,...,NK],θhat)`
+
+Estimate Fisher information matrix of a model with [N1,...,NK] CpG cites and evaluated at estimated
+parameter vector θhat.
+
+# Examples
+```julia-repl
+julia> CpelAsm.get_fim([1,1,1],[1.0,-1.0,1.0,0.0])
+4×4 Array{Float64,2}:
+  0.419975    -3.02772e-6  -3.02772e-6  -0.319849
+ -3.02772e-6   0.419978     0.0          0.639701
+ -3.02772e-6   0.0          0.419975    -0.319852
+ -0.319849     0.639701    -0.319852     1.8143
+```
+"""
+function get_fim(n::Vector{Int64},θhat::Vector{Float64})::Array{Float64,2}
+
+    # Define function
+    function f(θ::Vector{Float64})
+        log(comp_Z(n,θ[1:(end-1)],θ[end]))
+    end
+
+    # Return I(θ)
+    return Calculus.hessian(f,θhat)
+
+end
 """
     `comp_ES(𝑋,[N1,...,N_K],θ)`
 
@@ -667,134 +817,3 @@ function est_theta_em(n::Vector{Int64},xobs::Array{Vector{Int64},1})::Tuple{Vect
     return (θhat,convergence)
 
 end # end est_theta_em
-###################################################################################################
-# COMPETING MODELS
-###################################################################################################
-"""
-    `mle_mult(XOBS)`
-
-Estimate parameter vector p=[p_1,...,p_{2^N}] based on a multinomial model and full observations.
-
-# Examples
-```julia-repl
-julia> Random.seed!(1234);
-julia> xobs=CpelAsm.gen_mult_full_data(100);
-julia> CpelAsm.mle_mult(xobs)
-16-element Vector{Float64}:
- 0.07
- 0.08
- 0.06
- 0.06
- 0.08
- 0.08
- 0.04
- 0.05
- 0.04
- 0.07
- 0.07
- 0.02
- 0.04
- 0.12
- 0.07
- 0.05
-```
-"""
-function mle_mult(xobs::Array{Vector{Int64},1})::Vector{Float64}
-
-    # Get xcal
-    N = size(xobs[1])[1]
-    xcal = generate_xcal(N)
-
-    # Get empirical estimates
-    phat = zeros(Float64,2^N)
-    for x in xobs
-        phat[findfirst(y-> x==y, xcal)] += 1
-    end
-    phat = phat ./ sum(phat)
-
-    # Return phat
-    return phat
-
-end # end mle_mult
-"""
-    `mle_bin_semi(XOBS)`
-
-Estimate parameter vector `p=[p_1,...,p_{N}]`, based on a binomial model that assumes a different
-probability of methylation at each CpG site, from potentially partial observations. This results
-in a semi-parametric model that grows in size proportionally to the number of CpG sites.
-
-# Examples
-```julia-repl
-julia> Random.seed!(1234);
-julia> xobs=CpelAsm.gen_mult_full_data(100);
-julia> CpelAsm.mle_bin_semi(xobs)
-```
-"""
-function mle_bin_semi(xobs::Array{Vector{Int64},1})::Vector{Float64}
-
-    # Get xcal
-    N = size(xobs[1])[1]
-
-    # Get empirical estimate
-    θ = [length(findall(x->x[i]==1,xobs)) / (length(findall(x->x[i]==1,xobs))+
-         length(findall(x->x[i]==-1,xobs))) for i in 1:N]
-
-    # Return phat
-    return θ
-
-end # end mle_bin_semi
-"""
-    `mle_bin_param(XOBS)`
-
-Estimate parameter vector `p=[p_1,...,p_{2^N}]` based on a binomial model
-that assumes that each CpG site has the same probability of being methylated,
-as well as fully observed vectors. This results in a parametric model that does
-not grow with the number of CpG sites considered.
-
-# Examples
-```julia-repl
-julia> Random.seed!(1234);
-julia> xobs=CpelAsm.gen_mult_full_data(100);
-julia> CpelAsm.mle_bin_param(xobs)
-16-element Vector{Float64}:
- 0.06765201
- 0.06499899
- 0.06499899
- 0.06245000999999999
- 0.06499899
- 0.06245000999999999
- 0.06245000999999999
- 0.06000099
- 0.06499899
- 0.06245000999999999
- 0.06245000999999999
- 0.06000099
- 0.06245000999999999
- 0.06000099
- 0.06000099
- 0.05764800999999999
-```
-"""
-function mle_bin_param(xobs::Array{Vector{Int64},1})::Vector{Float64}
-
-    # Get xcal
-    N = size(xobs[1])[1]
-    M = length(xobs)
-    xcal = generate_xcal(N)
-
-    # Get empirical estimates θ=[θ_1,...,θ_N]
-    θ = sum([length(findall(x->x==1,x)) / N for x in xobs]) / M
-
-    # Compute probabilities of each pattern
-    i = 1
-    phat = zeros(Float64,2^N)
-    for x in xcal
-        k = length(findall(y->y==1,x))
-        phat[i] = θ^(k) * (1-θ)^(N-k)
-        i+=1
-    end
-
-    # Return phat
-    return phat
-
-end # end mle_bin_param
