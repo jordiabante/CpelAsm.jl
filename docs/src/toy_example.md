@@ -1,4 +1,7 @@
 # CpelAsm
+![CI](https://github.com/jordiabante/CpelAsm.jl/workflows/CI/badge.svg)
+![Docs](https://github.com/jordiabante/CpelAsm.jl/workflows/Docs/badge.svg)
+[![MIT license](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/jordiabante/CpelAsm.jl/blob/master/LICENSE.md)
 
 ## Toy Example
 

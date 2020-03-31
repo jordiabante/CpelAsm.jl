@@ -4,7 +4,8 @@ makedocs(
     sitename="CpelAsm",
     pages = [
         "Home"          => "index.md",
-        "Toy Example"   => "toy_example.md"
+        "Toy Example"   => "toy_example.md",
+        "Main Commands"   => "main_commands.md"
     ],
     authors = "Jordi Abante"
 )
