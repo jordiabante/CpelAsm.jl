@@ -257,6 +257,9 @@ julia> CpelAsm.write_gff!(gff, gff_records)
 """
 function write_gff!(gff::String,gff_records::Vector{GFF3.Record})
 
+    # Create folder if it doesn't exist
+    isdir(dirname(gff)) || mkdir(dirname(gff))
+
     # Append gff records
     output = open(gff, "a")
     writer = GFF3.Writer(output)
