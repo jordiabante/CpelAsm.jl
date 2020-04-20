@@ -7,6 +7,3 @@ chr1	50	SNP	A	C	.	.	.	GT:PS:FI	1/0:L1:1
 chr1	80	SNP	A	T	.	.	.	GT:PS:FI	0/1:L1:1
 chr1	140	SNP	A	G	.	.	.	GT:PS:FI	0/1:L2:1
 chr1	145	SNP	A	G	.	.	.	GT:PS:FI	0/1:L2:1
-chr2	40	SNP	G	A	.	.	.	GT:PS:FI	0/1:L3:1
-chr2	50	SNP	C	A	.	.	.	GT:PS:FI	1/0:L3:1
-chr2	60	SNP	A	C	.	.	.	GT:PS:FI	0/1:L3:1

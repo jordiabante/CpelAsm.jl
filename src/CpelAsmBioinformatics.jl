@@ -237,6 +237,8 @@ function read_bam(bam::String,chr::String,hap_st::Int64,hap_end::Int64,cpg_pos::
         x = zeros(Int64,N)
         obs_cpgs = obs_cpgs[findall(x-> x in cpg_pos,obs_cpgs)] .+ OFFSET
         x[olap_cpgs] = reduce(replace,["Z"=>1,"z"=>-1],init=split(meth_call[obs_cpgs],""))
+
+        # Add to set of observations
         push!(xobs,x)
 
     end # end loop over templates sequenced
@@ -317,12 +319,12 @@ function is_het_cpg!(var::VCF.Record,seq::FASTA.Record,h1::Vector{Int64},h2::Vec
     alt_var = join(VCF.alt(var))
 
     # Check if heterozygous CpG site in XG context
-    if ((ref_var=="C") && (alt_var in ["A","G"]))
+    if ((ref_var=="C") && (alt_var in ["A","G","T"]))
         # If followed by G, then heterozygous CpG in haplotype 1
         if FASTA.sequence(seq,VCF.pos(var):(VCF.pos(var)+1))[2]==DNA_G
             push!(h1,VCF.pos(var))
         end
-    elseif ((alt_var=="C") && (ref_var in ["A","G"]))
+    elseif ((alt_var=="C") && (ref_var in ["A","G","T"]))
         # If followed by G, then heterozygous CpG in haplotype 2
         if FASTA.sequence(seq,VCF.pos(var):(VCF.pos(var)+1))[2]==DNA_G
             push!(h2,VCF.pos(var))
@@ -819,23 +821,29 @@ function proc_obs_hap(hap::GFF3.Record,chr::String,chr_size::Int64,bam1::String,
     n2 = get_ns(cpg_pos[3],g_max,hap_st,hap_end)
     length(n)>0 || return nan_out
 
-    # Get vectors from BAM1/2 overlapping haplotype & compute average coverage
+    # Get binary vector with homozygous CpG sites
+    z1 = BitArray([p in cpg_pos[1] ? true : false for p in cpg_pos[2]])
+    z2 = BitArray([p in cpg_pos[1] ? true : false for p in cpg_pos[3]])
+
+    # Get vectors from BAM1 overlapping haplotype, assign md to het CpGs, & compute average coverage
     xobs1 = read_bam(bam1,chr,hap_st,hap_end,cpg_pos[2],chr_size,pe,trim)
-    obs_per_cpg1 = get_obs_per_cpg(xobs1)
-    (cov_ths<=mean_cov(xobs1)<=400) && (sum(obs_per_cpg1.==0)<=1.0/5.0*sum(n1)) || return nan_out
+    xobs1 = map(x->x.*z1,xobs1)
+    xobs1_hom = map(x->x[z1],xobs1)
+    obs_per_cpg1 = get_obs_per_cpg(xobs1_hom)
+    (cov_ths<=mean_cov(xobs1)<=400) && (sum(obs_per_cpg1.==0)<=1.0/5.0*sum(n)) || return nan_out
+
+    # Get vectors from BAM2 overlapping haplotype, assign md to het CpGs, & compute average coverage
     xobs2 = read_bam(bam2,chr,hap_st,hap_end,cpg_pos[3],chr_size,pe,trim)
-    obs_per_cpg2 = get_obs_per_cpg(xobs2)
-    (cov_ths<=mean_cov(xobs2)<=400) && (sum(obs_per_cpg2.==0)<=1.0/5.0*sum(n2)) || return nan_out
+    xobs2 = map(x->x.*z2,xobs2)
+    xobs2_hom = map(x->x[z2],xobs2)
+    obs_per_cpg2 = get_obs_per_cpg(xobs2_hom)
+    (cov_ths<=mean_cov(xobs2)<=400) && (sum(obs_per_cpg2.==0)<=1.0/5.0*sum(n)) || return nan_out
 
     # Estimate each single-allele model and check if on boundary of parameter space
     θ1 = est_theta_sa(n1,xobs1)
     check_boundary(θ1) && return nan_out
     θ2 = est_theta_sa(n2,xobs2)
     check_boundary(θ2) && return nan_out
-
-    # Get binary vector with homozygous CpG sites
-    z1 = BitArray([p in cpg_pos[1] ? true : false for p in cpg_pos[2]])
-    z2 = BitArray([p in cpg_pos[1] ? true : false for p in cpg_pos[3]])
 
     # Estimate intermediate quantities
     if all(z1)
@@ -909,8 +917,7 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
         chr_size = chr_sizes[findfirst(x->x==chr, chr_names)]
 
         # Process them
-        out_pmap = pmap(hap -> proc_obs_hap(hap,chr,chr_size,bam1,bam2,gff,fa,out_paths,pe,g_max,
-                        cov_ths,trim),haps_chr)
+        out_pmap = pmap(hap -> proc_obs_hap(hap,chr,chr_size,bam1,bam2,gff,fa,out_paths,pe,g_max,cov_ths,trim),haps_chr)
 
         length(out_pmap)>0 || continue
 
