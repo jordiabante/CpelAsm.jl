@@ -1634,7 +1634,7 @@ julia> comp_allele_agnostic_output(BAM_PATH,GFF_PATH,FA_PATH,OUT_PATH,PE,G,COV_T
 ```
 """
 function comp_allele_agnostic_output(bam::String,gff::String,fa::String,out_paths::Vector{String},pe::Bool,
-                                     g_max::Int64,cov_ths::Float64,trim::NTuple{4,Int64})::Nothing
+                                     g_max::Int64,cov_ths::Int64,trim::NTuple{4,Int64})::Nothing
 
     # Find chromosomes
     reader_fa = open(FASTA.Reader,fa,index=fa*".fai")
@@ -1646,12 +1646,12 @@ function comp_allele_agnostic_output(bam::String,gff::String,fa::String,out_path
     for chr in chr_names
 
         # Get windows pertaining to current chromosome
-        CpelAsm.print_log("Processing chr: $(chr) ...")
-        regions_chr = CpelAsm.read_gff_chr(gff,chr)
+        print_log("Processing chr: $(chr) ...")
+        regions_chr = read_gff_chr(gff,chr)
         chr_size = chr_sizes[findfirst(x->x==chr, chr_names)]
 
         # Process regions in chromosome
-        out_pmap = pmap(x->pmap_allele_agnostic_chr(x,chr,chr_size,bam,gff,fa,out_paths,pe,g_max,cov_ths,trim),regions_chr)
+        out_pmap = pmap(x->pmap_allele_agnostic_chr(x,chr,chr_size,bam,gff,fa,pe,g_max,cov_ths,trim),regions_chr)
         length(out_pmap)>0 || continue
 
         # Add last to respective bedGraph file
@@ -1664,16 +1664,18 @@ function comp_allele_agnostic_output(bam::String,gff::String,fa::String,out_path
 
 end # end comp_allele_agnostic_output
 """
-    `pmap_allele_agnostic_chr(FEAT,CHR,CHR_SIZE,BAM,GFF,FA,OUT_PATH,PE,G,COV_THS,TRIM)`
+    `pmap_allele_agnostic_chr(FEAT,CHR,CHR_SIZE,BAM,GFF,FA,PE,G,COV_THS,TRIM)`
 
 Function used in pmap call to estimate MML & NME in a given region defined by FEAT. 
 
 # Examples
 ```julia-repl
-julia> pmap_allele_agnostic_chr(FEAT,CHR,CHR_SIZE,BAM,GFF,FA,OUT_PATH,PE,G,COV_THS,TRIM)
+julia> pmap_allele_agnostic_chr(FEAT,CHR,CHR_SIZE,BAM,GFF,FA,PE,G,COV_THS,TRIM)
 ```
 """
-function pmap_allele_agnostic_chr(feat,chr,chr_size,bam,gff,fa,out_paths,pe,g_max,cov_ths,trim)::Vector{Tuple{Int64,Int64,Float64}}
+function pmap_allele_agnostic_chr(feat::GFF3.Record,chr::String,chr_size::Int64,bam::String,
+                                  gff::String,fa::String,pe::Bool,g_max::Int64,cov_ths::Int64,
+                                  trim::NTuple{4,Int64})::Vector{Tuple{Int64,Int64,Float64}}
 
     # Empty output
     nan_out = [(0,0,0.0),(0,0,0.0)]
@@ -1683,20 +1685,20 @@ function pmap_allele_agnostic_chr(feat,chr,chr_size,bam,gff,fa,out_paths,pe,g_ma
     f_end = GFF3.seqend(feat)
 
     # Get CpG sites
-    cpg_pos = CpelAsm.get_cpg_pos(Dict(GFF3.attributes(feat)))
+    cpg_pos = get_cpg_pos(Dict(GFF3.attributes(feat)))
     length(cpg_pos[1]>0) || return nan_out
 
     # Get vector of Ns
-    nvec = CpelAsm.get_ns(cpg_pos[1],g_max,f_st,f_end)
+    nvec = get_ns(cpg_pos[1],g_max,f_st,f_end)
 
     # Get vectors from BAM overlapping region
-    xobs = CpelAsm.read_bam(bam,chr,f_st,f_end,cpg_pos[1],chr_size,pe,trim)
-    obs_per_cpg = CpelAsm.get_obs_per_cpg(xobs)
-    (cov_ths<=CpelAsm.mean_cov(xobs)<=400) && (sum(obs_per_cpg.==0)<=1.0/5.0*sum(nvec)) || return nan_out
+    xobs = read_bam(bam,chr,f_st,f_end,cpg_pos[1],chr_size,pe,trim)
+    obs_per_cpg = get_obs_per_cpg(xobs)
+    (cov_ths<=mean_cov(xobs)<=400) && (sum(obs_per_cpg.==0)<=1.0/5.0*sum(nvec)) || return nan_out
 
     # Estimate parameters of CPEL models
-    θhat = CpelAsm.est_theta_sa(nvec,xobs)
-    CpelAsm.check_boundary(θhat) && return nan_out
+    θhat = est_theta_sa(nvec,xobs)
+    check_boundary(θhat) && return nan_out
 
     # Estimate intermediate quantities
     ∇1 = get_grad_logZ(nvec,θhat)
