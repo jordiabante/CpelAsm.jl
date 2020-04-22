@@ -1331,7 +1331,7 @@ julia> comp_tnull(BAM_PATH,GFF_PATH,FA_PATH,OUT_PATH)
 """
 function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,tobs_path::Vector{String},
                     out_paths::Vector{String};pe::Bool=true,g_max::Int64=500,cov_ths::Int64=5,
-                    cov_a::Float64=0.0,cov_b::Float64=2.0,trim::NTuple{4,Int64}=(0,0,0,0),
+                    cov_a::Float64=0.0,cov_b::Float64=2.0,trim::NTuple{4,Int64}=(5,0,5,0),
                     n_null::Int64=1000,n_max::Int64=20,n_subset::Vector{Int64}=collect(1:n_max))
 
     # BigWig output files
@@ -1519,8 +1519,8 @@ julia> run_analysis(BAM1_PATH,BAM2_PATH,BAMU_PATH,VCF_PATH,FA_PATH,OUT_PATH)
 ```
 """
 function run_analysis(bam1::String,bam2::String,bamu::String,vcf::String,fa::String,outdir::String;
-                      pe::Bool=true,g_max::Int64=300,win_exp::Int64=100,cov_ths::Int64=5,
-                      cov_a::Float64=0.0,cov_b::Float64=1.0,trim::NTuple{4,Int64}=(0,0,0,0),
+                      pe::Bool=true,g_max::Int64=500,win_exp::Int64=100,cov_ths::Int64=5,
+                      cov_a::Float64=0.0,cov_b::Float64=2.0,trim::NTuple{4,Int64}=(5,0,5,0),
                       n_null::Int64=1000,n_max::Int64=25,n_subset::Vector{Int64}=collect(1:n_max))
 
     # Print initialization of juliASM
@@ -1535,7 +1535,7 @@ function run_analysis(bam1::String,bam2::String,bamu::String,vcf::String,fa::Str
     # Create output folder if it doesn't exist
     isdir(outdir) || mkdir(outdir)
 
-    # BigWig output files
+    # BedGraph output files
     prefix_sample = String(split(basename(bam1),".")[1])
     tobs_path,tnull_path,p_path = get_outpaths(outdir,prefix_sample)
 
@@ -1574,3 +1574,138 @@ function run_analysis(bam1::String,bam2::String,bamu::String,vcf::String,fa::Str
     return nothing
 
 end # end run_analysis
+###################################################################################################
+# ALLELE-AGNOSTIC MODELING
+###################################################################################################
+"""
+    `run_allele_agnosic_analysis(BAM_PATH,GFF_PATH,FA_PATH,OUTDIR)`
+
+Function to call to estimate MML & NME in the regions defined in GFF.
+
+# Examples
+```julia-repl
+julia> run_allele_agnosic_analysis(BAM_PATH,GFF_PATH,FA_PATH,OUTDIR)
+```
+"""
+function run_allele_agnosic_analysis(bam::String,gff::String,fa::String,outdir::String;pe::Bool=true,
+                                     g_max::Int64=500,cov_ths::Int64=5,trim::NTuple{4,Int64}=(5,0,5,0))
+
+    # Print initialization of juliASM
+    print_log("Starting allele-agnostic CpelAsm analysis ...")
+
+    # Check index files exist
+    if !(isfile.(bam*".bai",fa*".fai"))
+        print_log("Index files for BAM or FASTA missing. Exiting julia ...")
+        exit(1)
+    end
+
+    # Create output folder if it doesn't exist
+    isdir(outdir) || mkdir(outdir)
+
+    # BedGraph output files
+    prefix_sample = String(split(basename(bam),".")[1])
+    out_paths = "$(outdir)/$(prefix_sample)" .* "_allele_agnostic_" .* ["mml","nme"] .* ".bedGraph"
+
+    # Check for existance of at least an output files
+    if all(isfile.(out_paths))
+        print_log("At least an output file already exists. Exiting julia ...")
+        exit(1)
+    end
+
+    # Compute observed statistics from heterozygous loci
+    print_log("Performing allele-agnostic CpelAsm analysis ...")
+    comp_allele_agnostic_output(bam,gff,fa,out_paths,pe,g_max,cov_ths,trim)
+
+    # Print number of features interrogated and finished message
+    print_log("Done.")
+
+    # Return
+    return nothing
+
+end # end run_allele_agnosic_analysis
+"""
+    `comp_allele_agnostic_output(BAM_PATH,GFF_PATH,FA_PATH,OUT_PATH,PE,G,COV_THS,TRIM)`
+
+Function that estimates MML & NME from a BAM file in the regions defined in GFF_PATH. 
+
+# Examples
+```julia-repl
+julia> comp_allele_agnostic_output(BAM_PATH,GFF_PATH,FA_PATH,OUT_PATH,PE,G,COV_THS,TRIM)
+```
+"""
+function comp_allele_agnostic_output(bam::String,gff::String,fa::String,out_paths::Vector{String},pe::Bool,
+                                     g_max::Int64,cov_ths::Float64,trim::NTuple{4,Int64})::Nothing
+
+    # Find chromosomes
+    reader_fa = open(FASTA.Reader,fa,index=fa*".fai")
+    chr_sizes = reader_fa.index.lengths
+    chr_names = reader_fa.index.names
+    close(reader_fa)
+
+    # Loop over chromosomes
+    for chr in chr_names
+
+        # Get windows pertaining to current chromosome
+        CpelAsm.print_log("Processing chr: $(chr) ...")
+        regions_chr = CpelAsm.read_gff_chr(gff,chr)
+        chr_size = chr_sizes[findfirst(x->x==chr, chr_names)]
+
+        # Process regions in chromosome
+        out_pmap = pmap(x->pmap_allele_agnostic_chr(x,chr,chr_size,bam,gff,fa,out_paths,pe,g_max,cov_ths,trim),regions_chr)
+        length(out_pmap)>0 || continue
+
+        # Add last to respective bedGraph file
+        write_tobs([x[1] for x in out_pmap],chr,out_paths[1])
+        write_tobs([x[2] for x in out_pmap],chr,out_paths[2])
+
+    end
+
+    return nothing
+
+end # end comp_allele_agnostic_output
+"""
+    `pmap_allele_agnostic_chr(FEAT,CHR,CHR_SIZE,BAM,GFF,FA,OUT_PATH,PE,G,COV_THS,TRIM)`
+
+Function used in pmap call to estimate MML & NME in a given region defined by FEAT. 
+
+# Examples
+```julia-repl
+julia> pmap_allele_agnostic_chr(FEAT,CHR,CHR_SIZE,BAM,GFF,FA,OUT_PATH,PE,G,COV_THS,TRIM)
+```
+"""
+function pmap_allele_agnostic_chr(feat,chr,chr_size,bam,gff,fa,out_paths,pe,g_max,cov_ths,trim)::Vector{Tuple{Int64,Int64,Float64}}
+
+    # Empty output
+    nan_out = [(0,0,0.0),(0,0,0.0)]
+
+    # Get window of interest
+    f_st = GFF3.seqstart(feat)
+    f_end = GFF3.seqend(feat)
+
+    # Get CpG sites
+    cpg_pos = CpelAsm.get_cpg_pos(Dict(GFF3.attributes(feat)))
+    length(cpg_pos[1]>0) || return nan_out
+
+    # Get vector of Ns
+    nvec = CpelAsm.get_ns(cpg_pos[1],g_max,f_st,f_end)
+
+    # Get vectors from BAM overlapping region
+    xobs = CpelAsm.read_bam(bam,chr,f_st,f_end,cpg_pos[1],chr_size,pe,trim)
+    obs_per_cpg = CpelAsm.get_obs_per_cpg(xobs)
+    (cov_ths<=CpelAsm.mean_cov(xobs)<=400) && (sum(obs_per_cpg.==0)<=1.0/5.0*sum(nvec)) || return nan_out
+
+    # Estimate parameters of CPEL models
+    θhat = CpelAsm.est_theta_sa(nvec,xobs)
+    CpelAsm.check_boundary(θhat) && return nan_out
+
+    # Estimate intermediate quantities
+    ∇1 = get_grad_logZ(nvec,θhat)
+
+    # Compute output
+    mml = comp_mml_∇(nvec,∇1)
+    nme = comp_nme_∇(nvec,θhat,∇1)
+
+    # Return output
+    return [(f_st,f_end,mml),(f_st,f_end,nme)]
+
+end # end pmap_allele_agnostic_chr
