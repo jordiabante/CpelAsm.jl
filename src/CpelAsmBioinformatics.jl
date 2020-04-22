@@ -1686,7 +1686,7 @@ function pmap_allele_agnostic_chr(feat::GFF3.Record,chr::String,chr_size::Int64,
 
     # Get CpG sites
     cpg_pos = get_cpg_pos(Dict(GFF3.attributes(feat)))
-    length(cpg_pos[1]>0) || return nan_out
+    length(cpg_pos[1])>0 || return nan_out
 
     # Get vector of Ns
     nvec = get_ns(cpg_pos[1],g_max,f_st,f_end)
