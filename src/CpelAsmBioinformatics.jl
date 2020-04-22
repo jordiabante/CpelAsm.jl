@@ -1675,10 +1675,10 @@ julia> pmap_allele_agnostic_chr(FEAT,CHR,CHR_SIZE,BAM,GFF,FA,PE,G,COV_THS,TRIM)
 """
 function pmap_allele_agnostic_chr(feat::GFF3.Record,chr::String,chr_size::Int64,bam::String,
                                   gff::String,fa::String,pe::Bool,g_max::Int64,cov_ths::Int64,
-                                  trim::NTuple{4,Int64})::Vector{Tuple{Int64,Int64,Float64}}
+                                  trim::NTuple{4,Int64})::Vector{Tuple{Int64,Int64,Float64,Int64,Int64}}
 
     # Empty output
-    nan_out = [(0,0,0.0),(0,0,0.0)]
+    nan_out = [(0,0,0.0,0,0),(0,0,0.0,0,0)]
 
     # Get window of interest
     f_st = GFF3.seqstart(feat)
@@ -1708,6 +1708,6 @@ function pmap_allele_agnostic_chr(feat::GFF3.Record,chr::String,chr_size::Int64,
     nme = comp_nme_∇(nvec,θhat,∇1)
 
     # Return output
-    return [(f_st,f_end,mml),(f_st,f_end,nme)]
+    return [(f_st,f_end,mml,sum(nvec),length(nvec)),(f_st,f_end,nme,sum(nvec),length(nvec))]
 
 end # end pmap_allele_agnostic_chr
