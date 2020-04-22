@@ -1660,6 +1660,10 @@ function comp_allele_agnostic_output(bam::String,gff::String,fa::String,out_path
 
     end
 
+    # Sort bedGraph
+    sort_bedgraphs(out_paths)
+
+    # Return nothing
     return nothing
 
 end # end comp_allele_agnostic_output
