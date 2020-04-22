@@ -1578,17 +1578,17 @@ end # end run_analysis
 # ALLELE-AGNOSTIC MODELING
 ###################################################################################################
 """
-    `run_allele_agnosic_analysis(BAM_PATH,GFF_PATH,FA_PATH,OUTDIR)`
+    `run_allele_agnostic_analysis(BAM_PATH,GFF_PATH,FA_PATH,OUTDIR)`
 
 Function to call to estimate MML & NME in the regions defined in GFF.
 
 # Examples
 ```julia-repl
-julia> run_allele_agnosic_analysis(BAM_PATH,GFF_PATH,FA_PATH,OUTDIR)
+julia> run_allele_agnostic_analysis(BAM_PATH,GFF_PATH,FA_PATH,OUTDIR)
 ```
 """
-function run_allele_agnosic_analysis(bam::String,gff::String,fa::String,outdir::String;pe::Bool=true,
-                                     g_max::Int64=500,cov_ths::Int64=5,trim::NTuple{4,Int64}=(5,0,5,0))
+function run_allele_agnostic_analysis(bam::String,gff::String,fa::String,outdir::String;pe::Bool=true,
+                                      g_max::Int64=500,cov_ths::Int64=5,trim::NTuple{4,Int64}=(5,0,5,0))::Nothing
 
     # Print initialization of juliASM
     print_log("Starting allele-agnostic CpelAsm analysis ...")
@@ -1622,7 +1622,7 @@ function run_allele_agnosic_analysis(bam::String,gff::String,fa::String,outdir::
     # Return
     return nothing
 
-end # end run_allele_agnosic_analysis
+end # end run_allele_agnostic_analysis
 """
     `comp_allele_agnostic_output(BAM_PATH,GFF_PATH,FA_PATH,OUT_PATH,PE,G,COV_THS,TRIM)`
 
