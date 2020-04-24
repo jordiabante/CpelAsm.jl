@@ -870,17 +870,12 @@ function proc_obs_hap(hap::GFF3.Record,chr::String,chr_size::Int64,bam1::String,
     nme2 = all(z2) ? comp_nme_∇(n2,θ2,∇2) : comp_nme(z2,n2,θ2[1:(end-1)],θ2[end],ex2,exx2)
     pdm = comp_pdm(z1,z2,n1,n2,θ1,θ2,nme1,nme2)
 
-    # Report positions based on CpG sites not hap_st, hap_end
-    # NOTE: the chromosome coordinates are zero-based
-    bed_st = minimum(minimum.(cpg_pos))-1
-    bed_end = maximum(maximum.(cpg_pos))
-
     # Return output
-    return [(bed_st,bed_end,mml1,sum(n),length(n)),
-            (bed_st,bed_end,mml2,sum(n),length(n)),
-            (bed_st,bed_end,nme1,sum(n),length(n)),
-            (bed_st,bed_end,nme2,sum(n),length(n)),
-            (bed_st,bed_end,pdm,sum(n),length(n))]
+    return [(hap_st,hap_end,mml1,sum(n),length(n)),
+            (hap_st,hap_end,mml2,sum(n),length(n)),
+            (hap_st,hap_end,nme1,sum(n),length(n)),
+            (hap_st,hap_end,nme2,sum(n),length(n)),
+            (hap_st,hap_end,pdm,sum(n),length(n))]
 
 end
 """
