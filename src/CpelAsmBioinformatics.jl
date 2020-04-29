@@ -804,8 +804,8 @@ julia> proc_obs_hap(HAP,CHR,CHR_SIZE,BAM1,BAM2,GFF,FA,OUT_PATHS,PE,GMAX,COV_THS,
 """
 function proc_obs_hap(hap::GFF3.Record,chr::String,chr_size::Int64,bam1::String,bam2::String,
                       gff::String,fa::String,out_paths::Vector{String},pe::Bool,g_max::Int64,
-                      cov_ths::Int64,trim::NTuple{4,Int64})::Vector{Tuple{Int64,Int64,Float64,
-                      Int64,Int64}}
+                      cov_ths::Int64,trim::NTuple{4,Int64},bound_check::Bool)::Vector{Tuple{Int64,
+                      Int64,Float64,Int64,Int64}}
 
     # Empty output
     nan_out = [(0,0,0.0,0,0),(0,0,0.0,0,0),(0,0,0.0,0,0),(0,0,0.0,0,0),(0,0,0.0,0,0)]
@@ -841,9 +841,9 @@ function proc_obs_hap(hap::GFF3.Record,chr::String,chr_size::Int64,bam1::String,
 
     # Estimate each single-allele model and check if on boundary of parameter space
     θ1 = est_theta_sa(n1,xobs1)
-    check_boundary(θ1) && return nan_out
+    bound_check && check_boundary(θ1) && return nan_out
     θ2 = est_theta_sa(n2,xobs2)
-    check_boundary(θ2) && return nan_out
+    bound_check && check_boundary(θ2) && return nan_out
 
     # Estimate intermediate quantities
     if all(z1)
@@ -892,7 +892,7 @@ julia> comp_tobs(BAM1_PATH,BAM2_PATH,GFF_PATH,FA_PATH,OUT_PATHS)
 """
 function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::Vector{String};
                    pe::Bool=true,g_max::Int64=300,cov_ths::Int64=5,trim::NTuple{4,Int64}=
-                   (0,0,0,0))
+                   (0,0,0,0),bound_check::Bool=true)::Nothing
 
     # BigWig output files
     mml1_path,mml2_path,nme1_path,nme2_path,pdm_path = out_paths
@@ -912,7 +912,7 @@ function comp_tobs(bam1::String,bam2::String,gff::String,fa::String,out_paths::V
         chr_size = chr_sizes[findfirst(x->x==chr, chr_names)]
 
         # Process them
-        out_pmap = pmap(hap -> proc_obs_hap(hap,chr,chr_size,bam1,bam2,gff,fa,out_paths,pe,g_max,cov_ths,trim),haps_chr)
+        out_pmap = pmap(hap -> proc_obs_hap(hap,chr,chr_size,bam1,bam2,gff,fa,out_paths,pe,g_max,cov_ths,trim,bound_check),haps_chr)
 
         length(out_pmap)>0 || continue
 
@@ -1259,7 +1259,7 @@ function proc_null_hap(hap::GFF3.Record,ntot::Int64,bam::String,het_gff::String,
                        fa::String,kstar::Int64,out_paths::Vector{String},pe::Bool,g_max::Int64,
                        cov_ths::Int64,cov_a::Float64,cov_b::Float64,trim::NTuple{4,Int64},
                        n_null::Int64,n_max::Int64,n_subset::Vector{Int64},chr_dic::Dict{String,
-                       Int64})::Vector{Tuple{Float64,Float64,Float64}}
+                       Int64},bound_check::Bool)::Vector{Tuple{Float64,Float64,Float64}}
 
     # Get homozygous window
     chr = GFF3.seqid(hap)
@@ -1288,9 +1288,9 @@ function proc_null_hap(hap::GFF3.Record,ntot::Int64,bam::String,het_gff::String,
 
         # Estimate each single-allele model and check if on boundary of parameter space
         θ1 = est_theta_sa(n,xobs1)
-        check_boundary(θ1) && continue
+        bound_check && check_boundary(θ1) && continue
         θ2 = est_theta_sa(n,xobs2)
-        check_boundary(θ2) && continue
+        bound_check && check_boundary(θ2) && continue
 
         # Estimate moments
         ∇1 = get_grad_logZ(n,θ1)
@@ -1327,7 +1327,8 @@ julia> comp_tnull(BAM_PATH,GFF_PATH,FA_PATH,OUT_PATH)
 function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,tobs_path::Vector{String},
                     out_paths::Vector{String};pe::Bool=true,g_max::Int64=500,cov_ths::Int64=5,
                     cov_a::Float64=0.0,cov_b::Float64=2.0,trim::NTuple{4,Int64}=(5,0,5,0),
-                    n_null::Int64=1000,n_max::Int64=20,n_subset::Vector{Int64}=collect(1:n_max))
+                    n_null::Int64=1000,n_max::Int64=20,n_subset::Vector{Int64}=collect(1:n_max),
+                    bound_check::Bool=true)::Nothing
 
     # BigWig output files
     tmml_path,tnme_path,pdm_path = out_paths
@@ -1376,8 +1377,8 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,tobs_
         while length(out_tmml)<n_null
 
             # Process them in parallel
-            out_pmap = vcat(pmap(hap->proc_null_hap(hap,ntot,bam,het_gff,hom_gff,fa,kstar,out_paths,
-                            pe,g_max,cov_ths,cov_a,cov_b,trim,n_null,n_max,n_subset,chr_dic),haps)...)
+            out_pmap = vcat(pmap(hap->proc_null_hap(hap,ntot,bam,het_gff,hom_gff,fa,kstar,out_paths,pe,g_max,
+                            cov_ths,cov_a,cov_b,trim,n_null,n_max,n_subset,chr_dic,bound_check),haps)...)
 
             # Save succesful runs
             if length(out_pmap)>0
@@ -1516,7 +1517,8 @@ julia> run_analysis(BAM1_PATH,BAM2_PATH,BAMU_PATH,VCF_PATH,FA_PATH,OUT_PATH)
 function run_analysis(bam1::String,bam2::String,bamu::String,vcf::String,fa::String,outdir::String;
                       pe::Bool=true,g_max::Int64=500,win_exp::Int64=100,cov_ths::Int64=5,
                       cov_a::Float64=0.0,cov_b::Float64=2.0,trim::NTuple{4,Int64}=(5,0,5,0),
-                      n_null::Int64=1000,n_max::Int64=25,n_subset::Vector{Int64}=collect(1:n_max))
+                      n_null::Int64=1000,n_max::Int64=25,n_subset::Vector{Int64}=collect(1:n_max),
+                      bound_check::Bool=true)::Nothing
 
     # Print initialization of juliASM
     print_log("Starting CpelAsm analysis ...")
@@ -1551,12 +1553,12 @@ function run_analysis(bam1::String,bam2::String,bamu::String,vcf::String,fa::Str
 
     # Compute observed statistics from heterozygous loci
     print_log("Computing observed statistics in heterozygous loci...")
-    comp_tobs(bam1,bam2,het_gff,fa,tobs_path;pe=pe,g_max=g_max,cov_ths=cov_ths,trim=trim)
+    comp_tobs(bam1,bam2,het_gff,fa,tobs_path;pe=pe,g_max=g_max,cov_ths=cov_ths,trim=trim,bound_check=bound_check)
 
     # Compute null statistics from homozygous loci
     print_log("Generating null statistics in homozygous loci ...")
-    comp_tnull(bamu,het_gff,hom_gff,fa,tobs_path,tnull_path;pe=pe,g_max=g_max,cov_ths=cov_ths,
-               cov_a=cov_a,cov_b=cov_b,trim=trim,n_null=n_null,n_max=n_max,n_subset=n_subset)
+    comp_tnull(bamu,het_gff,hom_gff,fa,tobs_path,tnull_path;pe=pe,g_max=g_max,cov_ths=cov_ths,cov_a=cov_a,
+               cov_b=cov_b,trim=trim,n_null=n_null,n_max=n_max,n_subset=n_subset,bound_check=bound_check)
 
     # Compute null statistics from heterozygous loci
     print_log("Computing p-values in heterozygous loci ...")
@@ -1583,7 +1585,8 @@ julia> run_allele_agnostic_analysis(BAM_PATH,GFF_PATH,FA_PATH,OUTDIR)
 ```
 """
 function run_allele_agnostic_analysis(bam::String,gff::String,fa::String,outdir::String;pe::Bool=true,
-                                      g_max::Int64=500,cov_ths::Int64=5,trim::NTuple{4,Int64}=(5,0,5,0))::Nothing
+                                      g_max::Int64=500,cov_ths::Int64=5,trim::NTuple{4,Int64}=(5,0,5,0),
+                                      bound_check::Bool=true)::Nothing
 
     # Print initialization of juliASM
     print_log("Starting allele-agnostic CpelAsm analysis ...")
@@ -1609,7 +1612,7 @@ function run_allele_agnostic_analysis(bam::String,gff::String,fa::String,outdir:
 
     # Compute observed statistics from heterozygous loci
     print_log("Performing allele-agnostic CpelAsm analysis ...")
-    comp_allele_agnostic_output(bam,gff,fa,out_paths,pe,g_max,cov_ths,trim)
+    comp_allele_agnostic_output(bam,gff,fa,out_paths,pe,g_max,cov_ths,trim,bound_check)
 
     # Print number of features interrogated and finished message
     print_log("Done.")
@@ -1629,7 +1632,7 @@ julia> comp_allele_agnostic_output(BAM_PATH,GFF_PATH,FA_PATH,OUT_PATH,PE,G,COV_T
 ```
 """
 function comp_allele_agnostic_output(bam::String,gff::String,fa::String,out_paths::Vector{String},pe::Bool,
-                                     g_max::Int64,cov_ths::Int64,trim::NTuple{4,Int64})::Nothing
+                                     g_max::Int64,cov_ths::Int64,trim::NTuple{4,Int64},bound_check::Bool)::Nothing
 
     # Find chromosomes
     reader_fa = open(FASTA.Reader,fa,index=fa*".fai")
@@ -1646,7 +1649,7 @@ function comp_allele_agnostic_output(bam::String,gff::String,fa::String,out_path
         chr_size = chr_sizes[findfirst(x->x==chr, chr_names)]
 
         # Process regions in chromosome
-        out_pmap = pmap(x->pmap_allele_agnostic_chr(x,chr,chr_size,bam,gff,fa,pe,g_max,cov_ths,trim),regions_chr)
+        out_pmap = pmap(x->pmap_allele_agnostic_chr(x,chr,chr_size,bam,gff,fa,pe,g_max,cov_ths,trim,bound_check),regions_chr)
         length(out_pmap)>0 || continue
 
         # Add last to respective bedGraph file
@@ -1672,9 +1675,9 @@ Function used in pmap call to estimate MML & NME in a given region defined by FE
 julia> pmap_allele_agnostic_chr(FEAT,CHR,CHR_SIZE,BAM,GFF,FA,PE,G,COV_THS,TRIM)
 ```
 """
-function pmap_allele_agnostic_chr(feat::GFF3.Record,chr::String,chr_size::Int64,bam::String,
-                                  gff::String,fa::String,pe::Bool,g_max::Int64,cov_ths::Int64,
-                                  trim::NTuple{4,Int64})::Vector{Tuple{Int64,Int64,Float64,Int64,Int64}}
+function pmap_allele_agnostic_chr(feat::GFF3.Record,chr::String,chr_size::Int64,bam::String,gff::String,
+                                  fa::String,pe::Bool,g_max::Int64,cov_ths::Int64,trim::NTuple{4,Int64},
+                                  bound_check::Bool)::Vector{Tuple{Int64,Int64,Float64,Int64,Int64}}
 
     # Empty output
     nan_out = [(0,0,0.0,0,0),(0,0,0.0,0,0)]
@@ -1697,7 +1700,7 @@ function pmap_allele_agnostic_chr(feat::GFF3.Record,chr::String,chr_size::Int64,
 
     # Estimate parameters of CPEL models
     θhat = est_theta_sa(nvec,xobs)
-    check_boundary(θhat) && return nan_out
+    bound_check && check_boundary(θhat) && return nan_out
 
     # Estimate intermediate quantities
     ∇1 = get_grad_logZ(nvec,θhat)
