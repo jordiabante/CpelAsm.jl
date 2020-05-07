@@ -42,7 +42,7 @@ The package includes a small toy example for illustrative purposes.
 The example consists of two alleles `a1` and `a2`. The former has a
 mean-methylation level (MML) of 0.8, while that of the later is 0.2.
 Nevertheless, given the symmetry of the problem, both alleles have
-the same Shannon entropy. Thus differential  analysis only identifies
+the same Shannon entropy. Thus, differential  analysis only identifies
 differences in terms of MML. The output bedGraph files can be found
 in `out_path`. To run the toy example run the following commands in
 a `julia`'s REPL:
@@ -55,7 +55,7 @@ b2 = "$(dir)/bam/example.a2.bam"
 fa = "$(dir)/fasta/n-masked/example.fa"
 vcf = "$(dir)/vcf/example.vcf"
 out = "$(dir)/out/"
-run_analysis(b1,b2,b1,vcf,fa,out;g_max=50,cov_ths=5,cov_b=2.0,win_exp=10,n_null=50,n_max=10)
+run_analysis(b1,b2,b1,vcf,fa,out;g_max=50,win_exp=10,n_null=1000,n_max=10,cov_ths=6)
 ```
 
 ## Authors
