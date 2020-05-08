@@ -764,7 +764,7 @@ function sort_bedgraphs(bg_files::Vector{String})
 
     # Loop over files
     for f in bg_files
-        run(`sort -V -k 1,1 -k 2,2n -o $f $f`)
+        Sys.iswindows() || run(`sort -V -k 1,1 -k 2,2n -o $f $f`)
     end
 
     # Return
