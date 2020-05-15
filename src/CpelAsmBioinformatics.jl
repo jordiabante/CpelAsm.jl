@@ -1597,6 +1597,12 @@ function run_allele_agnostic_analysis(bam::String,gff::String,fa::String,outdir:
         exit(1)
     end
 
+    # Check GFF file exist
+    if !(isfile(gff))
+        print_log("GFF file does not exist. Exiting julia ...")
+        exit(1)
+    end
+    
     # Create output folder if it doesn't exist
     isdir(outdir) || mkdir(outdir)
 
@@ -1658,8 +1664,12 @@ function comp_allele_agnostic_output(bam::String,gff::String,fa::String,out_path
 
     end
 
-    # Sort bedGraph
-    sort_bedgraphs(out_paths)
+    # Sort bedGraph if there's output
+    if all(isfile.(out_paths))
+        sort_bedgraphs(out_paths)
+    else
+        print_log("No output was created. Check the chromosome names in FASTA and GFF match ...")
+    end
 
     # Return nothing
     return nothing
