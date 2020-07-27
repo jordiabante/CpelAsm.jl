@@ -627,6 +627,31 @@ function write_tobs(recs::Vector{Tuple{Int64,Int64,Float64,Int64,Int64}},chr::St
 
 end # end write_tobs
 """
+    `write_theta(RECORDS,CHR,PATH)`
+
+Function that writes θ parameter vectors in `RECORDS` into `PATH`.
+
+# Examples
+```julia-repl
+julia> CpelAsm.write_theta(RECORDS,CHR,PATH)
+```
+"""
+function write_theta(recs::Vector{Tuple{Int64,Int64,Vector{Float64},Int64,Int64}},chr::String,path::String)
+
+    # Open output bedGraph file in append mode (no need to close it)
+    open(path, "a") do f
+        for i=1:length(recs)
+            recs[i][1]!=0 || continue
+            θ = join(recs[i][3],",")
+            write(f,"$(chr)\t$(recs[i][1])\t$(recs[i][2])\t$(θ)\t$(recs[i][4])\t$(recs[i][5])\n")
+        end
+    end
+
+    # Return
+    return nothing
+
+end # end write_theta
+"""
     `get_cpg_pos(FEAT_ATTS)`
 
 Function that takes the attributes in the GFF file and returns the homozygous and heterozygous CpG
@@ -1585,10 +1610,9 @@ julia> run_allele_agnostic_analysis(BAM_PATH,GFF_PATH,FA_PATH,OUTDIR)
 ```
 """
 function run_allele_agnostic_analysis(bam::String,gff::String,fa::String,outdir::String;pe::Bool=true,
-                                      g_max::Int64=500,cov_ths::Int64=5,trim::NTuple{4,Int64}=(5,0,5,0),
-                                      bound_check::Bool=true)::Nothing
+    g_max::Int64=500,cov_ths::Int64=5,trim::NTuple{4,Int64}=(5,0,5,0),bound_check::Bool=true)::Nothing
 
-    # Print initialization of juliASM
+    # Print initialization
     print_log("Starting allele-agnostic CpelAsm analysis ...")
 
     # Check index files exist
@@ -1608,7 +1632,7 @@ function run_allele_agnostic_analysis(bam::String,gff::String,fa::String,outdir:
 
     # BedGraph output files
     prefix_sample = String(split(basename(bam),".")[1])
-    out_paths = "$(outdir)/$(prefix_sample)" .* "_allele_agnostic_" .* ["mml","nme"] .* ".bedGraph"
+    out_paths = "$(outdir)/$(prefix_sample)" .* "_allele_agnostic_" .* ["mml","nme","model"] .* ".bedGraph"
 
     # Check for existance of at least an output files
     if all(isfile.(out_paths))
@@ -1655,12 +1679,13 @@ function comp_allele_agnostic_output(bam::String,gff::String,fa::String,out_path
         chr_size = chr_sizes[findfirst(x->x==chr, chr_names)]
 
         # Process regions in chromosome
-        out_pmap = pmap(x->pmap_allele_agnostic_chr(x,chr,chr_size,bam,gff,fa,pe,g_max,cov_ths,trim,bound_check),regions_chr)
+        out_pmap = pmap(x->pmap_allele_agnostic_chr(x,chr,chr_size,bam,pe,g_max,cov_ths,trim,bound_check),regions_chr)
         length(out_pmap)>0 || continue
 
         # Add last to respective bedGraph file
         write_tobs([x[1] for x in out_pmap],chr,out_paths[1])
         write_tobs([x[2] for x in out_pmap],chr,out_paths[2])
+        write_theta([x[3] for x in out_pmap],chr,out_paths[3])
 
     end
 
@@ -1676,21 +1701,21 @@ function comp_allele_agnostic_output(bam::String,gff::String,fa::String,out_path
 
 end # end comp_allele_agnostic_output
 """
-    `pmap_allele_agnostic_chr(FEAT,CHR,CHR_SIZE,BAM,GFF,FA,PE,G,COV_THS,TRIM)`
+    `pmap_allele_agnostic_chr(FEAT,CHR,CHR_SIZE,BAM,PE,G,COV_THS,TRIM)`
 
 Function used in pmap call to estimate MML & NME in a given region defined by FEAT. 
 
 # Examples
 ```julia-repl
-julia> pmap_allele_agnostic_chr(FEAT,CHR,CHR_SIZE,BAM,GFF,FA,PE,G,COV_THS,TRIM)
+julia> pmap_allele_agnostic_chr(FEAT,CHR,CHR_SIZE,BAM,PE,G,COV_THS,TRIM)
 ```
 """
-function pmap_allele_agnostic_chr(feat::GFF3.Record,chr::String,chr_size::Int64,bam::String,gff::String,
-                                  fa::String,pe::Bool,g_max::Int64,cov_ths::Int64,trim::NTuple{4,Int64},
-                                  bound_check::Bool)::Vector{Tuple{Int64,Int64,Float64,Int64,Int64}}
+function pmap_allele_agnostic_chr(feat::GFF3.Record,chr::String,chr_size::Int64,bam::String,pe::Bool,
+    g_max::Int64,cov_ths::Int64,trim::NTuple{4,Int64},bound_check::Bool)::Tuple{Tuple{Int64,Int64,Float64,Int64,Int64},
+    Tuple{Int64,Int64,Float64,Int64,Int64},Tuple{Int64,Int64,Vector{Float64},Int64,Int64}}
 
     # Empty output
-    nan_out = [(0,0,0.0,0,0),(0,0,0.0,0,0)]
+    nan_out = [(0,0,0.0,0,0),(0,0,0.0,0,0),(0,0,Vector{Float64}(),0,0)]
 
     # Get window of interest
     f_st = GFF3.seqstart(feat)
@@ -1720,6 +1745,174 @@ function pmap_allele_agnostic_chr(feat::GFF3.Record,chr::String,chr_size::Int64,
     nme = comp_nme_∇(nvec,θhat,∇1)
 
     # Return output
-    return [(f_st,f_end,mml,sum(nvec),length(nvec)),(f_st,f_end,nme,sum(nvec),length(nvec))]
+    return (f_st,f_end,mml,sum(nvec),length(nvec)),(f_st,f_end,nme,sum(nvec),length(nvec)),(f_st,f_end,θhat,sum(nvec),length(nvec))
 
 end # end pmap_allele_agnostic_chr
+###################################################################################################
+# TIME-COURSE ANALYSIS
+###################################################################################################
+# """
+#     `run_uc_analysis(BAM1_PATH,BAM2_PATH,GFF_PATH,FA_PATH,PREFIX,OUTDIR)`
+
+# Function to call to compute uncertainty coefficient in the regions defined in GFF file.
+
+# # Examples
+# ```julia-repl
+# julia> run_uc_analysis(BAM_PATH,GFF_PATH,FA_PATH,PREFIX,OUTDIR)
+# ```
+# """
+# function run_uc_analysis(bam1::String,bam2::String,gff::String,fa::String,prefix::String,outdir::String;pe::Bool=true,
+#     g_max::Int64=500,cov_ths::Int64=5,trim::NTuple{4,Int64}=(5,0,5,0),bound_check::Bool=true)::Nothing
+
+#     # Print initialization
+#     print_log("Starting UC computations ...")
+
+#     # Check index files exist
+#     if !(isfile.(bam1*".bai",bam2*".bai",fa*".fai"))
+#         print_log("Index files for BAM or FASTA missing. Exiting julia ...")
+#         sleep(5)
+#         exit(0)
+#     end
+
+#     # Check GFF file exist
+#     if !(isfile(gff))
+#         print_log("GFF file does not exist. Exiting julia ...")
+#         sleep(5)
+#         exit(0)
+#     end
+    
+#     # Create output folder if it doesn't exist
+#     isdir(outdir) || mkdir(outdir)
+
+#     # Output files
+#     out_paths = "$(outdir)/$(prefix)" * ["_uc.bedGraph","_theta.cpelasm"]
+
+#     # Check for existance of output file
+#     if isfile(out_paths[1])
+#         print_log("Output file already exists. Exiting julia ...")
+#         sleep(5)
+#         exit(0)
+#     end
+
+#     # Compute uncertainty coefficient in all chromosomes
+
+#     # Compute uncertainty coefficient in all chromosomes
+#     print_log("Computing UC ...")
+#     comp_uc_all_chrs(bam1,bam2,gff,fa,out_paths,pe,g_max,cov_ths,trim,bound_check)
+
+#     # Print done
+#     print_log("Done.")
+
+#     # Return
+#     return nothing
+
+# end # end run_uc_analysis
+# """
+#     `comp_uc_all_chrs(BAM1_PATH,BAM2_PATH,GFF_PATH,FA_PATH,OUT_PATHS,PE,G,COV_THS,TRIM)`
+
+# Function that UC from a BAM files in the regions defined in GFF_PATH. 
+
+# # Examples
+# ```julia-repl
+# julia> comp_uc_all_chrs(bam1_path,bam2_path,gff_path,fa_path,out_paths,pe,g,cov_ths,trim)
+# ```
+# """
+# function comp_uc_all_chrs(bam1::String,bam2::String,gff::String,fa::String,out_paths::Vector{String},pe::Bool,
+#     g_max::Int64,cov_ths::Int64,trim::NTuple{4,Int64},bound_check::Bool)::Nothing
+
+#     # Find chromosomes
+#     reader_fa = open(FASTA.Reader,fa,index=fa*".fai")
+#     chr_sizes = reader_fa.index.lengths
+#     chr_names = reader_fa.index.names
+#     close(reader_fa)
+
+#     # Loop over chromosomes
+#     for chr in chr_names
+
+#         # Get windows pertaining to current chromosome
+#         print_log("Processing chr: $(chr) ...")
+#         regions_chr = read_gff_chr(gff,chr)
+#         chr_size = chr_sizes[findfirst(x->x==chr, chr_names)]
+
+#         # Process regions in chromosome
+#         out_pmap = pmap(x->pmap_comp_uc_chr(x,chr,chr_size,bam1,bam2,pe,g_max,cov_ths,trim,bound_check),regions_chr)
+#         length(out_pmap)>0 || continue
+
+#         # Add last to respective bedGraph file
+#         write_tobs([x[1] for x in out_pmap],chr,out_paths[1])
+#             # write_tobs([x[2] for x in out_pmap],chr,out_paths[2])
+
+#     end
+
+#     # Sort bedGraph if there's output
+#     if all(isfile.(out_paths))
+#         sort_bedgraphs(out_paths)
+#     else
+#         print_log("No output was created. Check the chromosome names in FASTA and GFF match ...")
+#     end
+
+#     # Return nothing
+#     return nothing
+
+# end # end comp_uc_all_chrs
+# """
+#     `pmap_comp_uc_chr(FEAT,CHR,CHR_SIZE,BAM1,BAM2,PE,G,COV_THS,TRIM)`
+
+# Function used in pmap call to estimate UC in a given region defined by FEAT. 
+
+# # Examples
+# ```julia-repl
+# julia> pmap_comp_uc_chr(feat,chr,chr_size,bam1,bam2,pe,g,cov_ths,trim)
+# ```
+# """
+# function pmap_comp_uc_chr(feat::GFF3.Record,chr::String,chr_size::Int64,bam1::String,bam2::String,
+#     pe::Bool,g_max::Int64,cov_ths::Int64,trim::NTuple{4,Int64},bound_check::Bool)::Tuple{Tuple{Int64,Int64,Float64},
+#     Tuple{Int64,Int64,Vector{Float64}},Tuple{Int64,Int64,Vector{Float64}}}
+
+#     # Empty output
+#     nan_out = ((0,0,0.0),(0,0,Vector{Float64}()),(0,0,Vector{Float64}()))
+
+#     # Get window of interest
+#     f_st = GFF3.seqstart(feat)
+#     f_end = GFF3.seqend(feat)
+
+#     # Get CpG sites
+#     cpg_pos = get_cpg_pos(Dict(GFF3.attributes(feat)))
+#     length(cpg_pos[1])>0 || return nan_out
+
+#     # Get vector of Ns
+#     nvec = get_ns(cpg_pos[1],g_max,f_st,f_end)
+#     K = length(nvec)
+
+#     # Get vectors from BAM1 overlapping region
+#     xobs1 = read_bam(bam1,chr,f_st,f_end,cpg_pos[1],chr_size,pe,trim)
+#     obs_per_cpg = get_obs_per_cpg(xobs1)
+#     (cov_ths<=mean_cov(xobs1)<=400) && (sum(obs_per_cpg.==0)<=1.0/5.0*sum(nvec)) || return nan_out
+
+#     # Get vectors from BAM2 overlapping region
+#     xobs2 = read_bam(bam2,chr,f_st,f_end,cpg_pos[1],chr_size,pe,trim)
+#     obs_per_cpg = get_obs_per_cpg(xobs2)
+#     (cov_ths<=mean_cov(xobs2)<=400) && (sum(obs_per_cpg.==0)<=1.0/5.0*sum(nvec)) || return nan_out
+
+#     # Estimate parameters of CPEL models
+#     θhat1 = est_theta_sa(nvec,xobs1)
+#     bound_check && check_boundary(θhat1) && return nan_out
+#     θhat2 = est_theta_sa(nvec,xobs2)
+#     bound_check && check_boundary(θhat1) && return nan_out
+
+#     # Compute NMEs
+#     α1 = θhat1[1:K]
+#     β1 = θhat1[end]
+#     α2 = θhat2[1:K]
+#     β2 = θhat2[end]
+#     z = trues(sum(nvec))
+#     h1 = comp_nme(z,nvec,α1,β1,comp_ex(nvec,α1,β1),comp_exx(nvec,α1,β1))
+#     h2 = comp_nme(z,nvec,α1,β1,comp_ex(nvec,α1,β1),comp_exx(nvec,α1,β1))
+    
+#     # Compute UC
+#     uc = comp_pdm(z,z,nvec,nvec,vcat(α1,β1),vcat(α2,β2),h1,h2)
+
+#     # Return output
+#     return [(f_st,f_end,mml,sum(nvec),length(nvec)),(f_st,f_end,nme,sum(nvec),length(nvec))]
+
+# end # end pmap_allele_agnostic_chr

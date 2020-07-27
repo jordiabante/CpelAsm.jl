@@ -6,7 +6,7 @@
 
 ## Description
 
-CpelAsm is a julia package especifically desgined for haplotype allele-specific 
+CpelAsm is a julia package especifically designed for haplotype allele-specific 
 methylation based on the method in [1]. CpelAsm draws ideas from statistical 
 physics and information theory to detect allele-specific methylation imbalances 
 at the haplotype level.
@@ -24,9 +24,9 @@ CpelAsm is tested against Julia `1.3.0` on the latest versions of Linux, macOS a
 
 ### Installing
 
-`CpelAsm` and dependencies can be installed via the following command:
+`CpelAsm` and dependencies can be installed via the following command in julia's REPL:
 ```julia
-julia -e 'using Pkg; Pkg.add(PackageSpec(url="https://github.com/jordiabante/CpelAsm.jl.git"))'
+(v1.3) pkg> add https://github.com/jordiabante/CpelAsm.jl.git
 ```
 
 ## Running the tests
