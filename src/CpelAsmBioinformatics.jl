@@ -627,30 +627,38 @@ function write_tobs(recs::Vector{Tuple{Int64,Int64,Float64,Int64,Int64}},chr::St
 
 end # end write_tobs
 """
-    `write_theta(RECORDS,CHR,PATH)`
+    `write_model(RECORDS,CHR,PATH)`
 
 Function that writes θ parameter vectors in `RECORDS` into `PATH`.
 
 # Examples
 ```julia-repl
-julia> CpelAsm.write_theta(RECORDS,CHR,PATH)
+julia> CpelAsm.write_model(RECORDS,CHR,PATH)
 ```
 """
-function write_theta(recs::Vector{Tuple{Int64,Int64,Vector{Float64},Int64,Int64}},chr::String,path::String)
+function write_model(recs::Vector{Tuple{Int64,Int64,Vector{Float64},Vector{Int64}}},chr::String,path::String)::Nothing
 
     # Open output bedGraph file in append mode (no need to close it)
     open(path, "a") do f
         for i=1:length(recs)
+
+            # Skip if no data
             recs[i][1]!=0 || continue
+
+            # Get model
             θ = join(recs[i][3],",")
-            write(f,"$(chr)\t$(recs[i][1])\t$(recs[i][2])\t$(θ)\t$(recs[i][4])\t$(recs[i][5])\n")
+            nvec = join(recs[i][4],",")
+
+            # Write line
+            write(f,"$(chr)\t$(recs[i][1])\t$(recs[i][2])\t$(θ)\t$(nvec)\n")
+
         end
     end
 
     # Return
     return nothing
 
-end # end write_theta
+end # end write_model
 """
     `get_cpg_pos(FEAT_ATTS)`
 
@@ -1685,7 +1693,7 @@ function comp_allele_agnostic_output(bam::String,gff::String,fa::String,out_path
         # Add last to respective bedGraph file
         write_tobs([x[1] for x in out_pmap],chr,out_paths[1])
         write_tobs([x[2] for x in out_pmap],chr,out_paths[2])
-        write_theta([x[3] for x in out_pmap],chr,out_paths[3])
+        write_model([x[3] for x in out_pmap],chr,out_paths[3])
 
     end
 
@@ -1712,10 +1720,10 @@ julia> pmap_allele_agnostic_chr(FEAT,CHR,CHR_SIZE,BAM,PE,G,COV_THS,TRIM)
 """
 function pmap_allele_agnostic_chr(feat::GFF3.Record,chr::String,chr_size::Int64,bam::String,pe::Bool,
     g_max::Int64,cov_ths::Int64,trim::NTuple{4,Int64},bound_check::Bool)::Tuple{Tuple{Int64,Int64,Float64,Int64,Int64},
-    Tuple{Int64,Int64,Float64,Int64,Int64},Tuple{Int64,Int64,Vector{Float64},Int64,Int64}}
+    Tuple{Int64,Int64,Float64,Int64,Int64},Tuple{Int64,Int64,Vector{Float64},Vector{Int64}}}
 
     # Empty output
-    nan_out = [(0,0,0.0,0,0),(0,0,0.0,0,0),(0,0,Vector{Float64}(),0,0)]
+    nan_out = [(0,0,0.0,0,0),(0,0,0.0,0,0),(0,0,Vector{Float64}(),Vector{Int64}())]
 
     # Get window of interest
     f_st = GFF3.seqstart(feat)
@@ -1738,21 +1746,21 @@ function pmap_allele_agnostic_chr(feat::GFF3.Record,chr::String,chr_size::Int64,
     bound_check && check_boundary(θhat) && return nan_out
 
     # Estimate intermediate quantities
-    ∇1 = get_grad_logZ(nvec,θhat)
+    ∇logZ = get_grad_logZ(nvec,θhat)
 
     # Compute output
-    mml = comp_mml_∇(nvec,∇1)
-    nme = comp_nme_∇(nvec,θhat,∇1)
+    mml = comp_mml_∇(nvec,∇logZ)
+    nme = comp_nme_∇(nvec,θhat,∇logZ)
 
     # Return output
-    return (f_st,f_end,mml,sum(nvec),length(nvec)),(f_st,f_end,nme,sum(nvec),length(nvec)),(f_st,f_end,θhat,sum(nvec),length(nvec))
+    return (f_st,f_end,mml,sum(nvec),length(nvec)),(f_st,f_end,nme,sum(nvec),length(nvec)),(f_st,f_end,θhat,nvec)
 
 end # end pmap_allele_agnostic_chr
 ###################################################################################################
 # TIME-COURSE ANALYSIS
 ###################################################################################################
 # """
-#     `run_uc_analysis(BAM1_PATH,BAM2_PATH,GFF_PATH,FA_PATH,PREFIX,OUTDIR)`
+#     `run_uc_analysis(MODEL1_PATH,MODEL2_PATH,GFF_PATH,FA_PATH,PREFIX,OUTDIR)`
 
 # Function to call to compute uncertainty coefficient in the regions defined in GFF file.
 
