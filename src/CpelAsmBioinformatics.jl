@@ -1768,7 +1768,7 @@ function pmap_allele_agnostic_chr(feat::GFF3.Record,chr::String,chr_size::Int64,
     Tuple{Int64,Int64,Float64,Int64,Int64},Tuple{Int64,Int64,Vector{Float64},Vector{Int64}}}
 
     # Empty output
-    nan_out = [(0,0,0.0,0,0),(0,0,0.0,0,0),(0,0,Vector{Float64}(),Vector{Int64}())]
+    nan_out = ((0,0,0.0,0,0),(0,0,0.0,0,0),(0,0,Vector{Float64}(),Vector{Int64}()))
 
     # Get window of interest
     f_st = GFF3.seqstart(feat)
