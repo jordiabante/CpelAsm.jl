@@ -1655,7 +1655,7 @@ end # end run_analysis
 """
     `run_allele_agnostic_analysis(BAM_PATH,GFF_PATH,FA_PATH,OUTDIR)`
 
-Function to call to estimate MML & NME in the regions defined in GFF.
+Function to perform allele agnostic analysis in regions defined in GFF file.
 
 # Examples
 ```julia-repl
@@ -1707,7 +1707,7 @@ end # end run_allele_agnostic_analysis
 """
     `comp_allele_agnostic_output(BAM_PATH,GFF_PATH,FA_PATH,OUT_PATH,PE,G,COV_THS,TRIM)`
 
-Function that estimates MML & NME from a BAM file in the regions defined in GFF_PATH. 
+Function internally used to perform allele agnostic analysis in regions defined in GFF file.
 
 # Examples
 ```julia-repl
@@ -1756,7 +1756,7 @@ end # end comp_allele_agnostic_output
 """
     `pmap_allele_agnostic_chr(FEAT,CHR,CHR_SIZE,BAM,PE,G,COV_THS,TRIM)`
 
-Function used in pmap call to estimate MML & NME in a given region defined by FEAT. 
+Function used in pmap call to estimate θ, MML & NME in a given region defined by FEAT. 
 
 # Examples
 ```julia-repl
@@ -1807,7 +1807,7 @@ end # end pmap_allele_agnostic_chr
 """
     `run_uc_analysis(MODEL1_PATH,MODEL2_PATH,FASTA,PREFIX,OUTDIR)`
 
-Function to call to compute uncertainty coefficient in the regions defined in GFF file.
+Function to compute the UC between two model files in common regions.
 
 # Examples
 ```julia-repl
@@ -1846,7 +1846,7 @@ end # end run_uc_analysis
 """
     `comp_uc_all_chrs(MODEL1_PATH,MODEL2_PATH,FASTA,PREFIX,OUTDIR)`
 
-Function that computes UC from model files in intersection.
+Function used internally to compute the UC between two model files in common regions.
 
 # Examples
 ```julia-repl
@@ -1895,7 +1895,7 @@ end # end comp_uc_all_chrs
 """
     `pmap_comp_uc_chr(REG_KEY,MOD1,MOD2)`
 
-Function used in pmap call to compute UC between MOD1 and MOD2. 
+Function used in pmap call to compute UC in a given region between models MOD1 and MOD2. 
 
 # Examples
 ```julia-repl
