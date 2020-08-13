@@ -60,20 +60,20 @@ b2 = "$(dir)/bam/example.a2.bam"
 fa = "$(dir)/fasta/n-masked/example.fa"
 vcf = "$(dir)/vcf/example.vcf"
 out = "$(dir)/out/"
-run_analysis(b1,b2,b1,vcf,fa,out;win_exp=10,n_null=1000,cov_ths=5)
+run_analysis(b1,b2,b1,vcf,fa,out;win_exp=10,n_null=1000,cov_ths=8)
 ```
 
 ## Main Commands
 
 ### Generate GFF files
 
-The first step consists in generating the 2 necessary GFF files: heterozygous and homozygous.
-The former is the one that contains the haplotypes analyzed, while the latter contains the
-homozygous regions of the genome.
+The first step consists in generating the 2 necessary GFF files: heterozygous
+and homozygous. The former is the one that contains the haplotypes analyzed,
+while the latter contains the homozygous regions of the genome.
 
-In the following example, the maximum number of CpG sites allowed per haplotype is 25 (`n_max=25`). 
-In addition, CpelAsm extends the window delimited by the first and last SNP in the haplotype by 100 
-bp left and right (`win_exp=100`).
+In the following example, the maximum number of CpG sites allowed per haplotype
+is 25 (`n_max=25`). In addition, CpelAsm extends the window delimited by the
+first and last SNP in the haplotype by 100 bp left and right (`win_exp=100`).
 
 ```julia
 # Parameters
@@ -95,12 +95,12 @@ gen_gffs([het_gff,hom_gff],fasta,vcf,win_exp,n_max)
 ### BedGraphs MML, NME, & PDM
 
 The next step consists in estimating the allele-specific Ising models in the haplotypes
-and generating bedGraph files with MML1/2, NME1/2, and PDM. CpelAsm can be parallelized 
-when multiple CPUs are available by loading first the package `Distributed` and then 
+and generating bedGraph files with MML1/2, NME1/2, and TPDM. CpelAsm can be parallelized
+when multiple CPUs are available by loading first the package `Distributed` and then
 loading CpelAsm through the macro ``@everywhere`.
 
-In the following example, the maximum size of a subregion is fixed to 500 (`g_max=500`), 
-the minimum average depth is set to 5 (`cov_ths=5`), and the WGBS reads are trimmed 5 bp
+In the following example, the maximum size of a subregion is fixed to 500 (`g_max=500`),
+the minimum average depth is set to 8 (`cov_ths=8`), and the WGBS reads are trimmed 5 bp
 on each end (`trim=(5,5,5,5)`).
 
 ```julia
@@ -110,7 +110,7 @@ using Distributed
 
 # Parameters
 g_max = 500
-cov_ths = 5
+cov_ths = 8
 trim = (5,5,5,5)
 
 # Paths
@@ -134,12 +134,12 @@ comp_tobs(bam1,bam2,het_gff,fasta,tobs_path;g_max=g_max,cov_ths=cov_ths,trim=tri
 ### Generate Null Statistics
 
 The next step consists in generating null statistics to be able to perform hypothesis
-testing. As discussed in the previous point, CpelAsm can be parallelized when multiple 
-CPUs are available by first loading the package `Distributed` and then loading CpelAsm 
+testing. As discussed in the previous point, CpelAsm can be parallelized when multiple
+CPUs are available by first loading the package `Distributed` and then loading CpelAsm
 through the macro ``@everywhere`.
 
-In the following example, the maximum size of a subregion is fixed to 500 (`g_max=500`), 
-the minimum average depth is set to 5 (`cov_ths=5`), and the WGBS reads are trimmed 5 bp
+In the following example, the maximum size of a subregion is fixed to 500 (`g_max=500`),
+the minimum average depth is set to 8 (`cov_ths=8`), and the WGBS reads are trimmed 5 bp
 on each end (`trim=(5,5,5,5)`).
 
 ```julia
@@ -148,7 +148,7 @@ using Distributed
 @everywhere using CpelAsm
 
 # Parameters
-cov_ths = 5
+cov_ths = 8
 g_max = 500
 trim = (5,5,5,5)
 
@@ -229,7 +229,7 @@ using Distributed
 @everywhere using CpelAsm
 
 # Parameters
-cov_ths = 5
+cov_ths = 8
 g_max = 500
 win_exp = 100
 trim = (5,5,5,5)
