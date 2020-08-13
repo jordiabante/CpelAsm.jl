@@ -1,4 +1,8 @@
 name: Docs
+site_name:        CpelAsm.jl
+repo_url:         https://github.com/JuliaDocs/CpelAsm.jl
+site_description: Julia package for allele-specific methylation analysis.
+site_author:      Jordi Abante
 
 on: [push]
 

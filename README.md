@@ -41,10 +41,6 @@ In a `julia` session run
 (v1.3) pkg> test CpelAsm
 ```
 
-## Commands
-
-To check the basic commands refer to https://jordiabante.github.io/CpelAsm.jl/dev/.
-
 ## Toy Example
 
 The package includes a small toy example for illustrative purposes.
