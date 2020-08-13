@@ -723,7 +723,7 @@ julia> CpelAsm.em_alg(n,xobs)
 function em_alg(n::Vector{Int64},xobs::Array{Vector{Int64},1})::Tuple{Vector{Float64},Bool}
 
     # Check if we have complete data
-    complete = findfirst(x->any(x.==0),xobs)==nothing
+    complete = isnothing(findfirst(x->any(x.==0),xobs))
 
     # Initialize θhat
     θhat = rand(Uniform(-1.5,1.5),length(n)+1)
@@ -788,7 +788,7 @@ function est_theta_em(n::Vector{Int64},xobs::Array{Vector{Int64},1})::Tuple{Vect
     sum(n)==1 && return (est_alpha(xobs),true)
 
     # Check if we have complete data
-    complete = findfirst(x->any(x.==0),xobs)==nothing
+    complete = isnothing(findfirst(x->any(x.==0),xobs))
 
     # Initialize
     min_LogLike = Inf

@@ -12,4 +12,5 @@ makedocs(
 
 deploydocs(
     repo = "github.com/jordiabante/CpelAsm.jl.git",
+    latest = "NatComms"
 )

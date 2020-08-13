@@ -6,14 +6,15 @@
 
 ## Description
 
-CpelAsm is a julia package especifically desgined for haplotype allele-specific 
-methylation based on the method in [1]. CpelAsm draws ideas from statistical 
-physics and information theory to detect allele-specific methylation imbalances 
+CpelAsm is a julia package especifically desgined for haplotype allele-specific
+methylation based on the method in [1]. CpelAsm draws ideas from statistical
+physics and information theory to detect allele-specific methylation imbalances
 at the haplotype level.
 
 ## Testing
 
-CpelAsm is tested against Julia `1.3.0` on the latest versions of Linux, macOS and Windows.
+CpelAsm is tested against Julia `1.3.0` on the latest versions of Linux, macOS 
+and Windows.
 
 ## Getting Started
 
@@ -24,17 +25,25 @@ CpelAsm is tested against Julia `1.3.0` on the latest versions of Linux, macOS a
 
 ### Installing
 
-`CpelAsm` and dependencies can be installed via the following command:
+The `CpelAsm` version in [1] and dependencies can be installed via the following 
+command in julia's REPL:
+
 ```julia
-julia -e 'using Pkg; Pkg.add(PackageSpec(url="https://github.com/jordiabante/CpelAsm.jl.git"))'
+julia> using Pkg
+julia> Pkg.add(url="https://github.com/jordiabante/CpelAsm.jl.git",version="0.0.1")
 ```
 
 ## Running the tests
 
 In a `julia` session run
+
 ```julia
 (v1.3) pkg> test CpelAsm
 ```
+
+## Commands
+
+To check the basic commands refer to https://jordiabante.github.io/CpelAsm.jl/dev/.
 
 ## Toy Example
 
@@ -55,7 +64,7 @@ b2 = "$(dir)/bam/example.a2.bam"
 fa = "$(dir)/fasta/n-masked/example.fa"
 vcf = "$(dir)/vcf/example.vcf"
 out = "$(dir)/out/"
-run_analysis(b1,b2,b1,vcf,fa,out;g_max=50,win_exp=10,n_null=1000,n_max=10,cov_ths=6)
+run_analysis(b1,b2,b1,vcf,fa,out;win_exp=10,n_null=1000,cov_ths=5)
 ```
 
 ## Authors
@@ -68,5 +77,6 @@ This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md
 file for details.
 
 ## References
-[1] Abante, J., Fang, Y., Feinberg, A.P., Goutsias, J., Detection of haplotype-dependent 
+
+[1] Abante, J., Fang, Y., Feinberg, A.P., Goutsias, J., Detection of haplotype-dependent
 allele-speciﬁc DNA methylation in WGBS data, *Nature Communications* 2020 XYZ.
