@@ -39,7 +39,7 @@ julia> Pkg.test("CpelAsm")
 1. Clone the repository using
 
     ```bash
-    git clone -b NatComms git@github.com:jordiabante/CpelAsm.jl.git
+    git clone -b NatComms https://github.com/jordiabante/CpelAsm.jl.git
     ```
 
 2. Place the CpelAsm folder in a directory of your choice.
@@ -66,11 +66,11 @@ julia> Pkg.test("CpelAsm")
     julia> using CpelAsm; Pkg.test("CpelAsm")
     ```
 
-If successfully installed, you should see the following prompt:
+6. If successfully installed, you should see the following prompt:
 
-```julia
-    Testing CpelAsm tests passed
-```
+    ```julia
+        Testing CpelAsm tests passed
+    ```
 
 ## Toy Example
 
