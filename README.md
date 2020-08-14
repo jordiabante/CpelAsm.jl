@@ -20,25 +20,56 @@ and Windows.
 
 ### Prerequisites
 
-* julia v1.3.0
+* julia v1.3.0 (https://www.julialang.org/downloads/oldreleases/)
 * git.
 
-### Installing
+### Installing from Github
 
-The `CpelAsm` version in [1] and dependencies can be installed via the following 
-command in julia's REPL:
+The `CpelAsm` version in [1] and dependencies can be installed and tested via the
+following command in julia's REPL:
 
 ```julia
 julia> using Pkg
 julia> Pkg.add(url="https://github.com/jordiabante/CpelAsm.jl.git",version="0.0.1")
+julia> Pkg.test("CpelAsm")
 ```
 
-## Running the tests
+### Local installation
 
-In a `julia` session run
+1. Clone the repository using
+
+    ```bash
+    git clone -b NatComms git@github.com:jordiabante/CpelAsm.jl.git
+    ```
+
+2. Place the CpelAsm folder in a directory of your choice.
+
+3. Start Julia and change the current directory to the CpelAsm folder on
+   your system. To do so, type (for example):
+
+    ```julia
+    # Windows
+    julia> cd("C:\\Users\\UserName\\code\\CpelAsm.jl")
+    # macOS/Unix
+    julia> cd("/Users/UserName/code/CpelAsm.jl")
+    ```
+
+4. Run the following commands to install dependencies:
+
+    ```julia
+    julia> using Pkg; Pkg.activate("."); Pkg.instantiate()
+    ```
+
+5. Run the following command to load and test the CpelAsm.jl package:
+
+    ```julia
+    julia> using CpelAsm; Pkg.test("CpelAsm")
+    ```
+
+If successfully installed, you should see the following prompt:
 
 ```julia
-(v1.3) pkg> test CpelAsm
+    Testing CpelAsm tests passed
 ```
 
 ## Toy Example
