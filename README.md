@@ -25,26 +25,20 @@ and Windows.
 
 ### Installing from Github
 
-The `CpelAsm` version in [1] and dependencies can be installed and tested via the
-following command in julia's REPL:
+The `CpelAsm` release used in [1] and dependencies can be installed and tested via
+the following command in julia's REPL:
 
 ```julia
 julia> using Pkg
-julia> Pkg.add(url="https://github.com/jordiabante/CpelAsm.jl.git",version="0.0.1")
+julia> Pkg.add(PackageSpec(url="https://github.com/jordiabante/CpelAsm.jl",rev="v0.0.1"))
 julia> Pkg.test("CpelAsm")
 ```
 
 ### Local installation
 
-1. Clone the repository using
+1. Place the CpelAsm folder in a directory of your choice.
 
-    ```bash
-    git clone -b NatComms https://github.com/jordiabante/CpelAsm.jl.git
-    ```
-
-2. Place the CpelAsm folder in a directory of your choice.
-
-3. Start Julia and change the current directory to the CpelAsm folder on
+2. Start Julia and change the current directory to the CpelAsm folder on
    your system. To do so, type (for example):
 
     ```julia
@@ -54,19 +48,19 @@ julia> Pkg.test("CpelAsm")
     julia> cd("/Users/UserName/code/CpelAsm.jl")
     ```
 
-4. Run the following commands to install dependencies:
+3. Run the following commands to install dependencies:
 
     ```julia
     julia> using Pkg; Pkg.activate("."); Pkg.instantiate()
     ```
 
-5. Run the following command to load and test the CpelAsm.jl package:
+4. Run the following command to load and test the CpelAsm.jl package:
 
     ```julia
     julia> using CpelAsm; Pkg.test("CpelAsm")
     ```
 
-6. If successfully installed, you should see the following prompt:
+5. If successfully installed, you should see the following prompt:
 
     ```julia
         Testing CpelAsm tests passed
