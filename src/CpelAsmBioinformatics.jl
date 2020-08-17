@@ -946,7 +946,7 @@ function proc_obs_hap(hap::GFF3.Record,chr::String,chr_size::Int64,bam1::String,
     mml2 = all(z2) ? comp_mml_∇(n2,∇2) : comp_mml(z2,ex2)
     nme1 = all(z1) ? comp_nme_∇(n1,θ1,∇1) : comp_nme(z1,n1,θ1[1:(end-1)],θ1[end],ex1,exx1)
     nme2 = all(z2) ? comp_nme_∇(n2,θ2,∇2) : comp_nme(z2,n2,θ2[1:(end-1)],θ2[end],ex2,exx2)
-    pdm = comp_pdm(z1,z2,n1,n2,θ1,θ2,nme1,nme2)
+    pdm = comp_uc(z1,z2,n1,n2,θ1,θ2,nme1,nme2)
 
     # Return output
     return [(hap_st,hap_end,mml1,sum(n),length(n)),
@@ -1377,7 +1377,7 @@ function proc_null_hap(hap::GFF3.Record,ntot::Int64,bam::String,het_gff::String,
         # Estimate output quantities
         nme1 = round(comp_nme_∇(n,θ1,∇1);digits=8)
         nme2 = round(comp_nme_∇(n,θ2,∇2);digits=8)
-        pdm = round(comp_pdm(trues(ntot),trues(ntot),n,n,θ1,θ2,nme1,nme2);digits=8)
+        pdm = round(comp_uc(trues(ntot),trues(ntot),n,n,θ1,θ2,nme1,nme2);digits=8)
 
         # Append stats
         push!(stats,(round(abs(comp_mml_∇(n,∇1)-comp_mml_∇(n,∇2));digits=8),abs(nme1-nme2),pdm))
@@ -1581,7 +1581,7 @@ end # end comp_pvals
 """
     `run_analysis(BAM1_PATH,BAM2_PATH,BAMU_PATH,VCF_PATH,FA_PATH,OUT_PATH)`
 
-Function that estimates MML1/2, NME1/2, and PDM on a pair of BAM files (allele 1, allele 2) given a
+Function that estimates MML1/2, NME1/2, and UC on a pair of BAM files (allele 1, allele 2) given a
 (phased) VCF file that contains the heterozygous SNPs and a FASTA file that contains the reference
 genome. An empirical null distribution for each quantity is estimated from a set of representative
 homozygous regions from unassigned BAM records in BAMU_PATH. A p-value is computed for each
@@ -1904,23 +1904,26 @@ julia> pmap_comp_uc_chr(reg_key,mod1,mod2)
 """
 function pmap_comp_uc_chr(reg_key::String,mod1::Tuple{Vector{Float64},Vector{Int64}},mod2::Tuple{Vector{Float64},Vector{Int64}})::Tuple{Int64,Int64,Float64,Int64,Int64}
 
+    # Debugging
+    # print_log("reg_key: $(reg_key); mod1: $(mod1); mod2: $(mod2)")
+
     # Get data
     θhat1 = mod1[1]
     θhat2 = mod2[1]
     nvec = mod1[2]
     K = length(nvec)
 
-    # Compute NMEs
+    # Compute h(X)'s
     α1 = θhat1[1:K]
     β1 = θhat1[end]
     α2 = θhat2[1:K]
     β2 = θhat2[end]
     z = trues(sum(nvec))
     h1 = comp_nme(z,nvec,α1,β1,comp_ex(nvec,α1,β1),comp_exx(nvec,α1,β1))
-    h2 = comp_nme(z,nvec,α1,β1,comp_ex(nvec,α1,β1),comp_exx(nvec,α1,β1))
+    h2 = comp_nme(z,nvec,α2,β2,comp_ex(nvec,α2,β2),comp_exx(nvec,α2,β2))
     
     # Compute UC
-    uc = comp_pdm(z,z,nvec,nvec,vcat(α1,β1),vcat(α2,β2),h1,h2)
+    uc = comp_uc(z,z,nvec,nvec,vcat(α1,β1),vcat(α2,β2),h1,h2)
 
     # Get genomic coordinates
     coord = String.(split(reg_key,"-"))

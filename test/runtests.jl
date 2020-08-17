@@ -41,5 +41,5 @@ end
     # Check proper NME computation (3)
     @test CpelAsm.comp_nme_mix_exact(trues(4),trues(4),n,n,θ,θ)≈0.463 atol=1e-3
     # Check proper computation of UC
-    @test CpelAsm.comp_pdm(trues(4),trues(4),n,n,θ,θ,h,h)≈0.0 atol=1e-3
+    @test CpelAsm.comp_uc(trues(4),trues(4),n,n,θ,θ,h,h)≈0.0 atol=1e-3
 end

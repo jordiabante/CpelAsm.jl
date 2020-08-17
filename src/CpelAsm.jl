@@ -55,7 +55,7 @@ export comp_nme                     # Compute NME in `comp_tobs`
 export comp_nme_∇                   # Compute NME in `comp_tnull` (uses ∇logZ)
 export comp_nme_mix_mc              # Compute NME in mixture model using MC technique
 export comp_nme_mix_exact           # Compute NME in mixture model recursively (N<17)
-export comp_pdm                     # Compute PDM
+export comp_uc                      # Compute UC
 
 # General functions
 export gen_gffs                     # Function to generate GFF files
