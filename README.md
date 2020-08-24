@@ -34,6 +34,7 @@ Run the following command to load and test the `CpelAsm.jl` package
 
 ```julia
 (v1.3) pkg> test CpelAsm
+```
 
 ### Local installation
 
@@ -66,7 +67,6 @@ Run the following command to load and test the `CpelAsm.jl` package
     ```julia
         Testing CpelAsm tests passed
     ```
-```
 
 ## Toy Example
 
