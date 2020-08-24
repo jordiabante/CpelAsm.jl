@@ -1462,7 +1462,7 @@ function comp_pvals_stat(tobs_path::Vector{String},tnull_path::String,p_path::St
         # Get indexes of Tobs with N=n
         ind = tobs[:,5].==n
         # Compute p-values
-        pvals[ind,5] = pmap(t -> sum(tnull[tnull[:,1].==n,3].>=t)/sum(tnull[:,1].==n),tobs[ind,4])
+        pvals[ind,5] = pmap(t -> (1.0+sum(tnull[tnull[:,1].==n,3].>=t))/(1.0+sum(tnull[:,1].==n)),tobs[ind,4])
     end
 
     # Multiple hypothesis testing correction. NOTE: should we apply BH on each N independently?
