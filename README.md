@@ -22,7 +22,7 @@ CpelAsm is tested against Julia `1.3.0` on the latest versions of Linux, macOS a
 * julia v1.3.0
 * git.
 
-### Installing
+### Installation
 
 `CpelAsm` and dependencies can be installed via the following command in julia's REPL:
 
@@ -30,12 +30,42 @@ CpelAsm is tested against Julia `1.3.0` on the latest versions of Linux, macOS a
 (v1.3) pkg> add https://github.com/jordiabante/CpelAsm.jl.git
 ```
 
-## Running the tests
-
-In a `julia` session run
+Run the following command to load and test the `CpelAsm.jl` package
 
 ```julia
 (v1.3) pkg> test CpelAsm
+
+### Local installation
+
+1. Place the CpelAsm folder in a directory of your choice.
+
+2. Start Julia and change the current directory to the CpelAsm folder on
+   your system. To do so, type (for example):
+
+    ```julia
+    # Windows
+    julia> cd("C:\\Users\\UserName\\code\\CpelAsm.jl")
+    # macOS/Unix
+    julia> cd("/Users/UserName/code/CpelAsm.jl")
+    ```
+
+3. Run the following commands to install dependencies:
+
+    ```julia
+    julia> using Pkg; Pkg.activate("."); Pkg.instantiate()
+    ```
+
+4. Run the following command to load and test the CpelAsm.jl package:
+
+    ```julia
+    julia> using CpelAsm; Pkg.test("CpelAsm")
+    ```
+
+5. If successfully installed, you should see the following prompt:
+
+    ```julia
+        Testing CpelAsm tests passed
+    ```
 ```
 
 ## Toy Example
@@ -58,6 +88,14 @@ fa = "$(dir)/fasta/n-masked/example.fa"
 vcf = "$(dir)/vcf/example.vcf"
 out = "$(dir)/out/"
 run_analysis(b1,b2,b1,vcf,fa,out;g_max=50,cov_ths=5,cov_b=2.0,win_exp=10,n_null=50,n_max=10)
+```
+
+Alternatively, if the installation has been done locally, this can
+be simply run using the following shell command in the `CpelAsm.jl`
+folder:
+
+```bash
+julia calls/ToyExample.jl
 ```
 
 ## Authors
