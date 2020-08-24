@@ -33,11 +33,11 @@ gen_gffs([het_gff,hom_gff],fasta,vcf,win_exp,n_max)
 ## BedGraphs MML, NME, & UC
 
 The next step consists in estimating the allele-specific Ising models in the haplotypes
-and generating bedGraph files with MML1/2, NME1/2, and UC. CpelAsm can be parallelized 
-when multiple CPUs are available by loading first the package `Distributed` and then 
+and generating bedGraph files with MML1/2, NME1/2, and UC. CpelAsm can be parallelized
+when multiple CPUs are available by loading first the package `Distributed` and then
 loading CpelAsm through the macro ``@everywhere`.
 
-In the following example, the maximum size of a subregion is fixed to 500 (`g_max=500`), 
+In the following example, the maximum size of a subregion is fixed to 500 (`g_max=500`),
 the minimum average depth is set to 8 (`cov_ths=8`), and the WGBS reads are trimmed 5 bp
 on each end (`trim=(5,5,5,5)`).
 
@@ -72,11 +72,11 @@ comp_tobs(bam1,bam2,het_gff,fasta,tobs_path;g_max=g_max,cov_ths=cov_ths,trim=tri
 ## Generate Null Statistics
 
 The next step consists in generating null statistics to be able to perform hypothesis
-testing. As discussed in the previous point, CpelAsm can be parallelized when multiple 
-CPUs are available by first loading the package `Distributed` and then loading CpelAsm 
+testing. As discussed in the previous point, CpelAsm can be parallelized when multiple
+CPUs are available by first loading the package `Distributed` and then loading CpelAsm
 through the macro ``@everywhere`.
 
-In the following example, the maximum size of a subregion is fixed to 500 (`g_max=500`), 
+In the following example, the maximum size of a subregion is fixed to 500 (`g_max=500`),
 the minimum average depth is set to 8 (`cov_ths=8`), and the WGBS reads are trimmed 5 bp
 on each end (`trim=(5,5,5,5)`).
 
