@@ -1912,6 +1912,7 @@ function pmap_comp_uc_chr(reg_key::String,mod1::Tuple{Vector{Float64},Vector{Int
     θhat2 = mod2[1]
     nvec = mod1[2]
     K = length(nvec)
+        # print_log("θhat1: $(θhat1); θhat2: $(θhat2)")
 
     # Compute h(X)'s
     α1 = θhat1[1:K]
@@ -1921,9 +1922,11 @@ function pmap_comp_uc_chr(reg_key::String,mod1::Tuple{Vector{Float64},Vector{Int
     z = trues(sum(nvec))
     h1 = comp_nme(z,nvec,α1,β1,comp_ex(nvec,α1,β1),comp_exx(nvec,α1,β1))
     h2 = comp_nme(z,nvec,α2,β2,comp_ex(nvec,α2,β2),comp_exx(nvec,α2,β2))
-    
+        # print_log("h1: $(h1); h2: $(h2)")
+
     # Compute UC
     uc = comp_uc(z,z,nvec,nvec,vcat(α1,β1),vcat(α2,β2),h1,h2)
+        # print_log("uc: $(uc)")
 
     # Get genomic coordinates
     coord = String.(split(reg_key,"-"))

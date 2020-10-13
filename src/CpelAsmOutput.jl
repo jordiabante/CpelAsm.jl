@@ -395,9 +395,9 @@ vector Z (i.e., via Hadamard product Z*X, where * is the Hadamard product).
 
 # Examples
 ```julia-repl
-julia> n1=[10]; n2=[10];
+julia> n1=[20]; n2=[20];
 julia> z1=trues(sum(n1)); z2=trues(sum(n2));
-julia> α1=[2.5]; α2=[-2.5]; β1=0.0; β2=0.0;
+julia> α1=[2.5]; α2=[2.5]; β1=0.0; β2=0.0;
 julia> h1=CpelAsm.comp_nme(z1,n1,α1,β1,CpelAsm.comp_ex(n1,α1,β1),CpelAsm.comp_exx(n1,α1,β1));
 julia> h2=CpelAsm.comp_nme(z2,n2,α2,β2,CpelAsm.comp_ex(n2,α2,β2),CpelAsm.comp_exx(n2,α2,β2));
 julia> CpelAsm.comp_uc(z1,z2,n1,n2,vcat(α1,β1),vcat(α2,β2),h1,h2)
@@ -409,9 +409,13 @@ function comp_uc(z1::BitArray{1},z2::BitArray{1},n1::Vector{Int64},n2::Vector{In
 
     # Compute h(x)
     h = sum(z1)<17 ? comp_nme_mix_exact(z1,z2,n1,n2,t1,t2) : comp_nme_mix_mc(z1,z2,n1,n2,t1,t2)
+        # print_log("h: $(h)")
+
+    # If H(X)≈0 then UC=0
+    uc = isapprox(h,0.0,atol=1e-5) ? 0.0 : min(1.0,max(0.0,1.0-0.5*(h1+h2)/h))
 
     # Return
-    return round(min(1.0,max(0.0,1.0-0.5*(h1+h2)/h));digits=8)
+    return round(uc;digits=8)
 
 end # end comp_uc
 ###################################################################################################
