@@ -65,6 +65,7 @@ export comp_pvals                   # Compute p-values
 export run_analysis                 # Run it all
 export run_analysis                 # Run it all
 export run_uc_analysis              # Run allele-agnostic UC computations
+export run_jsd_analysis             # Run allele-agnostic JSD computations
 export run_allele_agnostic_analysis # Run allele-agnostic analysis
 
 end # module

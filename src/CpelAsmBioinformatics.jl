@@ -387,7 +387,7 @@ function get_records_ps!(reader::VCF.Reader,seq::FASTA.Record,record::VCF.Record
 
 end # end get_records_ps
 """
-    `expand_win(FIRST_SNP,LAST_SNP,WIN_EXP,BLOCK_SIZE,CHR_SIZE)`
+    `expand_win(FIRST_SNP,LAST_SNP,WIN_EXP,CHR_SIZE)`
 
 Function that returns an expanded window given the position of the first and last SNPs, the
 expansion to be done to the left and right, of the first and last SNP respectively, to include
@@ -528,7 +528,7 @@ function gen_gffs(gff::Vector{String},fa::String,vcf::String,win_exp::Int64,n_ma
                     print_log("Check FASTA file is masked. Exiting julia ...")
                     exit(1)
                 end
-                # Make submodel window a multiple of G (no new CpGs included)
+                # Make submodel window
                 win_mod = expand_win(inf_bound,sup_bound,0,chr_size)
                 # Push output string
                 out_str = "$(curr_chr)\t.\t$(curr_ps)-$(i)/$(n_mod)\t$(win_mod[1])\t$(win_mod[2])"
@@ -1932,3 +1932,138 @@ function pmap_comp_uc_chr(reg_key::String,mod1::Tuple{Vector{Float64},Vector{Int
     return (parse(Int64,coord[2]),parse(Int64,coord[3]),uc,sum(nvec),length(nvec))
 
 end # end pmap_comp_uc_chr
+###################################################################################################
+# JSD COMPUTATIONS
+###################################################################################################
+"""
+    `run_jsd_analysis(MODEL1_PATH,MODEL2_PATH,FASTA,PREFIX,OUTDIR)`
+
+Function to compute the JSD between two model files in common regions.
+
+# Examples
+```julia-repl
+julia> run_jsd_analysis(model1_path,model2_path,fa,prefix,outdir)
+```
+"""
+function run_jsd_analysis(mod1::String,mod2::String,fa::String,prefix::String,outdir::String)::Nothing
+
+    # Print initialization
+    print_log("Starting JSD computations ...")
+    
+    # Create output folder if it doesn't exist
+    isdir(outdir) || mkdir(outdir)
+
+    # Output files
+    out_path = "$(outdir)/$(prefix)" * "_jsd.bedGraph"
+
+    # Check for existance of output file
+    if isfile(out_path)
+        print_log("Output file already exists. Exiting julia ...")
+        sleep(5)
+        exit(0)
+    end
+
+    # Compute uncertainty coefficient in all chromosomes
+    print_log("Computing JSD ...")
+    comp_jsd_all_chrs(mod1,mod2,fa,out_path)
+
+    # Print done
+    print_log("Done.")
+
+    # Return
+    return nothing
+
+end # end run_jsd_analysis
+"""
+    `comp_jsd_all_chrs(MODEL1_PATH,MODEL2_PATH,FASTA,PREFIX,OUTDIR)`
+
+Function used internally to compute the JSD between two model files in common regions.
+
+# Examples
+```julia-repl
+julia> comp_jsd_all_chrs(mod1_path,mod2_path,fa,prefix,outdir)
+```
+"""
+function comp_jsd_all_chrs(mod1::String,mod2::String,fa::String,out_path::String)::Nothing
+
+    # Find chromosomes
+    reader_fa = open(FASTA.Reader,fa,index=fa*".fai")
+    chr_sizes = reader_fa.index.lengths
+    chr_names = reader_fa.index.names
+    close(reader_fa)
+
+    # Loop over chromosomes
+    for chr in chr_names
+
+        # Get models pertaining to current chromosome
+        print_log("Processing chr: $(chr) ...")
+        mod_dic_chr_1 = read_model_chr(mod1,chr)
+        mod_dic_chr_2 = read_model_chr(mod2,chr)
+
+        # Get intersection of regions analyzes
+        common_reg = collect(intersect(keys(mod_dic_chr_1),keys(mod_dic_chr_2)))
+
+        # Process regions in chromosome
+        out_pmap = pmap(x->pmap_comp_jsd_chr(x,mod_dic_chr_1[x],mod_dic_chr_2[x]),common_reg)
+        length(out_pmap)>0 || continue
+
+        # Add to respective bedGraph file
+        write_tobs(out_pmap,chr,out_path)
+
+    end
+
+    # Sort bedGraph if there's output
+    if all(isfile(out_path))
+        sort_bedgraphs([out_path])
+    else
+        print_log("No output was created. Check the chromosome names in FASTA and GFF match ...")
+    end
+
+    # Return nothing
+    return nothing
+
+end # end comp_jsd_all_chrs
+"""
+    `pmap_comp_jsd_chr(REG_KEY,MOD1,MOD2)`
+
+Function used in pmap call to compute JSD in a given region between models MOD1 and MOD2. 
+
+# Examples
+```julia-repl
+julia> pmap_comp_jsd_chr(reg_key,mod1,mod2)
+```
+"""
+function pmap_comp_jsd_chr(reg_key::String,mod1::Tuple{Vector{Float64},Vector{Int64}},mod2::Tuple{Vector{Float64},Vector{Int64}})::Tuple{Int64,Int64,Float64,Int64,Int64}
+
+    # Get data
+    θhat1 = mod1[1]
+    θhat2 = mod2[1]
+    nvec = mod1[2]
+    K = length(nvec)
+
+    # Compute h(X)'s
+    α1 = θhat1[1:K]
+    β1 = θhat1[end]
+    α2 = θhat2[1:K]
+    β2 = θhat2[end]
+    z = trues(sum(nvec))
+    h1 = comp_nme(z,nvec,α1,β1,comp_ex(nvec,α1,β1),comp_exx(nvec,α1,β1))
+    h2 = comp_nme(z,nvec,α2,β2,comp_ex(nvec,α2,β2),comp_exx(nvec,α2,β2))
+    h = sum(z)<17 ? comp_nme_mix_exact(z,z,nvec,nvec,θhat1,θhat2) : comp_nme_mix_mc(z,z,nvec,nvec,θhat1,θhat2)
+
+    # Compute normalized mutual information
+    jsd = sum(z) * max(0.0,h - 0.5 * (h1+h2))
+
+    # Bound quantity
+    jsd = round(min(1.0,jsd);digits=8)
+
+    # Get square root version (Nature Genetics)
+    jsd = sqrt(jsd) 
+
+    # Get genomic coordinates
+    coord = String.(split(reg_key,"-"))
+    
+    # Return tuple
+    return (parse(Int64,coord[2]),parse(Int64,coord[3]),jsd,sum(nvec),length(nvec))
+
+end # end pmap_comp_jsd_chr
