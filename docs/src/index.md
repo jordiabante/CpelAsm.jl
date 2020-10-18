@@ -45,4 +45,5 @@ In a `julia` session run
 ## References
 
 [1] Abante, J., Fang, Y., Feinberg, A.P., Goutsias, J., Detection of haplotype-dependent
-allele-speciﬁc DNA methylation in WGBS data, *Nature Communications* 2020 XYZ.
+allele-speciﬁc DNA methylation in WGBS data, *Nature Communications* 11, 5238 (2020),
+[https://doi.org/10.1038/s41467-020-19077-1](https://doi.org/10.1038/s41467-020-19077-1).
