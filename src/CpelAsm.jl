@@ -30,6 +30,7 @@ using MultipleTesting           # For multiple hypothesis testing
 include("CpelAsmEstimation.jl")
 include("CpelAsmSimulations.jl")
 include("CpelAsmBioinformatics.jl")
+# include("CpelAsmAgnostic.jl")
 include("CpelAsmOutput.jl")
 ###################################################################################################
 # EXPORTS
@@ -63,9 +64,8 @@ export comp_tobs                    # Compute statistis in haplotypes
 export comp_tnull                   # Generate null statistis
 export comp_pvals                   # Compute p-values
 export run_analysis                 # Run it all
-export run_analysis                 # Run it all
-export run_uc_analysis              # Run allele-agnostic UC computations
-export run_jsd_analysis             # Run allele-agnostic JSD computations
-export run_allele_agnostic_analysis # Run allele-agnostic analysis
+# export run_uc_analysis              # Run allele-agnostic UC computations
+# export run_jsd_analysis             # Run allele-agnostic JSD computations
+# export run_allele_agnostic_analysis # Run allele-agnostic analysis
 
 end # module
