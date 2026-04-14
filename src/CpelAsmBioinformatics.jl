@@ -1422,8 +1422,8 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,tobs_
     # Seed random number generators for reproducibility if requested
     if rng_seed >= 0
         Random.seed!(rng_seed)
-        for (i,wid) in enumerate(workers())
-            remotecall_fetch(s -> Random.seed!(s), wid, rng_seed + i)
+        for wid in workers()
+            remotecall_fetch(s -> Random.seed!(s), wid, rng_seed + wid)
         end
     end
 
