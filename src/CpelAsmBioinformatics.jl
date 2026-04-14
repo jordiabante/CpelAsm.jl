@@ -1397,6 +1397,14 @@ end
 Function that computes null Tmml, Tnme, and Tpdm from a BAM files at locations given by GFF that
 contains the windows with not genetic variants and a FASTA file that contains the reference genome.
 
+Optional keyword arguments:
+- `n_null`: Number of null statistics sampled per N value for constructing the empirical null
+  distribution (default: 1000). Higher values (e.g., 10000) yield a more accurate null distribution
+  and improve detection of all signal types (MML, NME, PDM) at the cost of longer runtime.
+- `rng_seed`: Integer seed for the random number generator (default: -1, meaning no seeding). Set
+  to a non-negative integer to make stochastic steps reproducible across runs. When parallel
+  workers are active each worker is seeded as `rng_seed + worker_id` to avoid identical streams.
+
 # Examples
 ```julia-repl
 julia> comp_tnull(BAM_PATH,GFF_PATH,FA_PATH,OUT_PATH)
@@ -1406,10 +1414,18 @@ function comp_tnull(bam::String,het_gff::String,hom_gff::String,fa::String,tobs_
                     out_paths::Vector{String};pe::Bool=true,g_max::Int64=500,cov_ths::Int64=5,
                     cov_a::Float64=0.0,cov_b::Float64=2.0,trim::NTuple{4,Int64}=(5,0,5,0),
                     n_null::Int64=1000,n_max::Int64=20,n_subset::Vector{Int64}=collect(1:n_max),
-                    bound_check::Bool=true)::Nothing
+                    bound_check::Bool=true,rng_seed::Int64=-1)::Nothing
 
     # BigWig output files
     tmml_path,tnme_path,pdm_path = out_paths
+
+    # Seed random number generators for reproducibility if requested
+    if rng_seed >= 0
+        Random.seed!(rng_seed)
+        for (i,wid) in enumerate(workers())
+            remotecall_fetch(s -> Random.seed!(s), wid, rng_seed + i)
+        end
+    end
 
     # Find relevant chromosomes and sizes
     reader_fa = open(FASTA.Reader,fa,index=fa*".fai")
@@ -1587,6 +1603,18 @@ genome. An empirical null distribution for each quantity is estimated from a set
 homozygous regions from unassigned BAM records in BAMU_PATH. A p-value is computed for each
 haplotype in the VCF file.
 
+Optional keyword arguments:
+- `win_exp`: Number of base pairs to expand the heterozygous window on each side (default: 100).
+  Larger values (e.g., 150–250 bp) capture more reads and CpG sites at the cost of potentially
+  spanning additional variants. The optimal value depends on the typical read length and CpG
+  density; values matching the sequencing read length are a reasonable starting point.
+- `n_null`: Number of null statistics sampled per N value for constructing the empirical null
+  distribution (default: 1000). Higher values (e.g., 10000) yield a more accurate null distribution
+  and improve detection of all signal types (MML, NME, PDM) at the cost of longer runtime.
+- `rng_seed`: Integer seed for the random number generator (default: -1, meaning no seeding). Set
+  to a non-negative integer to make stochastic steps reproducible across runs. When parallel
+  workers are active each worker is seeded as `rng_seed + worker_id` to avoid identical streams.
+
 # Examples
 ```julia-repl
 julia> run_analysis(BAM1_PATH,BAM2_PATH,BAMU_PATH,VCF_PATH,FA_PATH,OUT_PATH)
@@ -1596,7 +1624,7 @@ function run_analysis(bam1::String,bam2::String,bamu::String,vcf::String,fa::Str
                       pe::Bool=true,g_max::Int64=500,win_exp::Int64=100,cov_ths::Int64=5,
                       cov_a::Float64=0.0,cov_b::Float64=2.0,trim::NTuple{4,Int64}=(5,0,5,0),
                       n_null::Int64=1000,n_max::Int64=25,n_subset::Vector{Int64}=collect(1:n_max),
-                      bound_check::Bool=true)::Nothing
+                      bound_check::Bool=true,rng_seed::Int64=-1)::Nothing
 
     # Print initialization of juliASM
     print_log("Starting CpelAsm analysis ...")
@@ -1636,7 +1664,8 @@ function run_analysis(bam1::String,bam2::String,bamu::String,vcf::String,fa::Str
     # Compute null statistics from homozygous loci
     print_log("Generating null statistics in homozygous loci ...")
     comp_tnull(bamu,het_gff,hom_gff,fa,tobs_path,tnull_path;pe=pe,g_max=g_max,cov_ths=cov_ths,cov_a=cov_a,
-               cov_b=cov_b,trim=trim,n_null=n_null,n_max=n_max,n_subset=n_subset,bound_check=bound_check)
+               cov_b=cov_b,trim=trim,n_null=n_null,n_max=n_max,n_subset=n_subset,bound_check=bound_check,
+               rng_seed=rng_seed)
 
     # Compute null statistics from heterozygous loci
     print_log("Computing p-values in heterozygous loci ...")
