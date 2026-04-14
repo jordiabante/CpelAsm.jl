@@ -1403,7 +1403,8 @@ Optional keyword arguments:
   and improve detection of all signal types (MML, NME, PDM) at the cost of longer runtime.
 - `rng_seed`: Integer seed for the random number generator (default: -1, meaning no seeding). Set
   to a non-negative integer to make stochastic steps reproducible across runs. When parallel
-  workers are active each worker is seeded as `rng_seed + worker_id` to avoid identical streams.
+  workers are active each worker process is seeded as `rng_seed + wid`, where `wid` is the
+  distributed process identifier, to avoid identical RNG streams across workers.
 
 # Examples
 ```julia-repl
@@ -1613,7 +1614,8 @@ Optional keyword arguments:
   and improve detection of all signal types (MML, NME, PDM) at the cost of longer runtime.
 - `rng_seed`: Integer seed for the random number generator (default: -1, meaning no seeding). Set
   to a non-negative integer to make stochastic steps reproducible across runs. When parallel
-  workers are active each worker is seeded as `rng_seed + worker_id` to avoid identical streams.
+  workers are active each worker process is seeded as `rng_seed + wid`, where `wid` is the
+  distributed process identifier, to avoid identical RNG streams across workers.
 
 # Examples
 ```julia-repl
